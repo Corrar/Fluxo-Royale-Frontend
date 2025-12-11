@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { subscribeToLoading } from "@/services/api";
 
 // --- Utility ---
-const cn = (...classes) => classes.filter(Boolean).join(" ");
+const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");
 
 // --- Componente: SVG Spinner (Loader Circular) ---
 const SvgSpinner = () => {
@@ -58,59 +59,58 @@ const SvgSpinner = () => {
   );
 };
 
-// --- Componente Principal da Tela de Carregamento ---
-interface LoadingScreenProps {
+// --- Interface das Propriedades (CORRIGIDA) ---
+export interface LoadingScreenProps {
   className?: string;
-  isLoading?: boolean;
+  message?: string; // Adicionado para corrigir o erro do ProtectedRoute
 }
 
-export function LoadingScreen({ 
-  className, 
-  isLoading = true 
-}: LoadingScreenProps) {
-  const [shouldRender, setShouldRender] = useState(isLoading);
-  const [isFading, setIsFading] = useState(false);
+export function LoadingScreen({ className, message }: LoadingScreenProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Se uma mensagem foi passada via props (ex: pelo ProtectedRoute), 
+  // consideramos que o loading deve ser forçado.
+  const isForced = !!message;
+  
+  // O estado final de exibição é: ou está carregando via API, ou está forçado via props
+  const shouldShow = isLoading || isForced;
 
   useEffect(() => {
-    if (!isLoading) {
-      setIsFading(true);
-      // Aguarda a animação de fade-out terminar antes de remover do DOM
-      const timer = setTimeout(() => {
-        setShouldRender(false);
-      }, 700);
-      return () => clearTimeout(timer);
-    } else {
-      setShouldRender(true);
-      setIsFading(false);
-    }
-  }, [isLoading]);
+    // Se estiver forçado via props, não precisa ouvir a API
+    if (isForced) return;
 
-  if (!shouldRender) return null;
+    // Conecta com o api.ts para saber quando tem requisição rodando
+    const unsubscribe = subscribeToLoading((loadingState) => {
+      setIsLoading(loadingState);
+    });
+
+    return () => unsubscribe();
+  }, [isForced]);
+
+  if (!shouldShow) return null;
 
   return (
     <div
       className={cn(
         "fixed inset-0 z-[9999] flex flex-col items-center justify-center",
         "bg-white/95 backdrop-blur-xl", // Fundo branco limpo
-        "transition-opacity duration-700 ease-in-out",
-        isFading ? "opacity-0 pointer-events-none" : "opacity-100",
+        "transition-opacity duration-300 ease-in-out",
         className
       )}
     >
       {/* Loader aumentado para destaque */}
-      <div className="scale-150 transform">
+      <div className="scale-150 transform mb-6">
         <SvgSpinner />
       </div>
+
+      {/* Texto da mensagem (se houver) */}
+      {message && (
+        <h2 className="text-blue-700 font-semibold text-lg tracking-wide animate-pulse">
+          {message}
+        </h2>
+      )}
     </div>
   );
 }
 
-// --- Aplicação Demo ---
-export default function App() {
-  // Simplesmente renderiza a tela de carregamento ativa
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
-      <LoadingScreen isLoading={true} />
-    </div>
-  );
-}
+export default LoadingScreen;
