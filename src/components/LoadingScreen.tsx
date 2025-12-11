@@ -62,26 +62,29 @@ const SvgSpinner = () => {
 // --- Interface das Propriedades (CORRIGIDA) ---
 export interface LoadingScreenProps {
   className?: string;
-  message?: string; // Adicionado para corrigir o erro do ProtectedRoute
+  message?: string;
+  isLoading?: boolean; // Adicionado para corrigir o erro de build
 }
 
-export function LoadingScreen({ className, message }: LoadingScreenProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export function LoadingScreen({ className, message, isLoading: propLoading }: LoadingScreenProps) {
+  const [internalLoading, setInternalLoading] = useState(false);
   
-  // Se uma mensagem foi passada via props (ex: pelo ProtectedRoute), 
+  // Se uma mensagem foi passada via props ou o propLoading for true, 
   // consideramos que o loading deve ser forçado.
-  const isForced = !!message;
+  const isForced = !!message || (propLoading === true);
   
-  // O estado final de exibição é: ou está carregando via API, ou está forçado via props
-  const shouldShow = isLoading || isForced;
+  // O estado final de exibição é: ou está carregando internamente (via API), ou está forçado via props
+  const shouldShow = internalLoading || isForced;
 
   useEffect(() => {
-    // Se estiver forçado via props, não precisa ouvir a API
+    // Se estiver forçado via props, mantemos a lógica original de não necessariamente ouvir,
+    // ou podemos deixar ouvindo sempre. A lógica original removia o listener se 'isForced' fosse true.
+    // Manteremos similar para evitar updates desnecessários se já estamos mostrando o loader.
     if (isForced) return;
 
     // Conecta com o api.ts para saber quando tem requisição rodando
     const unsubscribe = subscribeToLoading((loadingState) => {
-      setIsLoading(loadingState);
+      setInternalLoading(loadingState);
     });
 
     return () => unsubscribe();
