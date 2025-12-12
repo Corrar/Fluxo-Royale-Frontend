@@ -25,7 +25,8 @@ export function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
   const isAssistente = profile?.role === "assistente_tecnico";
   const isChefe = profile?.role === "chefe";
   
-  const canViewCompras = isCompras || isAlmoxarife;
+  // ATUALIZADO: Incluído isChefe
+  const canViewCompras = isCompras || isAlmoxarife || isChefe;
   const canViewDashboard = isAdmin || isAlmoxarife || isCompras || isChefe; 
   const isTecnico = isAuxiliar || isAssistente;
   
@@ -89,7 +90,8 @@ export function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
           {showCalculatorLink && renderLink("/calculator", <Calculator className="h-5 w-5" />, "Calculadora")}
 
           {/* GESTÃO */}
-          {(isAlmoxarife || isCompras || isSetor) && (
+          {/* ATUALIZADO: Incluído isChefe */}
+          {(isAlmoxarife || isCompras || isSetor || isChefe) && (
             <div className="pt-4 pb-2">
               {!isCollapsed && (
                 <p className="mb-2 px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
@@ -97,7 +99,10 @@ export function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
                 </p>
               )}
               {(isAlmoxarife || isCompras) && renderLink("/products", <Package className="h-5 w-5" />, "Produtos")}
-              {isAlmoxarife && renderLink("/stock", <ShoppingCart className="h-5 w-5" />, "Estoque")}
+              
+              {/* ATUALIZADO: Chefe agora vê o Estoque */}
+              {(isAlmoxarife || isChefe) && renderLink("/stock", <ShoppingCart className="h-5 w-5" />, "Estoque")}
+              
               {isSetor && renderLink("/stock-view", <Eye className="h-5 w-5" />, "Consultar")}
             </div>
           )}
@@ -122,7 +127,8 @@ export function Sidebar({ isCollapsed, toggleSidebar }: SidebarProps) {
           )}
 
           {/* ADMINISTRAÇÃO */}
-          {(isAlmoxarife || isCompras) && (
+          {/* ATUALIZADO: Incluído isChefe para ver Compras/Low-stock */}
+          {(isAlmoxarife || isCompras || isChefe) && (
             <div className="pt-4 pb-2">
               {!isCollapsed && <p className="mb-2 px-2 text-xs font-semibold text-muted-foreground uppercase truncate">Admin</p>}
               {canViewCompras && renderLink("/low-stock", <ShoppingCart className="h-5 w-5" />, "Compras")}

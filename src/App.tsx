@@ -29,7 +29,7 @@ import StockWithdrawalPage from "./pages/StockWithdrawalPage";
 import TravelReconciliation from "./pages/TravelReconciliation";
 import CalculatorPage from "./pages/CalculatorPage";
 import RemindersPage from "./pages/RemindersPage";
-import Inicio from "./pages/Inicio"; // <--- NOVO IMPORT ADICIONADO
+import Inicio from "./pages/Inicio";
 
 const queryClient = new QueryClient();
 
@@ -144,10 +144,11 @@ const App = () => (
                 }
               />
               
+              {/* ATUALIZADO: Adicionado 'chefe' */}
               <Route
                 path="/stock"
                 element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife", "auxiliar", "assistente_tecnico"]}>
+                  <ProtectedRoute allowedRoles={["admin", "almoxarife", "auxiliar", "assistente_tecnico", "chefe"]}>
                     <Layout>
                       <Stock />
                     </Layout>
@@ -210,10 +211,11 @@ const App = () => (
                 }
               />
               
+              {/* ATUALIZADO: Adicionado 'chefe' */}
               <Route
                 path="/low-stock"
                 element={
-                  <ProtectedRoute allowedRoles={["compras", "admin", "almoxarife"]}>
+                  <ProtectedRoute allowedRoles={["compras", "admin", "almoxarife", "chefe"]}>
                     <Layout>
                       <LowStock />
                     </Layout>
