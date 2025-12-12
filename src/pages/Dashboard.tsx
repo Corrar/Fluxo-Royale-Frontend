@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react"; // Adicionado useState e useEffect
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Package, FileText, ClipboardList, AlertTriangle, DollarSign, 
   Activity, TrendingUp, Calendar 
@@ -29,6 +30,38 @@ export default function Dashboard() {
     }).format(value);
   };
 
+  // --- NOVO COMPONENTE DE ANIMAÇÃO (Efeito Caça-Níquel) ---
+  const AnimatedCounter = ({ value }: { value: number }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+
+    useEffect(() => {
+      let startTimestamp: number | null = null;
+      const duration = 2000; // Duração da animação em ms (2 segundos)
+      const startValue = 0;
+
+      const step = (timestamp: number) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        
+        // Easing function (easeOutExpo) para desacelerar elegantemente no final
+        const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+        
+        const current = startValue + (value - startValue) * ease;
+        
+        setDisplayValue(current);
+
+        if (progress < 1) {
+          window.requestAnimationFrame(step);
+        }
+      };
+
+      window.requestAnimationFrame(step);
+    }, [value]);
+
+    return <>{formatCurrency(displayValue)}</>;
+  };
+  // -------------------------------------------------------
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Bom dia";
@@ -46,7 +79,10 @@ export default function Dashboard() {
         <DollarSign className="h-4 w-4 text-emerald-600" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-emerald-700">{formatCurrency(stats?.totalValue || 0)}</div>
+        {/* APLICADO EFEITO AQUI */}
+        <div className="text-2xl font-bold text-emerald-700">
+          <AnimatedCounter value={stats?.totalValue || 0} />
+        </div>
       </CardContent>
     </Card>
   );
@@ -99,8 +135,9 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* APLICADO EFEITO AQUI */}
               <div className="text-3xl font-bold text-white">
-                {formatCurrency(stats?.totalValue || 0)}
+                <AnimatedCounter value={stats?.totalValue || 0} />
               </div>
               <p className="text-xs text-emerald-100/80 mt-1">Capital imobilizado</p>
             </CardContent>

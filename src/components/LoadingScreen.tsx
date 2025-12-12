@@ -49,7 +49,6 @@ const SvgSpinner = () => {
         `}
       </style>
       
-      {/* Container minimalista */}
       <div className="p-4 bg-white/50 rounded-full backdrop-blur-sm">
         <svg className="svg-loader" viewBox="25 25 50 50">
           <circle className="svg-circle" r="20" cy="50" cx="50"></circle>
@@ -59,36 +58,43 @@ const SvgSpinner = () => {
   );
 };
 
-// --- Interface das Propriedades (CORRIGIDA) ---
 export interface LoadingScreenProps {
   className?: string;
   message?: string;
-  isLoading?: boolean; // Adicionado para corrigir o erro de build
+  isLoading?: boolean;
 }
 
 export function LoadingScreen({ className, message, isLoading: propLoading }: LoadingScreenProps) {
   const [internalLoading, setInternalLoading] = useState(false);
   
-  // Se uma mensagem foi passada via props ou o propLoading for true, 
-  // consideramos que o loading deve ser forçado.
-  const isForced = !!message || (propLoading === true);
+  // Verifica se o componente está sendo controlado por props (ex: GlobalLoader)
+  const isControlled = propLoading !== undefined;
   
-  // O estado final de exibição é: ou está carregando internamente (via API), ou está forçado via props
-  const shouldShow = internalLoading || isForced;
+  // Se tem mensagem, forçamos a exibição.
+  const hasMessage = !!message;
+
+  // Lógica de exibição:
+  // 1. Se tem mensagem, mostra.
+  // 2. Se é controlado, usa a prop.
+  // 3. Se não é controlado, usa o estado interno.
+  const shouldShow = hasMessage || (isControlled ? propLoading : internalLoading);
 
   useEffect(() => {
-    // Se estiver forçado via props, mantemos a lógica original de não necessariamente ouvir,
-    // ou podemos deixar ouvindo sempre. A lógica original removia o listener se 'isForced' fosse true.
-    // Manteremos similar para evitar updates desnecessários se já estamos mostrando o loader.
-    if (isForced) return;
+    // Se o componente está sendo controlado externamente (pelo App.tsx),
+    // NÓS NÃO DEVEMOS ASSINAR O LISTENER INTERNO.
+    // Isso evita o conflito onde o componente "lembra" que estava carregando.
+    if (isControlled || hasMessage) {
+      setInternalLoading(false); // Reseta para garantir limpeza
+      return;
+    }
 
-    // Conecta com o api.ts para saber quando tem requisição rodando
+    // Apenas assina o evento global se o componente estiver "solto" (sem props de controle)
     const unsubscribe = subscribeToLoading((loadingState) => {
       setInternalLoading(loadingState);
     });
 
     return () => unsubscribe();
-  }, [isForced]);
+  }, [isControlled, hasMessage]);
 
   if (!shouldShow) return null;
 

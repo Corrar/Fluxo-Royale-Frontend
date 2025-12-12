@@ -12,10 +12,10 @@ export default function Auth() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  // Redirecionar se já estiver logado
+  // --- CORREÇÃO AQUI: Redirecionar para /inicio se já estiver logado ---
   useEffect(() => {
     if (user) {
-      navigate("/");
+      navigate("/inicio");
     }
   }, [user, navigate]);
 
@@ -77,6 +77,7 @@ export default function Auth() {
         toast.error("Credenciais inválidas. Verifique seu ID e senha.");
       } else {
         toast.success("Bem-vindo de volta!");
+        // A navegação ocorre automaticamente pelo useEffect acima ou pelo AuthContext
       }
     } catch (error) {
       toast.error("Erro de conexão. Tente novamente.");

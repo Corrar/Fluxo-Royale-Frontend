@@ -53,9 +53,9 @@ export default function Stock() {
   const [adjustValue, setAdjustValue] = useState("");
 
   const [priceDialog, setPriceDialog] = useState(false); // Para preço de Venda
-  const [costDialog, setCostDialog] = useState(false); // Para preço de Custo (Novo, simples)
+  const [costDialog, setCostDialog] = useState(false); // Para preço de Custo
   const [selectedProductForPrice, setSelectedProductForPrice] = useState<any>(null);
-  const [priceValue, setPriceValue] = useState(""); // Reutilizável para custo ou venda
+  const [priceValue, setPriceValue] = useState(""); 
 
   // 1. BUSCAR ESTOQUE
   const { data: stocks, isLoading } = useQuery({
@@ -63,39 +63,70 @@ export default function Stock() {
     queryFn: async () => (await api.get("/stock")).data,
   });
 
-  // 2. MUTAÇÕES
+  // 2. MUTAÇÕES (CORRIGIDAS COM MELHOR TRATAMENTO DE ERRO)
   const manualEntryMutation = useMutation({
     mutationFn: async (items: any[]) => await api.post("/manual-entry", { items }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["stocks"] }); toast.success("Entrada registrada!"); resetTransaction(); },
-    onError: () => toast.error("Erro na entrada"),
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["stocks"] }); 
+      toast.success("Entrada registrada com sucesso!"); 
+      resetTransaction(); 
+    },
+    onError: (error: any) => {
+      console.error("Erro entrada:", error);
+      toast.error(`Erro na entrada: ${error.response?.data?.error || "Falha de comunicação"}`);
+    },
   });
 
   const manualExitMutation = useMutation({
     mutationFn: async (data: { sector: string; items: any[] }) => await api.post("/manual-withdrawal", data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["stocks"] }); toast.success("Saída registrada!"); resetTransaction(); },
-    onError: () => toast.error("Erro na saída"),
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["stocks"] }); 
+      toast.success("Saída registrada com sucesso!"); 
+      resetTransaction(); 
+    },
+    onError: (error: any) => {
+      console.error("Erro saída:", error);
+      toast.error(`Erro na saída: ${error.response?.data?.error || "Falha de comunicação"}`);
+    },
   });
 
   const adjustMutation = useMutation({
     mutationFn: async ({ id, quantity }: { id: string; quantity: number }) => await api.put(`/stock/${id}`, { quantity_on_hand: quantity }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["stocks"] }); toast.success("Estoque ajustado!"); setAdjustDialog(false); },
-    onError: () => toast.error("Erro ao ajustar"),
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["stocks"] }); 
+      toast.success("Estoque ajustado!"); 
+      setAdjustDialog(false); 
+    },
+    onError: () => toast.error("Erro ao ajustar estoque"),
   });
 
   const updateCostPriceMutation = useMutation({
     mutationFn: async ({ id, price }: { id: string; price: number }) => await api.put(`/products/${id}`, { unit_price: price }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["stocks"] }); toast.success("Custo atualizado!"); setCostDialog(false); },
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["stocks"] }); 
+      toast.success("Custo atualizado!"); 
+      setCostDialog(false); 
+    },
     onError: () => toast.error("Erro ao atualizar custo"),
   });
 
   const updateSalesPriceMutation = useMutation({
     mutationFn: async ({ id, price }: { id: string; price: number }) => await api.put(`/products/${id}`, { sales_price: price }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["stocks"] }); toast.success("Preço de venda atualizado!"); setPriceDialog(false); },
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["stocks"] }); 
+      toast.success("Preço de venda atualizado!"); 
+      setPriceDialog(false); 
+    },
     onError: () => toast.error("Erro ao atualizar venda"),
   });
 
   // --- Helpers ---
-  const resetTransaction = () => { setCart([]); setDestination(""); setSearchTerm(""); setViewMode("table"); };
+  const resetTransaction = () => { 
+    setCart([]); 
+    setDestination(""); 
+    setSearchTerm(""); 
+    setViewMode("table"); 
+  };
 
   const filteredStocks = useMemo(() => {
     if (!stocks) return [];
@@ -116,11 +147,21 @@ export default function Stock() {
 
   const addToCart = (stock: any) => {
     if (cart.find(item => item.product_id === stock.products.id)) return toast.info("Item já na lista");
-    const available = stock.quantity_on_hand - stock.quantity_reserved;
+    
+    // Cálculo seguro de disponível
+    const currentOnHand = Number(stock.quantity_on_hand) || 0;
+    const currentReserved = Number(stock.quantity_reserved) || 0;
+    const available = currentOnHand - currentReserved;
+
     if (viewMode === "exit" && available <= 0) return toast.error("Sem estoque disponível.");
+    
     setCart([...cart, {
-      product_id: stock.products.id, name: stock.products.name, sku: stock.products.sku, unit: stock.products.unit,
-      current_stock: viewMode === "exit" ? available : stock.quantity_on_hand, quantity: 1
+      product_id: stock.products.id, 
+      name: stock.products.name, 
+      sku: stock.products.sku, 
+      unit: stock.products.unit,
+      current_stock: viewMode === "exit" ? available : currentOnHand, 
+      quantity: 1
     }]);
   };
 
@@ -143,11 +184,17 @@ export default function Stock() {
 
   const handleConfirmTransaction = () => {
     const validItems = cart.filter(i => i.quantity > 0);
-    if (validItems.length === 0) return toast.error("Adicione itens válidos.");
-    if (viewMode === "entry") manualEntryMutation.mutate(validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })));
-    else {
+    
+    if (validItems.length === 0) return toast.error("Adicione itens válidos com quantidade maior que 0.");
+    
+    if (viewMode === "entry") {
+      manualEntryMutation.mutate(validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })));
+    } else {
       if (!destination) return toast.error("Selecione o destino.");
-      manualExitMutation.mutate({ sector: destination, items: validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })) });
+      manualExitMutation.mutate({ 
+        sector: destination, 
+        items: validItems.map(i => ({ product_id: i.product_id, quantity: i.quantity })) 
+      });
     }
   };
 
@@ -199,7 +246,7 @@ export default function Stock() {
             <TableBody>
               {isLoading ? <TableRow><TableCell colSpan={9} className="text-center h-24">Carregando...</TableCell></TableRow> : 
                paginatedStocks.map((stock: any) => {
-                const available = stock.quantity_on_hand - stock.quantity_reserved;
+                const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
                 const isLow = stock.products?.min_stock && available < stock.products.min_stock;
                 return (
                   <TableRow key={stock.id}>
@@ -209,11 +256,10 @@ export default function Stock() {
                     <TableCell className="text-amber-600">{stock.quantity_reserved}</TableCell>
                     <TableCell className="font-bold">{available.toFixed(2)}</TableCell>
                     
-                    {/* CUSTO UNITÁRIO (Edição Simples) */}
+                    {/* CUSTO UNITÁRIO */}
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span>{stock.products?.unit_price ? `R$ ${Number(stock.products.unit_price).toFixed(2)}` : "-"}</span>
-                        {/* Se for Auxiliar (ou admin/compras), mostra apenas o LÁPIS para editar o valor calculado manualmente */}
                         {canEditCost && (
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenCostPrice(stock)}>
                             <Pencil className="h-3 w-3 text-muted-foreground hover:text-emerald-600" />
@@ -290,7 +336,7 @@ export default function Stock() {
           </DialogContent>
         </Dialog>
 
-        {/* DIALOG DE CUSTO UNITÁRIO (Simples) */}
+        {/* DIALOG DE CUSTO UNITÁRIO */}
         <Dialog open={costDialog} onOpenChange={setCostDialog}>
           <DialogContent>
             <DialogHeader><DialogTitle>Atualizar Custo Unitário</DialogTitle></DialogHeader>
@@ -373,7 +419,7 @@ export default function Stock() {
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-2 space-y-2">
             {filteredStocks.map((stock: any) => {
-               const available = stock.quantity_on_hand - stock.quantity_reserved;
+               const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
                return (
                 <div 
                   key={stock.id} 

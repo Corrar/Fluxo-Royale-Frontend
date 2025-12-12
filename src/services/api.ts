@@ -17,11 +17,34 @@ const notifyListeners = (isLoading: boolean) => {
   listeners.forEach(l => l(isLoading));
 };
 
+// --- FUNÇÕES AUXILIARES (Nova Lógica de Segurança) ---
+
+const handleRequestStart = () => {
+  activeRequests++;
+  if (activeRequests === 1) {
+    // Só exibe o loading se a requisição demorar mais de 300ms
+    loadingTimer = setTimeout(() => {
+      notifyListeners(true);
+    }, 300);
+  }
+};
+
+const handleRequestEnd = () => {
+  activeRequests--;
+  // Garante que nunca fique negativo e limpa corretamente
+  if (activeRequests <= 0) {
+    activeRequests = 0;
+    if (loadingTimer) {
+      clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
+    notifyListeners(false);
+  }
+};
+
 // Função inteligente para definir o endereço
 const getBaseUrl = () => {
   // 1. PRIORIDADE: Variável de ambiente (Produção)
-  // Quando você fizer o deploy na Vercel, você definirá a variável 'VITE_API_URL'
-  // com o link do seu backend (ex: https://seu-backend.onrender.com)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
@@ -29,7 +52,6 @@ const getBaseUrl = () => {
   const { hostname } = window.location;
   
   // 2. FALLBACK: Desenvolvimento Local
-  // Se estiver no PC (localhost), usa localhost
   if (hostname === 'localhost') {
     return 'http://localhost:3000';
   }
@@ -42,40 +64,31 @@ export const api = axios.create({
   baseURL: getBaseUrl(),
 });
 
-// Interceptadores
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+// --- INTERCEPTADORES ---
 
-  activeRequests++;
-  
-  // Só ativa o loading se a requisição demorar mais de 300ms
-  if (activeRequests === 1) {
-    loadingTimer = setTimeout(() => {
-      notifyListeners(true);
-    }, 300);
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    handleRequestStart(); // Inicia contagem
+    return config;
+  },
+  (error) => {
+    handleRequestEnd(); // Finaliza se der erro na montagem da requisição
+    return Promise.reject(error);
   }
-
-  return config;
-});
+);
 
 api.interceptors.response.use(
   (response) => {
-    activeRequests--;
-    if (activeRequests === 0) {
-      if (loadingTimer) clearTimeout(loadingTimer);
-      notifyListeners(false);
-    }
+    handleRequestEnd(); // Finaliza no sucesso
     return response;
   },
   (error) => {
-    activeRequests--;
-    if (activeRequests === 0) {
-      if (loadingTimer) clearTimeout(loadingTimer);
-      notifyListeners(false);
-    }
+    handleRequestEnd(); // Finaliza no erro de resposta
     return Promise.reject(error);
   }
 );

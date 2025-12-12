@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/services/api";
 import { toast } from "sonner";
 
-// --- CORREÇÃO AQUI: Adicionados os novos cargos ---
+// --- NOVOS CARGOS ---
 type UserRole = "admin" | "almoxarife" | "setor" | "compras" | "auxiliar" | "chefe" | "assistente_tecnico";
 
 interface User {
@@ -23,7 +23,13 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (id: string, password: string) => Promise<{ error: any }>;
-  signUp: (id: string, password: string, name: string, role: UserRole, sector?: string) => Promise<{ error: any }>;
+  signUp: (
+    id: string,
+    password: string,
+    name: string,
+    role: UserRole,
+    sector?: string
+  ) => Promise<{ error: any }>;
   signOut: () => void;
 }
 
@@ -32,44 +38,72 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true); // Começa true para cobrir o F5 (Load inicial)
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // ========================================================================
+  // 🔥 CARREGAR SESSÃO NO F5 (Corrigido para setar o Header da API)
+  // ========================================================================
   useEffect(() => {
-    // Recuperar sessão ao recarregar a página (F5)
-    const token = localStorage.getItem('auth_token');
-    const savedUser = localStorage.getItem('user_data');
-    const savedProfile = localStorage.getItem('user_profile');
+    const loadSession = () => {
+      const token = localStorage.getItem("auth_token");
+      const savedUser = localStorage.getItem("user_data");
+      const savedProfile = localStorage.getItem("user_profile");
 
-    if (token && savedUser && savedProfile) {
-      setUser(JSON.parse(savedUser));
-      setProfile(JSON.parse(savedProfile));
-    }
-    
-    // Pequeno delay visual para garantir que não pisque no F5
-    setTimeout(() => setLoading(false), 500);
+      if (token && savedUser && savedProfile) {
+        try {
+          // 1. Configura o token no Axios IMEDIATAMENTE
+          api.defaults.headers.Authorization = `Bearer ${token}`;
+
+          // 2. Restaura o estado
+          setUser(JSON.parse(savedUser));
+          setProfile(JSON.parse(savedProfile));
+        } catch (error) {
+          console.error("Erro ao restaurar sessão:", error);
+          localStorage.clear();
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    loadSession();
   }, []);
 
+  // ========================================================================
+  // 🔥 LOGIN
+  // ========================================================================
   const signIn = async (id: string, password: string) => {
-    setLoading(true); // Ativa loading manual
+    setLoading(true);
+
     try {
-      const email = id.includes('@') ? id : `${id.trim().toLowerCase()}@fluxoroyale.local`;
-      
-      // O axios (api.ts) também vai tentar ativar o loading, mas como já setamos true aqui, fica fluido
-      const response = await api.post('/auth/login', { email, password });
+      // Lógica de e-mail local
+      const email = id.includes("@")
+        ? id.trim().toLowerCase()
+        : `${id.trim().toLowerCase()}@fluxoroyale.local`;
+
+      const response = await api.post("/auth/login", { email, password });
+
       const { token, user, profile } = response.data;
 
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('user_data', JSON.stringify(user));
-      localStorage.setItem('user_profile', JSON.stringify(profile));
+      // 1. Salvar dados
+      localStorage.setItem("auth_token", token);
+      localStorage.setItem("user_data", JSON.stringify(user));
+      localStorage.setItem("user_profile", JSON.stringify(profile));
 
+      // 2. Aplicar token ao Axios (Fundamental para próximas requisições)
+      api.defaults.headers.Authorization = `Bearer ${token}`;
+
+      // 3. Atualizar estado global
       setUser(user);
       setProfile(profile);
-      navigate("/");
-      
+
+      // 4. Redirecionar para o Início
+      navigate("/inicio");
+
       return { error: null };
     } catch (error: any) {
-      console.error(error);
+      console.error("LOGIN ERROR:", error);
       const msg = error.response?.data?.error || "Erro ao conectar com o servidor";
       return { error: { message: msg } };
     } finally {
@@ -77,26 +111,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // ========================================================================
+  // 🔒 CADASTRO BLOQUEADO
+  // ========================================================================
   const signUp = async () => {
     toast.error("Cadastro via site desabilitado. Solicite ao administrador.");
     return { error: { message: "Funcionalidade restrita" } };
   };
 
+  // ========================================================================
+  // 🔥 LOGOUT
+  // ========================================================================
   const signOut = () => {
-    setLoading(true); // Efeito visual de saída
-    
-    // Simula um pequeno processamento para dar feedback visual ao usuário
+    setLoading(true);
+
     setTimeout(() => {
+      // Limpa dados locais
       localStorage.clear();
+      
+      // Limpa header da API para evitar uso de token antigo
+      delete api.defaults.headers.Authorization;
+
+      // Reseta estados
       setUser(null);
       setProfile(null);
+      
       navigate("/auth");
       setLoading(false);
-    }, 800);
+    }, 500);
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        signIn,
+        signUp,
+        signOut
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -104,6 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
+  if (context === undefined)
+    throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
