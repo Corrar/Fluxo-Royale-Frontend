@@ -1,30 +1,33 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoadingScreen } from "@/components/LoadingScreen";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: string[];
+  requiredPermission?: string; // Mudamos de allowedRoles para requiredPermission
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, profile, loading } = useAuth();
+export function ProtectedRoute({ children, requiredPermission }: ProtectedRouteProps) {
+  const { user, loading, canAccess } = useAuth();
+  const location = useLocation();
 
-  // Enquanto está carregando o usuário, não podemos decidir nada ainda
+  // 1. Loading: Espera o AuthContext carregar o usuário e as permissões do banco
   if (loading) {
-    return <LoadingScreen message="Verificando acesso..." />;
+    return <LoadingScreen isLoading={true} message="Verificando permissões..." />;
   }
 
-  // Se não estiver logado, redireciona para /auth
+  // 2. Autenticação: Se não tiver usuário, manda pro login
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Se houver regra de roles e não corresponder ao perfil, redireciona
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/" replace />;
+  // 3. Autorização: Verifica se o usuário tem a permissão exigida (definida no PermissionsPage)
+  // A função canAccess() já cuida de liberar tudo se for Admin
+  if (requiredPermission && !canAccess(requiredPermission)) {
+    // Se não tiver permissão, redireciona para o Início (página segura padrão)
+    return <Navigate to="/inicio" replace />;
   }
 
-  // Tudo OK → renderiza a rota protegida
+  // 4. Tudo certo: Renderiza a página
   return <>{children}</>;
 }

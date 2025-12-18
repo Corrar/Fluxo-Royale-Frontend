@@ -59,6 +59,9 @@ export default function Auth() {
     return "bg-green-500";
   };
 
+  // ========================================================================
+  // 🔥 LÓGICA DE LOGIN ATUALIZADA
+  // ========================================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -70,20 +73,19 @@ export default function Auth() {
 
     setLoading(true);
 
-    try {
-      const { error } = await signIn(loginId, loginPassword);
-      
-      if (error) {
-        toast.error("Credenciais inválidas. Verifique seu ID e senha.");
-      } else {
-        toast.success("Bem-vindo de volta!");
-        // A navegação ocorre automaticamente pelo useEffect acima ou pelo AuthContext
-      }
-    } catch (error) {
-      toast.error("Erro de conexão. Tente novamente.");
-    } finally {
-      setLoading(false);
+    // Chama o signIn, que já faz o tratamento de erro e retorna o objeto { error }
+    const { error } = await signIn(loginId, loginPassword);
+    
+    if (error) {
+      // Usa a mensagem específica retornada pelo AuthContext (incluindo "Muitas tentativas erradas")
+      const errorMessage = error.message || "Erro de conexão. Tente novamente.";
+      toast.error(errorMessage);
+    } else {
+      toast.success("Bem-vindo de volta!");
+      // A navegação ocorre automaticamente pelo AuthContext após login bem-sucedido
     }
+
+    setLoading(false);
   };
 
   return (

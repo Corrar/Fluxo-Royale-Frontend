@@ -10,26 +10,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
-  CheckCircle2, 
-  AlertTriangle, 
-  ArrowLeft, 
-  Upload, 
-  FileSpreadsheet, 
-  Plus, 
-  Trash2,
-  ArrowRightLeft
+  CheckCircle2, AlertTriangle, ArrowLeft, Upload, FileSpreadsheet, Plus, Trash2,
+  ArrowRightLeft, FileText, Download, Scale
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { exportToExcel, exportToPDF } from "@/utils/exportUtils"; // <--- Importando utilitário
 
 // Definição do tipo de item
 interface TravelItem {
   sku: string;
   name: string;
   quantity: number;
-  unit: string; // Novo campo
+  unit: string;
 }
 
 interface ComparisonResult extends TravelItem {
@@ -41,16 +41,16 @@ interface ComparisonResult extends TravelItem {
 export default function TravelReconciliation() {
   const navigate = useNavigate();
 
-  // Estados de Dados (Listas)
+  // Estados de Dados
   const [outboundList, setOutboundList] = useState<TravelItem[]>([]);
   const [inboundList, setInboundList] = useState<TravelItem[]>([]);
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult[]>([]);
   
-  // Estados para Itens Manuais (Inputs) - Agora com 'unit'
+  // Estados para Itens Manuais
   const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
   const [manualInbound, setManualInbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
 
-  // --- 1. BUSCAR PRODUTOS (Para Auto-Complete) ---
+  // 1. BUSCAR PRODUTOS (Para Auto-Complete)
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
@@ -59,26 +59,22 @@ export default function TravelReconciliation() {
 
   const findProduct = (sku: string) => products.find((p: any) => p.sku === sku);
 
-  // --- HANDLER INTELIGENTE DE SKU (Auto-Preencher Nome e Unidade) ---
+  // HANDLER INTELIGENTE DE SKU
   const handleSkuChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'outbound' | 'inbound') => {
     const newSku = e.target.value;
     const setInput = type === 'outbound' ? setManualOutbound : setManualInbound;
     const currentInput = type === 'outbound' ? manualOutbound : manualInbound;
 
-    // Atualiza o SKU
     const updatedInput = { ...currentInput, sku: newSku };
-    
-    // Tenta achar o produto para auto-preencher
     const found = findProduct(newSku);
     if (found) {
       updatedInput.name = found.name;
-      updatedInput.unit = found.unit || "un"; // Preenche unidade
+      updatedInput.unit = found.unit || "un";
     }
-
     setInput(updatedInput);
   };
 
-  // --- LEITURA DE EXCEL (Melhorada para ler unidade) ---
+  // LEITURA DE EXCEL
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'outbound' | 'inbound') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -95,7 +91,7 @@ export default function TravelReconciliation() {
         sku: String(row['sku'] || row['SKU'] || row['Codigo'] || row['Código'] || row['id'] || "Unknown"),
         name: String(row['name'] || row['Nome'] || row['Produto'] || row['Descricao'] || "Item sem nome"),
         quantity: Number(row['quantity'] || row['qtd'] || row['Qtd'] || row['Quantidade'] || 0),
-        unit: String(row['unit'] || row['unidade'] || row['un'] || row['medida'] || "un") // Tenta ler unidade
+        unit: String(row['unit'] || row['unidade'] || row['un'] || row['medida'] || "un")
       })).filter(item => item.quantity > 0);
 
       if (type === 'outbound') {
@@ -109,7 +105,7 @@ export default function TravelReconciliation() {
     reader.readAsBinaryString(file);
   };
 
-  // --- ADICIONAR ITEM MANUAL ---
+  // ADICIONAR ITEM MANUAL
   const addManualItem = (type: 'outbound' | 'inbound') => {
     const itemData = type === 'outbound' ? manualOutbound : manualInbound;
     const setList = type === 'outbound' ? setOutboundList : setInboundList;
@@ -118,14 +114,6 @@ export default function TravelReconciliation() {
     if (!itemData.sku || !itemData.quantity) {
       toast.warning("Preencha SKU e Quantidade");
       return;
-    }
-
-    const isRegistered = findProduct(itemData.sku);
-    if (!isRegistered) {
-      toast.warning(`Aviso: SKU "${itemData.sku}" não encontrado!`, {
-        description: "Adicionado manualmente. Verifique o código.",
-        duration: 4000,
-      });
     }
 
     const newItem: TravelItem = {
@@ -138,22 +126,20 @@ export default function TravelReconciliation() {
     setList(prev => {
       const existing = prev.find(i => i.sku === newItem.sku);
       if (existing) {
-        // Soma quantidade se já existir na lista temporária
         return prev.map(i => i.sku === newItem.sku ? { ...i, quantity: i.quantity + newItem.quantity } : i);
       }
       return [...prev, newItem];
     });
 
-    setInput({ sku: "", name: "", quantity: "", unit: "" }); // Limpar inputs
+    setInput({ sku: "", name: "", quantity: "", unit: "" });
   };
 
-  // --- REMOVER ITEM ---
   const removeItem = (sku: string, type: 'outbound' | 'inbound') => {
     const setList = type === 'outbound' ? setOutboundList : setInboundList;
     setList(prev => prev.filter(i => i.sku !== sku));
   };
 
-  // --- LÓGICA DE CONFRONTO ---
+  // LÓGICA DE CONFRONTO
   const handleCompare = () => {
     if (outboundList.length === 0) {
       toast.error("A lista de SAÍDA está vazia.");
@@ -182,7 +168,7 @@ export default function TravelReconciliation() {
       inboundMap.delete(outItem.sku);
     });
 
-    // 2. Verifica itens que voltaram mas não saíram
+    // 2. Verifica itens que voltaram mas não saíram (Inesperados)
     inboundList.forEach(inItem => {
       if (inboundMap.has(inItem.sku)) {
         results.push({
@@ -199,98 +185,158 @@ export default function TravelReconciliation() {
 
     setComparisonResult(results);
     toast.success("Confronto realizado com sucesso!");
+    
+    // Rola para o resultado
+    setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 100);
+  };
+
+  // --- EXPORTAÇÃO DO RELATÓRIO FINAL ---
+  const handleExportResult = (type: 'pdf' | 'excel') => {
+    if (comparisonResult.length === 0) {
+        toast.error("Realize o confronto primeiro.");
+        return;
+    }
+
+    const exportData = comparisonResult.map(item => ({
+        SKU: item.sku,
+        Produto: item.name,
+        "Qtd. Saída": item.quantity,
+        "Qtd. Retorno": item.returnedQuantity,
+        "Diferença": item.difference,
+        "Status": item.status === 'ok' ? "OK" : item.status === 'missing' ? "FALTA" : "SOBRA"
+    }));
+
+    if (type === 'excel') {
+        exportToExcel(exportData, "Relatorio_Confronto_Viagem");
+        toast.success("Excel baixado!");
+    } else {
+        const columns = [
+            { header: "SKU", dataKey: "SKU" },
+            { header: "Produto", dataKey: "Produto" },
+            { header: "Saída", dataKey: "Qtd. Saída" },
+            { header: "Retorno", dataKey: "Qtd. Retorno" },
+            { header: "Dif.", dataKey: "Diferença" },
+            { header: "Status", dataKey: "Status" },
+        ];
+        exportToPDF("Relatório de Confronto de Viagem", columns, exportData, "Confronto_PDF");
+        toast.success("PDF gerado!");
+    }
   };
 
   return (
-    <div className="space-y-6 pb-10">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate("/")}><ArrowLeft className="mr-2 h-4 w-4"/> Voltar</Button>
-        <div>
-          <h1 className="text-3xl font-bold">Confronto de Viagem</h1>
-          <p className="text-muted-foreground">Compare o material enviado com o retorno físico.</p>
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="shrink-0">
+                <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <Scale className="h-8 w-8 text-blue-600" />
+                    Confronto de Viagem
+                </h1>
+                <p className="text-muted-foreground">Auditoria de materiais: Saída vs. Retorno físico.</p>
+            </div>
         </div>
+
+        {/* Botão de Exportar só aparece se tiver resultado */}
+        {comparisonResult.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 border-dashed border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100">
+                  <Download className="h-4 w-4" /> Exportar Resultado
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportResult('excel')} className="gap-2 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportResult('pdf')} className="gap-2 cursor-pointer">
+                  <FileText className="h-4 w-4 text-red-600" /> PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+        )}
       </div>
 
+      {/* ÁREA DE INPUTS (GRIDS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* --- COLUNA 1: SAÍDA (Ida) --- */}
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5 text-blue-500" /> 
-              Lista de Saída (Ida)
+        <Card className="border-t-4 border-t-blue-500 shadow-md">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+                <div className="flex items-center gap-2">
+                    <Upload className="h-5 w-5 text-blue-600" /> 
+                    Lista de Saída (Ida)
+                </div>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200">{outboundList.length} itens</Badge>
             </CardTitle>
-            <CardDescription>O que foi levado para a viagem?</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="upload">Upload Excel</TabsTrigger>
-                <TabsTrigger value="manual">Lista Manual</TabsTrigger>
+                <TabsTrigger value="manual">Manual</TabsTrigger>
               </TabsList>
 
-              {/* TAB UPLOAD (SAÍDA) */}
-              <TabsContent value="upload" className="space-y-4 mt-4">
-                <div className="bg-muted p-4 rounded-lg border border-dashed text-center">
-                  <Label htmlFor="outbound-file" className="cursor-pointer block">
+              <TabsContent value="upload">
+                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-blue-200 text-center">
+                  <Label htmlFor="outbound-file" className="cursor-pointer block h-full">
                     <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-sm font-medium">Carregar Planilha de Saída</span>
-                      <span className="text-xs text-muted-foreground">Colunas: SKU, Nome, Qtd, Unidade</span>
+                      <FileSpreadsheet className="h-10 w-10 text-blue-400" />
+                      <span className="text-sm font-medium text-blue-700">Clique para carregar planilha</span>
+                      <span className="text-xs text-muted-foreground">Colunas: SKU, Nome, Qtd</span>
                     </div>
                   </Label>
                   <Input id="outbound-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleFileUpload(e, 'outbound')} />
                 </div>
               </TabsContent>
 
-              {/* TAB MANUAL (SAÍDA) - COM CAMPO UNIDADE */}
-              <TabsContent value="manual" className="space-y-4 mt-4">
+              <TabsContent value="manual" className="space-y-3">
                 <div className="flex gap-2 items-end">
-                  <div className="grid gap-1 w-24">
-                    <Label>SKU</Label>
-                    <Input placeholder="Cód." value={manualOutbound.sku} onChange={(e) => handleSkuChange(e, 'outbound')} />
+                  <div className="grid gap-1 w-20">
+                    <Label className="text-xs">SKU</Label>
+                    <Input className="h-8" placeholder="Cód." value={manualOutbound.sku} onChange={(e) => handleSkuChange(e, 'outbound')} />
                   </div>
                   <div className="grid gap-1 flex-1">
-                    <Label>Produto</Label>
-                    <Input placeholder="Nome" value={manualOutbound.name} onChange={e => setManualOutbound({...manualOutbound, name: e.target.value})} />
+                    <Label className="text-xs">Produto</Label>
+                    <Input className="h-8" placeholder="Nome" value={manualOutbound.name} onChange={e => setManualOutbound({...manualOutbound, name: e.target.value})} />
                   </div>
-                  <div className="grid gap-1 w-20">
-                    <Label>Un.</Label>
-                    <Input placeholder="un" value={manualOutbound.unit} onChange={e => setManualOutbound({...manualOutbound, unit: e.target.value})} />
+                  <div className="grid gap-1 w-16">
+                    <Label className="text-xs">Qtd.</Label>
+                    <Input className="h-8" type="number" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
                   </div>
-                  <div className="grid gap-1 w-20">
-                    <Label>Qtd.</Label>
-                    <Input type="number" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
-                  </div>
-                  <Button onClick={() => addManualItem('outbound')} className="bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4" /></Button>
+                  <Button size="sm" onClick={() => addManualItem('outbound')} className="bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4" /></Button>
                 </div>
               </TabsContent>
 
-              {/* LISTA DE SAÍDA */}
               {outboundList.length > 0 && (
-                <div className="rounded-md border h-64 overflow-hidden mt-4">
+                <div className="rounded-md border h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
                   <ScrollArea className="h-full">
                     <Table>
-                      <TableHeader className="bg-muted sticky top-0">
-                        <TableRow>
-                          <TableHead>Item (Saída)</TableHead>
-                          <TableHead className="text-right">Qtd.</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
+                      <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                        <TableRow className="h-8">
+                          <TableHead className="text-xs font-bold">Produto</TableHead>
+                          <TableHead className="text-right text-xs font-bold w-16">Qtd</TableHead>
+                          <TableHead className="w-8"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {outboundList.map((item, idx) => (
-                          <TableRow key={`${item.sku}-${idx}`}>
-                            <TableCell>
-                              <div className="font-medium text-xs">{item.name}</div>
+                          <TableRow key={`${item.sku}-${idx}`} className="h-10">
+                            <TableCell className="py-1">
+                              <div className="font-medium text-xs truncate max-w-[200px]">{item.name}</div>
                               <div className="text-[10px] text-muted-foreground">{item.sku}</div>
                             </TableCell>
-                            <TableCell className="text-right font-bold text-blue-600">
-                              {item.quantity} <span className="text-xs text-gray-400 font-normal">{item.unit}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'outbound')} className="h-6 w-6">
-                                <Trash2 className="h-3 w-3 text-red-500" />
+                            <TableCell className="text-right font-bold text-blue-600 py-1 text-sm">{item.quantity}</TableCell>
+                            <TableCell className="py-1">
+                              <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'outbound')} className="h-6 w-6 text-muted-foreground hover:text-red-500">
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -305,82 +351,76 @@ export default function TravelReconciliation() {
         </Card>
 
         {/* --- COLUNA 2: RETORNO (Volta) --- */}
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ArrowRightLeft className="h-5 w-5 text-orange-500" /> 
-              Lista de Retorno (Volta)
+        <Card className="border-t-4 border-t-orange-500 shadow-md">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+                <div className="flex items-center gap-2">
+                    <ArrowRightLeft className="h-5 w-5 text-orange-600" /> 
+                    Lista de Retorno (Volta)
+                </div>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-200">{inboundList.length} itens</Badge>
             </CardTitle>
-            <CardDescription>O que voltou fisicamente?</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="upload">Upload Excel</TabsTrigger>
-                <TabsTrigger value="manual">Lista Manual</TabsTrigger>
+                <TabsTrigger value="manual">Manual</TabsTrigger>
               </TabsList>
               
-              {/* TAB UPLOAD (RETORNO) */}
-              <TabsContent value="upload" className="space-y-4 mt-4">
-                <div className="bg-muted p-4 rounded-lg border border-dashed text-center">
-                  <Label htmlFor="inbound-file" className="cursor-pointer block">
+              <TabsContent value="upload">
+                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-orange-200 text-center">
+                  <Label htmlFor="inbound-file" className="cursor-pointer block h-full">
                     <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-sm font-medium">Carregar Planilha de Retorno</span>
+                      <FileSpreadsheet className="h-10 w-10 text-orange-400" />
+                      <span className="text-sm font-medium text-orange-700">Clique para carregar planilha</span>
+                      <span className="text-xs text-muted-foreground">Colunas: SKU, Nome, Qtd</span>
                     </div>
                   </Label>
                   <Input id="inbound-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleFileUpload(e, 'inbound')} />
                 </div>
               </TabsContent>
 
-              {/* TAB MANUAL (RETORNO) - COM CAMPO UNIDADE */}
-              <TabsContent value="manual" className="space-y-4 mt-4">
+              <TabsContent value="manual" className="space-y-3">
                 <div className="flex gap-2 items-end">
-                  <div className="grid gap-1 w-24">
-                    <Label>SKU</Label>
-                    <Input placeholder="Cód." value={manualInbound.sku} onChange={(e) => handleSkuChange(e, 'inbound')} />
+                  <div className="grid gap-1 w-20">
+                    <Label className="text-xs">SKU</Label>
+                    <Input className="h-8" placeholder="Cód." value={manualInbound.sku} onChange={(e) => handleSkuChange(e, 'inbound')} />
                   </div>
                   <div className="grid gap-1 flex-1">
-                    <Label>Produto</Label>
-                    <Input placeholder="Nome" value={manualInbound.name} onChange={e => setManualInbound({...manualInbound, name: e.target.value})} />
+                    <Label className="text-xs">Produto</Label>
+                    <Input className="h-8" placeholder="Nome" value={manualInbound.name} onChange={e => setManualInbound({...manualInbound, name: e.target.value})} />
                   </div>
-                  <div className="grid gap-1 w-20">
-                    <Label>Un.</Label>
-                    <Input placeholder="un" value={manualInbound.unit} onChange={e => setManualInbound({...manualInbound, unit: e.target.value})} />
+                  <div className="grid gap-1 w-16">
+                    <Label className="text-xs">Qtd.</Label>
+                    <Input className="h-8" type="number" placeholder="0" value={manualInbound.quantity} onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} />
                   </div>
-                  <div className="grid gap-1 w-20">
-                    <Label>Qtd.</Label>
-                    <Input type="number" placeholder="0" value={manualInbound.quantity} onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} />
-                  </div>
-                  <Button onClick={() => addManualItem('inbound')} className="bg-orange-600 hover:bg-orange-700"><Plus className="h-4 w-4" /></Button>
+                  <Button size="sm" onClick={() => addManualItem('inbound')} className="bg-orange-600 hover:bg-orange-700"><Plus className="h-4 w-4" /></Button>
                 </div>
               </TabsContent>
 
-              {/* LISTA DE RETORNO */}
               {inboundList.length > 0 && (
-                <div className="rounded-md border h-64 overflow-hidden mt-4">
+                <div className="rounded-md border h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
                   <ScrollArea className="h-full">
                     <Table>
-                      <TableHeader className="bg-muted sticky top-0">
-                        <TableRow>
-                          <TableHead>Item (Volta)</TableHead>
-                          <TableHead className="text-right">Qtd.</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
+                      <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                        <TableRow className="h-8">
+                          <TableHead className="text-xs font-bold">Produto</TableHead>
+                          <TableHead className="text-right text-xs font-bold w-16">Qtd</TableHead>
+                          <TableHead className="w-8"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {inboundList.map((item, idx) => (
-                          <TableRow key={`${item.sku}-${idx}`}>
-                            <TableCell>
-                              <div className="font-medium text-xs">{item.name}</div>
+                          <TableRow key={`${item.sku}-${idx}`} className="h-10">
+                            <TableCell className="py-1">
+                              <div className="font-medium text-xs truncate max-w-[200px]">{item.name}</div>
                               <div className="text-[10px] text-muted-foreground">{item.sku}</div>
                             </TableCell>
-                            <TableCell className="text-right font-bold text-orange-600">
-                              {item.quantity} <span className="text-xs text-gray-400 font-normal">{item.unit}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'inbound')} className="h-6 w-6">
-                                <Trash2 className="h-3 w-3 text-red-500" />
+                            <TableCell className="text-right font-bold text-orange-600 py-1 text-sm">{item.quantity}</TableCell>
+                            <TableCell className="py-1">
+                              <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'inbound')} className="h-6 w-6 text-muted-foreground hover:text-red-500">
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -395,79 +435,83 @@ export default function TravelReconciliation() {
         </Card>
       </div>
 
-      <div className="flex justify-center">
-        <Button size="lg" onClick={handleCompare} className="w-full md:w-1/3 text-lg font-bold bg-slate-800 hover:bg-slate-900 shadow-xl">
-          REALIZAR CONFRONTO
+      {/* BOTÃO DE AÇÃO PRINCIPAL */}
+      <div className="flex justify-center py-4">
+        <Button 
+            size="lg" 
+            onClick={handleCompare} 
+            disabled={outboundList.length === 0}
+            className="w-full md:w-1/2 h-14 text-lg font-bold bg-slate-900 hover:bg-slate-800 shadow-xl border-2 border-slate-700"
+        >
+          <Scale className="mr-3 h-6 w-6" /> REALIZAR CONFRONTO
         </Button>
       </div>
 
       {/* --- RESULTADO DO CONFRONTO --- */}
       {comparisonResult.length > 0 && (
-        <Card className="animate-in slide-in-from-bottom-10 fade-in duration-500">
-          <CardHeader>
-            <CardTitle>Resultado da Análise</CardTitle>
+        <Card className="animate-in slide-in-from-bottom-10 fade-in duration-500 border-t-4 border-t-green-600 shadow-2xl">
+          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b">
+            <CardTitle>Resultado da Auditoria</CardTitle>
+            <CardDescription>Itens que não fecharam a conta estão destacados.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
+            {/* CARDS DE RESUMO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b divide-y md:divide-y-0 md:divide-x">
+               <div className="p-6 flex flex-col items-center justify-center bg-green-50/50">
+                 <div className="flex items-center gap-2 mb-2 text-green-700">
+                    <CheckCircle2 className="h-5 w-5" /> <span className="font-bold">Corretos</span>
+                 </div>
+                 <span className="text-3xl font-bold text-green-800">{comparisonResult.filter(r => r.status === 'ok').length}</span>
+               </div>
+               <div className="p-6 flex flex-col items-center justify-center bg-red-50/50">
+                 <div className="flex items-center gap-2 mb-2 text-red-700">
+                    <AlertTriangle className="h-5 w-5" /> <span className="font-bold">Faltantes</span>
+                 </div>
+                 <span className="text-3xl font-bold text-red-800">{comparisonResult.filter(r => r.status === 'missing').length}</span>
+               </div>
+               <div className="p-6 flex flex-col items-center justify-center bg-blue-50/50">
+                 <div className="flex items-center gap-2 mb-2 text-blue-700">
+                    <Plus className="h-5 w-5" /> <span className="font-bold">Sobrantes</span>
+                 </div>
+                 <span className="text-3xl font-bold text-blue-800">{comparisonResult.filter(r => r.status === 'extra').length}</span>
+               </div>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>SKU</TableHead>
+                  <TableHead className="w-[100px]">SKU</TableHead>
                   <TableHead>Produto</TableHead>
-                  <TableHead className="text-center">Qtd. Saída</TableHead>
-                  <TableHead className="text-center">Qtd. Volta</TableHead>
-                  <TableHead className="text-center">Diferença</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center bg-blue-50/50 text-blue-700">Saída</TableHead>
+                  <TableHead className="text-center bg-orange-50/50 text-orange-700">Retorno</TableHead>
+                  <TableHead className="text-center border-l bg-slate-50/50">Diferença</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {comparisonResult.map((res) => (
-                  <TableRow key={res.sku} className={res.status === 'missing' ? 'bg-red-50/50 dark:bg-red-900/10' : ''}>
-                    <TableCell className="font-mono">{res.sku}</TableCell>
+                  <TableRow key={res.sku} className={res.status === 'missing' ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-muted/20'}>
+                    <TableCell className="font-mono text-xs">{res.sku}</TableCell>
                     <TableCell>
-                      {res.name}
+                      <div className="font-medium">{res.name}</div>
                       <div className="text-[10px] text-muted-foreground">{res.unit}</div>
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground">{res.quantity}</TableCell>
-                    <TableCell className="text-center font-bold">{res.returnedQuantity}</TableCell>
-                    <TableCell className="text-center">
-                      <span className={res.difference < 0 ? "text-red-500 font-bold" : res.difference > 0 ? "text-blue-500 font-bold" : "text-gray-400"}>
+                    <TableCell className="text-center text-muted-foreground bg-blue-50/30">{res.quantity}</TableCell>
+                    <TableCell className="text-center font-bold bg-orange-50/30">{res.returnedQuantity}</TableCell>
+                    <TableCell className="text-center border-l bg-slate-50/30">
+                      <span className={`text-lg font-bold ${res.difference < 0 ? "text-red-600" : res.difference > 0 ? "text-blue-600" : "text-green-600"}`}>
                         {res.difference > 0 ? `+${res.difference}` : res.difference}
                       </span>
                     </TableCell>
-                    <TableCell>
-                      {res.status === 'ok' && <Badge className="bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1"/> OK</Badge>}
-                      {res.status === 'missing' && <Badge variant="destructive"><AlertTriangle className="w-3 h-3 mr-1"/> Falta</Badge>}
-                      {res.status === 'extra' && <Badge className="bg-blue-600">Sobrou</Badge>}
+                    <TableCell className="text-center">
+                      {res.status === 'ok' && <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-200">OK</Badge>}
+                      {res.status === 'missing' && <Badge variant="destructive">FALTA</Badge>}
+                      {res.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200">EXTRA</Badge>}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-            
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-               <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                 <CheckCircle2 className="h-4 w-4 text-green-600" />
-                 <AlertTitle>Itens Corretos</AlertTitle>
-                 <AlertDescription className="text-2xl font-bold text-green-700">
-                   {comparisonResult.filter(r => r.status === 'ok').length}
-                 </AlertDescription>
-               </Alert>
-               <Alert className="border-red-200 bg-red-50 dark:bg-red-900/20">
-                 <AlertTriangle className="h-4 w-4 text-red-600" />
-                 <AlertTitle>Itens Faltantes</AlertTitle>
-                 <AlertDescription className="text-2xl font-bold text-red-700">
-                   {comparisonResult.filter(r => r.status === 'missing').length}
-                 </AlertDescription>
-               </Alert>
-               <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-                 <Plus className="h-4 w-4 text-blue-600" />
-                 <AlertTitle>Itens Sobrantes</AlertTitle>
-                 <AlertDescription className="text-2xl font-bold text-blue-700">
-                   {comparisonResult.filter(r => r.status === 'extra').length}
-                 </AlertDescription>
-               </Alert>
-            </div>
-
           </CardContent>
         </Card>
       )}

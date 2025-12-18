@@ -2,8 +2,8 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "./Sidebar";
 import { Button } from "./ui/button";
-import { Menu } from "lucide-react"; // Removi LogOut da importação
-import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { Menu } from "lucide-react"; 
+import { Sheet, SheetContent } from "./ui/sheet"; // Removi SheetTrigger pois controlamos via state
 import { ModeToggle } from "@/components/mode-toggle";
 
 interface LayoutProps {
@@ -13,61 +13,72 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { profile } = useAuth();
   
-  // Estado para controlar o menu lateral
+  // Controle de colapso (Desktop) e visibilidade (Mobile)
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
       
-      {/* Mobile Sidebar */}
-      <Sheet>
-        <SheetTrigger asChild className="lg:hidden fixed top-4 left-4 z-50">
-          <Button variant="outline" size="icon">
-            <Menu className="h-5 w-5" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-auto">
-          {/* No mobile, passamos false/vazio pois o Sheet controla a visibilidade */}
-          <Sidebar isCollapsed={false} toggleSidebar={() => {}} />
+      {/* --- MOBILE: MENU GAVETA (SHEET) --- */}
+      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+        <SheetContent side="left" className="p-0 w-[280px] border-r bg-card">
+          {/* No mobile, o menu sempre está expandido. Passamos a função para fechar ao clicar. */}
+          <Sidebar 
+            isCollapsed={false} 
+            toggleSidebar={() => {}} 
+            onItemClick={() => setIsMobileOpen(false)} 
+          />
         </SheetContent>
       </Sheet>
 
-      {/* Desktop Sidebar */}
-      {/* MUDANÇA IMPORTANTE: Removi 'w-64' fixo. O componente Sidebar define a largura agora. */}
-      <div className="hidden lg:block shrink-0 transition-all duration-300">
+      {/* --- DESKTOP: SIDEBAR FIXA --- */}
+      {/* 'hidden lg:flex' faz sumir no mobile e aparecer como flexbox no desktop */}
+      <div className="hidden lg:flex flex-col h-full border-r bg-card transition-all duration-300">
         <Sidebar 
           isCollapsed={isSidebarCollapsed} 
           toggleSidebar={() => setSidebarCollapsed(!isSidebarCollapsed)} 
         />
       </div>
 
-      {/* Main Content Wrapper */}
-      {/* flex-1 garante que ele ocupe todo o espaço restante quando o menu encolher */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden transition-all duration-300">
+      {/* --- CONTEÚDO PRINCIPAL --- */}
+      {/* flex-1 garante que ocupe o espaço restante */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden transition-all duration-300">
         
         {/* Header */}
-        <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold ml-10 lg:ml-0">Sistema de Controle de Fluxo</h2>
+        <header className="h-16 border-b border-border bg-card px-4 lg:px-6 flex items-center justify-between shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            
+            {/* Botão Hambúrguer (Apenas Mobile) */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="lg:hidden -ml-2 text-muted-foreground hover:text-primary"
+              onClick={() => setIsMobileOpen(true)}
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
+
+            <h2 className="text-lg font-semibold truncate">Sistema de Fluxo</h2>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {/* Botão de Tema */}
             <ModeToggle />
 
-            {/* Informações do Usuário (Opcional, pode manter ou remover) */}
+            {/* Informações do Usuário */}
             <div className="text-sm text-right hidden sm:block">
-              <p className="font-medium">{profile?.name}</p>
-              <p className="text-muted-foreground text-xs capitalize">{profile?.role}</p>
+              <p className="font-medium leading-none">{profile?.name}</p>
+              <p className="text-muted-foreground text-xs capitalize mt-1">{profile?.role}</p>
             </div>
-            
-            {/* MUDANÇA: Botão de Sair (LogOut) removido daqui, pois já está no Sidebar */}
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-y-auto">
-          {children}
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto bg-background">
+          <div className="mx-auto max-w-7xl w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

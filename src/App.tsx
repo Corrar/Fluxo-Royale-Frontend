@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { SocketProvider } from "./contexts/SocketContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { LoadingScreen } from "./components/LoadingScreen";
@@ -30,6 +31,8 @@ import TravelReconciliation from "./pages/TravelReconciliation";
 import CalculatorPage from "./pages/CalculatorPage";
 import RemindersPage from "./pages/RemindersPage";
 import Inicio from "./pages/Inicio";
+import AuditLogs from "./pages/AuditLogs";
+import PermissionsPage from "./pages/PermissionsPage";
 
 const queryClient = new QueryClient();
 
@@ -49,28 +52,74 @@ const GlobalLoader = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    {/* PALETA SUAVE (SOFT DARK MODE) */}
+    {/* 🎨 PALETA ALTO CONTRASTE (VISIBILIDADE MÁXIMA & DARK MODE) */}
     <style>{`
+      :root {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 222.2 84% 4.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222.2 84% 4.9%;
+        --primary: 221.2 83.2% 53.3%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96.1%;
+        --secondary-foreground: 222.2 47.4% 11.2%;
+        --muted: 210 40% 96.1%;
+        --muted-foreground: 215.4 16.3% 46.9%;
+        --accent: 210 40% 96.1%;
+        --accent-foreground: 222.2 47.4% 11.2%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 214.3 31.8% 91.4%;
+        --input: 214.3 31.8% 91.4%;
+        --ring: 221.2 83.2% 53.3%;
+        --radius: 0.5rem;
+      }
+
       .dark {
-        --background: 222 47% 11%;
-        --foreground: 213 27% 84%;
-        --card: 217 33% 17%;
-        --card-foreground: 213 27% 84%;
-        --popover: 217 33% 17%;
-        --popover-foreground: 213 27% 84%;
-        --primary: 142.1 70.6% 45.3%;
-        --primary-foreground: 144.9 80.4% 10%;
-        --secondary: 217 33% 17%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 217 33% 17%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --border: 217 33% 17%;
-        --input: 217 33% 17%;
-        --accent: 217 33% 17%;
-        --accent-foreground: 210 40% 98%;
+        --background: 224 71% 4%; 
+        --foreground: 210 40% 100%;
+        --card: 222 47% 11%; 
+        --card-foreground: 210 40% 100%;
+        --popover: 222 47% 11%;
+        --popover-foreground: 210 40% 100%;
+        --primary: 217 91% 60%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 217 32% 25%;
+        --secondary-foreground: 210 40% 100%;
+        --muted: 217 32% 25%;
+        --muted-foreground: 215 20% 75%; 
+        --border: 217 32% 30%; 
+        --input: 217 32% 30%; 
         --destructive: 0 62.8% 30.6%;
         --destructive-foreground: 210 40% 98%;
-        --ring: 142.4 71.8% 29.2%;
+        --ring: 224 76% 48%;
+      }
+
+      /* === CORREÇÃO DE INPUTS PARA VISIBILIDADE === */
+      .dark input, 
+      .dark textarea, 
+      .dark select {
+        background-color: hsl(217 32% 18%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid hsl(217 32% 40%) !important;
+      }
+
+      .dark input:focus, 
+      .dark textarea:focus {
+        border-color: hsl(217 91% 60%) !important;
+        background-color: hsl(217 32% 22%) !important;
+        outline: none;
+      }
+
+      .dark ::placeholder {
+        color: hsl(215 20% 65%) !important;
+        opacity: 1;
+      }
+
+      .dark .lucide {
+        color: hsl(215 20% 80%);
       }
     `}</style>
 
@@ -80,195 +129,186 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <GlobalLoader />
-            
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              
-              {/* Rota padrão (Dashboard) */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <Dashboard />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+            <SocketProvider>
+                <GlobalLoader />
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  
+                  {/* PÁGINAS GERAIS */}
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute requiredPermission="dashboard">
+                        <Layout><Dashboard /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/inicio"
+                    element={
+                      <ProtectedRoute> {/* Aberto para todos logados */}
+                        <Layout><Inicio /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              {/* --- ROTA DA PÁGINA INÍCIO (BOAS-VINDAS) --- */}
-              <Route
-                path="/inicio"
-                element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <Inicio />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+                  {/* ESTOQUE INTELIGENTE (1 Rota para os 3 níveis) */}
+                  <Route
+                    path="/stock-view"
+                    element={
+                      // Exige permissão básica "consultar" para entrar na página
+                      <ProtectedRoute requiredPermission="consultar">
+                        <Layout><StockView /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              {/* Rota da Calculadora */}
-              <Route
-                path="/calculator"
-                element={
-                  <ProtectedRoute allowedRoles={["almoxarife", "auxiliar"]}>
-                    <Layout>
-                      <CalculatorPage />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+                  {/* FERRAMENTAS */}
+                  <Route
+                    path="/calculator"
+                    element={
+                      <ProtectedRoute requiredPermission="calculadora">
+                        <Layout><CalculatorPage /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              {/* Rota de Avisos e Lembretes */}
-              <Route
-                path="/reminders"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "chefe", "almoxarife", "compras"]}>
-                    <Layout>
-                      <RemindersPage />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+                  {/* GESTÃO E AVISOS */}
+                  <Route
+                    path="/reminders"
+                    element={
+                      <ProtectedRoute requiredPermission="avisos">
+                        <Layout><RemindersPage /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              <Route
-                path="/products"
-                element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <Products />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              {/* ATUALIZADO: Adicionado 'chefe' */}
-              <Route
-                path="/stock"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife", "auxiliar", "assistente_tecnico", "chefe"]}>
-                    <Layout>
-                      <Stock />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+                  <Route
+                    path="/products"
+                    element={
+                      <ProtectedRoute requiredPermission="produtos">
+                        <Layout><Products /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* ESTOQUE - AJUSTE MANUAL */}
+                  <Route
+                    path="/stock"
+                    element={
+                      <ProtectedRoute requiredPermission="estoque">
+                        <Layout><Stock /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              <Route
-                path="/requests"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife"]}>
-                    <Layout>
-                      <Requests />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/my-requests"
-                element={
-                  <ProtectedRoute allowedRoles={["setor"]}>
-                    <Layout>
-                      <MyRequests />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/separations"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife"]}>
-                    <Layout>
-                      <Separations />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
+                  {/* PEDIDOS E MOVIMENTAÇÃO */}
+                  <Route
+                    path="/requests"
+                    element={
+                      <ProtectedRoute requiredPermission="solicitacoes">
+                        <Layout><Requests /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/my-requests"
+                    element={
+                      // Use a chave "minhas_solicitacoes" se quiser controlar, ou deixe sem prop para liberar geral
+                      <ProtectedRoute requiredPermission="minhas_solicitacoes">
+                        <Layout><MyRequests /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/separations"
+                    element={
+                      <ProtectedRoute requiredPermission="separacoes">
+                        <Layout><Separations /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-              <Route
-                path="/reconciliation"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "assistente_tecnico"]}>
-                    <Layout>
-                      <TravelReconciliation />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/withdrawal"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife"]}>
-                    <Layout>
-                      <StockWithdrawalPage />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              {/* ATUALIZADO: Adicionado 'chefe' */}
-              <Route
-                path="/low-stock"
-                element={
-                  <ProtectedRoute allowedRoles={["compras", "admin", "almoxarife", "chefe"]}>
-                    <Layout>
-                      <LowStock />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/users"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <Layout>
-                      <Users />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife"]}>
-                    <Layout>
-                      <Reports />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/calc-min-stock"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "almoxarife"]}>
-                    <Layout>
-                      <CalcMinStock />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route
-                path="/stock-view"
-                element={
-                  <ProtectedRoute allowedRoles={["setor"]}>
-                    <Layout>
-                      <StockView />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                  <Route
+                    path="/reconciliation"
+                    element={
+                      <ProtectedRoute requiredPermission="confronto_viagem">
+                        <Layout><TravelReconciliation /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/withdrawal"
+                    element={
+                      // Usa a mesma permissão de "estoque" (ajuste manual) ou crie uma específica se preferir
+                      <ProtectedRoute requiredPermission="estoque">
+                        <Layout><StockWithdrawalPage /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* RELATÓRIOS E COMPRAS */}
+                  <Route
+                    path="/low-stock"
+                    element={
+                      <ProtectedRoute requiredPermission="estoque_critico">
+                        <Layout><LowStock /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/reports"
+                    element={
+                      <ProtectedRoute requiredPermission="relatorios">
+                        <Layout><Reports /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/calc-min-stock"
+                    element={
+                      <ProtectedRoute requiredPermission="calculo_minimo">
+                        <Layout><CalcMinStock /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* ADMINISTRAÇÃO */}
+                  <Route
+                    path="/users"
+                    element={
+                      <ProtectedRoute requiredPermission="usuarios">
+                        <Layout><Users /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/audit"
+                    element={
+                      <ProtectedRoute requiredPermission="logs">
+                        <Layout><AuditLogs /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  <Route
+                    path="/permissions"
+                    element={
+                      <ProtectedRoute requiredPermission="permissoes">
+                        <Layout><PermissionsPage /></Layout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+            </SocketProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

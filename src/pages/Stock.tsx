@@ -11,11 +11,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
-  Settings2, AlertTriangle, Search, LogOut, ArrowDownToLine, Trash2, Package, ArrowRight, RotateCcw,
-  CheckCircle2, TrendingDown, TrendingUp, DollarSign, Pencil
+  Settings2, Search, LogOut, ArrowDownToLine, Trash2, Package, ArrowRight, RotateCcw,
+  CheckCircle2, TrendingDown, TrendingUp, DollarSign, Pencil, 
+  Download, FileSpreadsheet, FileText // <--- Ícones Importados
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"; // <--- Dropdown Importado
+
+// IMPORTA OS UTILITÁRIOS
+import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 
 const SECTORS = ["ELETRICA", "FLOW", "ESTEIRA", "LAVADORA", "USINAGEM", "DESENVOLVIMENTO", "VIAGEM", "TERCEIROS", "ACUMULADOR", "REPOSIÇÃO"];
 type ViewMode = "table" | "entry" | "exit";
@@ -52,8 +63,8 @@ export default function Stock() {
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [adjustValue, setAdjustValue] = useState("");
 
-  const [priceDialog, setPriceDialog] = useState(false); // Para preço de Venda
-  const [costDialog, setCostDialog] = useState(false); // Para preço de Custo
+  const [priceDialog, setPriceDialog] = useState(false); 
+  const [costDialog, setCostDialog] = useState(false); 
   const [selectedProductForPrice, setSelectedProductForPrice] = useState<any>(null);
   const [priceValue, setPriceValue] = useState(""); 
 
@@ -63,7 +74,7 @@ export default function Stock() {
     queryFn: async () => (await api.get("/stock")).data,
   });
 
-  // 2. MUTAÇÕES (CORRIGIDAS COM MELHOR TRATAMENTO DE ERRO)
+  // 2. MUTAÇÕES (Mantidas iguais)
   const manualEntryMutation = useMutation({
     mutationFn: async (items: any[]) => await api.post("/manual-entry", { items }),
     onSuccess: () => { 
@@ -145,10 +156,48 @@ export default function Stock() {
 
   const totalPages = Math.ceil(filteredStocks.length / ITEMS_PER_PAGE);
 
+  // --- NOVA FUNÇÃO EXPORTAR (Excel + PDF) ---
+  const handleExportReport = (type: 'pdf' | 'excel') => {
+    if (!filteredStocks || filteredStocks.length === 0) {
+      toast.error("Sem dados para exportar.");
+      return;
+    }
+
+    // Formata os dados para ficarem bonitos no relatório
+    const exportData = filteredStocks.map((item: any) => {
+      const available = (Number(item.quantity_on_hand) || 0) - (Number(item.quantity_reserved) || 0);
+      return {
+        SKU: item.products?.sku || "N/A",
+        Produto: item.products?.name || "Sem Nome",
+        "Unidade": item.products?.unit || "-",
+        "Físico": Number(item.quantity_on_hand || 0),
+        "Reservado": Number(item.quantity_reserved || 0),
+        "Disponível": available,
+        "Mínimo": Number(item.products?.min_stock || 0),
+        "Custo (R$)": Number(item.products?.unit_price || 0).toFixed(2)
+      };
+    });
+
+    if (type === 'excel') {
+      exportToExcel(exportData, "Estoque_Geral");
+      toast.success("Excel baixado!");
+    } else {
+      const columns = [
+        { header: "SKU", dataKey: "SKU" },
+        { header: "Produto", dataKey: "Produto" },
+        { header: "Físico", dataKey: "Físico" },
+        { header: "Reservado", dataKey: "Reservado" },
+        { header: "Disponível", dataKey: "Disponível" },
+        { header: "Mín.", dataKey: "Mínimo" },
+      ];
+      exportToPDF("Relatório Geral de Estoque", columns, exportData, "Estoque_PDF");
+      toast.success("PDF gerado!");
+    }
+  };
+
   const addToCart = (stock: any) => {
     if (cart.find(item => item.product_id === stock.products.id)) return toast.info("Item já na lista");
     
-    // Cálculo seguro de disponível
     const currentOnHand = Number(stock.quantity_on_hand) || 0;
     const currentReserved = Number(stock.quantity_reserved) || 0;
     const available = currentOnHand - currentReserved;
@@ -184,7 +233,6 @@ export default function Stock() {
 
   const handleConfirmTransaction = () => {
     const validItems = cart.filter(i => i.quantity > 0);
-    
     if (validItems.length === 0) return toast.error("Adicione itens válidos com quantidade maior que 0.");
     
     if (viewMode === "entry") {
@@ -208,17 +256,56 @@ export default function Stock() {
   const handleOpenCostPrice = (stock: any) => { setSelectedProductForPrice(stock.products); setPriceValue(stock.products.unit_price?.toString() || "0"); setCostDialog(true); };
   const handleConfirmCostPrice = (e: React.FormEvent) => { e.preventDefault(); if(selectedProductForPrice) updateCostPriceMutation.mutate({ id: selectedProductForPrice.id, price: parseFloat(priceValue) }); };
 
+  // --- SKELETON ---
+  const TableSkeleton = () => (
+    <>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <TableRow key={i}>
+          <TableCell><Skeleton className="h-4 w-[140px]" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-[40px]" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-[40px]" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-[40px]" /></TableCell>
+          <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>
+          {canViewSalesPrice && <TableCell><Skeleton className="h-4 w-[60px]" /></TableCell>}
+          <TableCell><Skeleton className="h-5 w-[60px]" /></TableCell>
+          <TableCell className="text-right"><Skeleton className="h-8 w-[90px] ml-auto" /></TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+
   if (viewMode === "table") {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div><h1 className="text-3xl font-bold">Gestão de Estoque</h1><p className="text-muted-foreground">Visão geral e controle</p></div>
-          {canEditStock && (
-            <div className="flex gap-3">
-              <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setViewMode("entry")}><ArrowDownToLine className="mr-2 h-5 w-5"/> Entrada</Button>
-              <Button size="lg" variant="destructive" onClick={() => setViewMode("exit")}><LogOut className="mr-2 h-5 w-5"/> Saída</Button>
-            </div>
-          )}
+          
+          <div className="flex gap-3">
+            {/* NOVO BOTÃO DROPDOWN EXPORTAR */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-dashed gap-2">
+                  <Download className="h-4 w-4" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReport('excel')} className="gap-2 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReport('pdf')} className="gap-2 cursor-pointer">
+                  <FileText className="h-4 w-4 text-red-600" /> PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {canEditStock && (
+              <>
+                <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setViewMode("entry")}><ArrowDownToLine className="mr-2 h-5 w-5"/> Entrada</Button>
+                <Button size="lg" variant="destructive" onClick={() => setViewMode("exit")}><LogOut className="mr-2 h-5 w-5"/> Saída</Button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4 bg-card p-4 rounded-lg border shadow-sm">
@@ -244,7 +331,9 @@ export default function Stock() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? <TableRow><TableCell colSpan={9} className="text-center h-24">Carregando...</TableCell></TableRow> : 
+              {isLoading ? (
+                <TableSkeleton />
+              ) : (
                paginatedStocks.map((stock: any) => {
                 const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
                 const isLow = stock.products?.min_stock && available < stock.products.min_stock;
@@ -256,7 +345,6 @@ export default function Stock() {
                     <TableCell className="text-amber-600">{stock.quantity_reserved}</TableCell>
                     <TableCell className="font-bold">{available.toFixed(2)}</TableCell>
                     
-                    {/* CUSTO UNITÁRIO */}
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span>{stock.products?.unit_price ? `R$ ${Number(stock.products.unit_price).toFixed(2)}` : "-"}</span>
@@ -268,7 +356,6 @@ export default function Stock() {
                       </div>
                     </TableCell>
 
-                    {/* PREÇO DE VENDA */}
                     {canViewSalesPrice && (
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -295,11 +382,11 @@ export default function Stock() {
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              }))}
             </TableBody>
           </Table>
           
-          {filteredStocks.length > 0 && (
+          {filteredStocks.length > 0 && !isLoading && (
             <div className="border-t p-2">
               <Pagination>
                 <PaginationContent>
@@ -324,7 +411,6 @@ export default function Stock() {
           </DialogContent>
         </Dialog>
 
-        {/* DIALOG DE PREÇO DE VENDA */}
         <Dialog open={priceDialog} onOpenChange={setPriceDialog}>
           <DialogContent>
             <DialogHeader><DialogTitle>Definir Preço de Venda (Catálogo)</DialogTitle></DialogHeader>
@@ -336,7 +422,6 @@ export default function Stock() {
           </DialogContent>
         </Dialog>
 
-        {/* DIALOG DE CUSTO UNITÁRIO */}
         <Dialog open={costDialog} onOpenChange={setCostDialog}>
           <DialogContent>
             <DialogHeader><DialogTitle>Atualizar Custo Unitário</DialogTitle></DialogHeader>
@@ -361,7 +446,7 @@ export default function Stock() {
   const borderClass = isEntry ? "border-emerald-200" : "border-red-200";
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col gap-4">
+    <div className="h-[calc(100vh-6rem)] flex flex-col gap-4 animate-in fade-in duration-500">
       {/* Header do Modo */}
       <div className="flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">

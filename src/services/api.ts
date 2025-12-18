@@ -17,7 +17,7 @@ const notifyListeners = (isLoading: boolean) => {
   listeners.forEach(l => l(isLoading));
 };
 
-// --- FUNÇÕES AUXILIARES (Nova Lógica de Segurança) ---
+// --- FUNÇÕES AUXILIARES ---
 
 const handleRequestStart = () => {
   activeRequests++;
@@ -44,19 +44,13 @@ const handleRequestEnd = () => {
 
 // Função inteligente para definir o endereço
 const getBaseUrl = () => {
-  // 1. PRIORIDADE: Variável de ambiente (Produção)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-
   const { hostname } = window.location;
-  
-  // 2. FALLBACK: Desenvolvimento Local
   if (hostname === 'localhost') {
     return 'http://localhost:3000';
   }
-  
-  // Se estiver no Celular (IP), usa o IP do PC
   return `http://${hostname}:3000`;
 };
 
@@ -64,7 +58,7 @@ export const api = axios.create({
   baseURL: getBaseUrl(),
 });
 
-// --- INTERCEPTADORES ---
+// --- INTERCEPTADORES COM LÓGICA DE SKIP LOADING ---
 
 api.interceptors.request.use(
   (config) => {
@@ -73,22 +67,35 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    handleRequestStart(); // Inicia contagem
+    // CORREÇÃO: Só inicia o loading SE NÃO tiver a flag skipLoading
+    if (!(config as any).skipLoading) {
+      handleRequestStart(); 
+    }
+    
     return config;
   },
   (error) => {
-    handleRequestEnd(); // Finaliza se der erro na montagem da requisição
+    // Se deu erro e não era silenciosa, finaliza
+    if (!(error.config as any)?.skipLoading) {
+      handleRequestEnd(); 
+    }
     return Promise.reject(error);
   }
 );
 
 api.interceptors.response.use(
   (response) => {
-    handleRequestEnd(); // Finaliza no sucesso
+    // Se não era silenciosa, finaliza o loader
+    if (!(response.config as any).skipLoading) {
+      handleRequestEnd(); 
+    }
     return response;
   },
   (error) => {
-    handleRequestEnd(); // Finaliza no erro de resposta
+    // Se não era silenciosa, finaliza o loader
+    if (!(error.config as any)?.skipLoading) {
+      handleRequestEnd(); 
+    }
     return Promise.reject(error);
   }
 );
