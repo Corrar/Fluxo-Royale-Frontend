@@ -113,7 +113,8 @@ export default function LowStock() {
     const exportData = itemsToExport.map((item: any) => ({
         SKU: item.sku,
         Produto: item.name,
-        "Estoque Atual": item.disponivel,
+        // CORREÇÃO: Usando item.quantity em vez de item.disponivel
+        "Estoque Atual": item.quantity || 0,
         "Mínimo": item.min_stock,
         "Status": (item.purchase_status || "pendente").toUpperCase(),
         "Previsão": item.delivery_forecast ? format(new Date(item.delivery_forecast), "dd/MM/yyyy") : "-",
@@ -361,7 +362,10 @@ export default function LowStock() {
               <TableRow><TableCell colSpan={9} className="text-center h-24 text-muted-foreground">Nenhum produto encontrado.</TableCell></TableRow>
             ) : (
               filteredItems.map((item: any) => {
-                const deficit = item.min_stock - item.disponivel;
+                // CORREÇÃO PRINCIPAL AQUI:
+                // Mudamos de item.disponivel para item.quantity
+                const currentQty = Number(item.quantity || 0);
+                const deficit = item.min_stock - currentQty;
                 const isSelected = selectedItems.includes(item.id);
                 const demandaSetores = Number(item.demanda_reprimida || 0);
 
@@ -379,10 +383,10 @@ export default function LowStock() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
-                        {item.disponivel} / {item.min_stock}
+                        {currentQty} / {item.min_stock}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-bold text-red-600 dark:text-red-400">+{deficit > 0 ? deficit : 0}</TableCell>
+                    <TableCell className="font-bold text-red-600 dark:text-red-400">+{deficit > 0 ? deficit.toFixed(2) : 0}</TableCell>
                     
                     {/* INDICADOR DE TEMPO CRÍTICO */}
                     <TableCell>

@@ -83,10 +83,8 @@ export function StockWithdrawalPanel() {
       return;
     }
     
-    // Verifica estoque disponível (estoque físico - reservado)
-    // Nota: A estrutura do seu objeto 'products' traz um array 'stock'
-    const stockInfo = product.stock?.[0];
-    const available = stockInfo ? (stockInfo.quantity_on_hand - stockInfo.quantity_reserved) : 0;
+    // CORREÇÃO: Usar product.quantity direto (nova estrutura do backend)
+    const available = Number(product.quantity || 0);
 
     if (available <= 0) {
       toast.error("Produto sem estoque disponível.");
@@ -172,8 +170,8 @@ export function StockWithdrawalPanel() {
             )}
 
             {filteredProducts.map((product: any) => {
-               const stockInfo = product.stock?.[0];
-               const available = stockInfo ? (stockInfo.quantity_on_hand - stockInfo.quantity_reserved) : 0;
+               // CORREÇÃO: Usar product.quantity direto
+               const available = Number(product.quantity || 0);
                const isLow = available < (product.min_stock || 0);
 
                return (

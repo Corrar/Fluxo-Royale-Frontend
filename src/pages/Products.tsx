@@ -177,7 +177,8 @@ export default function Products() {
       description: product.description || "",
       unit: product.unit,
       min_stock: product.min_stock?.toString() || "0",
-      quantity: product.stock?.[0]?.quantity_on_hand?.toString() || "0", // Pega a quantidade atual
+      // CORREÇÃO AQUI: Lê direto de product.quantity em vez de stock[0]
+      quantity: product.quantity?.toString() || "0", 
       unit_price: product.unit_price?.toString() || "0",
     });
   };
@@ -490,7 +491,8 @@ export default function Products() {
                           <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Estoque Atual</p>
                           <div className={`flex items-center gap-1.5 ${isEditingThis ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300'}`}>
                              <Box className="h-3.5 w-3.5 text-slate-400" />
-                             <span className="font-bold text-sm">{product.stock?.[0]?.quantity_on_hand || 0}</span>
+                             {/* CORREÇÃO AQUI: Lê direto de product.quantity */}
+                             <span className="font-bold text-sm">{product.quantity || 0}</span>
                           </div>
                         </div>
 
