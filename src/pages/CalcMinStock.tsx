@@ -38,7 +38,6 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine 
 } from 'recharts';
 
-// Bibliotecas de Exportação
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -58,18 +57,18 @@ export default function CalcMinStock() {
   const [updateHistory, setUpdateHistory] = useState<UpdateLog[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // --- MOCK GENERATOR (Simulação) ---
+  // --- MOCK GENERATOR (Apenas visual, usado se não houver dados reais) ---
   const generateMockHistory = () => {
-    return Array.from({ length: 15 }).map((_, i) => {
+    return Array.from({ length: 5 }).map((_, i) => {
       const oldMin = Math.floor(Math.random() * 20) + 5;
       const newMin = Math.floor(Math.random() * 30) + 5;
       return {
         id: `prod-${i}`,
         sku: `SKU-${1000 + i}`,
-        name: `Produto Técnico Exemplo ${i + 1}`,
+        name: `Produto Exemplo ${i + 1}`,
         oldMin,
         newMin,
-        avgConsumption: Number((newMin / 7).toFixed(2))
+        avgConsumption: Number((newMin / 15).toFixed(2))
       };
     });
   };
@@ -80,15 +79,24 @@ export default function CalcMinStock() {
       return response.data;
     },
     onSuccess: (data) => {
-      const products = data.updatedProducts || generateMockHistory();
-      setUpdateHistory(products);
-      setShowHistory(true);
-
-      toast.success("Níveis de Estoque Atualizados", {
-        description: `O ponto de pedido de ${products.length} produtos foi redefinido com sucesso.`,
-        duration: 5000,
-        icon: <ShieldCheck className="text-emerald-500 h-5 w-5" />
-      });
+      // CORREÇÃO: Pega os dados reais do backend (updatedProducts)
+      const products = data.updatedProducts || []; 
+      
+      if (products.length > 0) {
+         setUpdateHistory(products);
+         setShowHistory(true); // Força a aba a aparecer
+         toast.success("Níveis de Estoque Atualizados", {
+            description: `O ponto de pedido de ${products.length} produtos foi redefinido.`,
+            duration: 5000,
+            icon: <ShieldCheck className="text-emerald-500 h-5 w-5" />
+         });
+      } else {
+         // Se não houve mudanças, mostra toast informativo mas mantém na tela de simulação
+         toast.info("Tudo Atualizado", { 
+             description: "Nenhum produto precisou de alteração no estoque mínimo com base nesse período.",
+             icon: <ShieldCheck className="text-blue-500 h-5 w-5" />
+         });
+      }
       setIsDialogOpen(false);
     },
     onError: (error: any) => {
@@ -103,7 +111,6 @@ export default function CalcMinStock() {
   const handleExportExcel = () => {
     if (updateHistory.length === 0) return toast.error("Sem dados para exportar.");
 
-    // Formata os dados para o Excel
     const worksheetData = updateHistory.map(item => ({
       "SKU": item.sku,
       "Produto": item.name,
@@ -117,7 +124,6 @@ export default function CalcMinStock() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório Estoque Mínimo");
 
-    // Ajusta largura das colunas
     const wscols = [{wch: 15}, {wch: 40}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 10}];
     worksheet['!cols'] = wscols;
 
@@ -132,7 +138,6 @@ export default function CalcMinStock() {
 
     const doc = new jsPDF();
 
-    // Cabeçalho do PDF
     doc.setFontSize(18);
     doc.text("Relatório de Alteração de Estoque Mínimo", 14, 20);
     
@@ -140,7 +145,6 @@ export default function CalcMinStock() {
     doc.text(`Data: ${new Date().toLocaleDateString()}`, 14, 28);
     doc.text(`Base de Cálculo: Média dos últimos ${days[0]} dias`, 14, 33);
 
-    // Tabela
     const tableColumn = ["SKU", "Produto", "Média/Dia", "Antes", "Depois", "Diff"];
     const tableRows = updateHistory.map(item => [
       item.sku,
@@ -156,7 +160,7 @@ export default function CalcMinStock() {
       head: [tableColumn],
       body: tableRows,
       theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185] }, // Azul
+      headStyles: { fillColor: [41, 128, 185] },
       styles: { fontSize: 8 },
     });
 
@@ -181,7 +185,7 @@ export default function CalcMinStock() {
   }, [days]);
 
   const avgConsumption = simulationData.reduce((acc, curr) => acc + curr.consumo, 0) / simulationData.length;
-  const simulatedMinStock = Math.ceil(avgConsumption * 7);
+  const simulatedMinStock = Math.ceil(avgConsumption * 15);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
@@ -194,7 +198,7 @@ export default function CalcMinStock() {
             Cálculo de Estoque Mínimo
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">
-            Inteligência artificial aplicada ao histórico de consumo para definir o <strong>Ponto de Pedido (ROP)</strong>.
+            Inteligência aplicada para redefinir o <strong>Ponto de Pedido (ROP)</strong> com base no consumo real.
           </p>
         </div>
         
@@ -206,14 +210,14 @@ export default function CalcMinStock() {
             onClick={() => setShowHistory(!showHistory)}
           >
             <History className="h-4 w-4" />
-            {showHistory ? "Voltar para Simulação" : "Ver Último Relatório"}
+            {showHistory ? "Voltar para Simulação" : "Ver Relatório de Alterações"}
           </Button>
         )}
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
         
-        {/* ESQUERDA: CONTROLES (5 colunas) */}
+        {/* ESQUERDA: CONTROLES */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="border-border shadow-lg bg-card h-full flex flex-col">
             <CardHeader className="bg-muted/30 border-b border-border pb-6">
@@ -263,7 +267,6 @@ export default function CalcMinStock() {
                   <Activity className="h-3 w-3" /> Algoritmo
                 </h3>
                 <div className="flex items-center justify-between text-sm">
-                  {/* ... Visual da fórmula mantido ... */}
                   <div className="text-center">
                     <div className="text-lg font-bold text-foreground">Consumo</div>
                     <div className="text-[10px] text-muted-foreground uppercase">{days[0]} dias</div>
@@ -275,7 +278,7 @@ export default function CalcMinStock() {
                   </div>
                   <div className="text-muted-foreground text-xl">×</div>
                   <div className="text-center">
-                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">7</div>
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">15</div>
                     <div className="text-[10px] text-muted-foreground uppercase">Segurança</div>
                   </div>
                   <ArrowRight className="text-muted-foreground h-4 w-4" />
@@ -305,10 +308,10 @@ export default function CalcMinStock() {
                     </AlertDialogTitle>
                     <AlertDialogDescription className="space-y-3 pt-2">
                       <p>
-                        Esta operação irá <strong>recalcular o Estoque Mínimo de TODOS os produtos</strong>.
+                        Esta operação irá <strong>recalcular o Estoque Mínimo de TODOS os produtos</strong> ativos.
                       </p>
                       <div className="bg-muted p-3 rounded-md text-sm border border-border">
-                        O sistema usará a média de consumo dos últimos <span className="text-primary">{days[0]} dias</span>.
+                        O sistema usará a média de consumo real dos últimos <span className="text-primary">{days[0]} dias</span> e atualizará automaticamente o cadastro.
                       </div>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -327,7 +330,7 @@ export default function CalcMinStock() {
           </Card>
         </div>
 
-        {/* DIREITA: SIMULAÇÃO E RELATÓRIO (7 colunas) */}
+        {/* DIREITA: RELATÓRIO E SIMULAÇÃO */}
         <div className="lg:col-span-7 space-y-6">
           
           {showHistory && updateHistory.length > 0 ? (
@@ -336,10 +339,10 @@ export default function CalcMinStock() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2 text-foreground">
                     <History className="h-5 w-5 text-blue-500" />
-                    Relatório de Impacto
+                    Relatório de Alterações
                   </CardTitle>
                   <CardDescription>
-                    {updateHistory.length} produtos tiveram seus níveis de segurança atualizados.
+                    {updateHistory.length} produtos tiveram seus níveis de segurança atualizados com base no consumo real.
                   </CardDescription>
                 </div>
                 
@@ -348,7 +351,7 @@ export default function CalcMinStock() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2 border-primary/20 hover:bg-primary/5 text-primary">
                       <Download className="h-4 w-4" />
-                      Exportar Dados
+                      Exportar
                       <ChevronDown className="h-3 w-3 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -421,11 +424,11 @@ export default function CalcMinStock() {
                 </ScrollArea>
               </CardContent>
               <CardFooter className="bg-muted/20 text-xs text-muted-foreground p-3 text-center block">
-                Dados baseados no cálculo realizado em {new Date().toLocaleTimeString()}.
+                Dados reais calculados em {new Date().toLocaleTimeString()}.
               </CardFooter>
             </Card>
           ) : (
-            // VISUAL DA SIMULAÇÃO (QUANDO NÃO HÁ HISTÓRICO RECENTE)
+            // VISUAL DA SIMULAÇÃO (QUANDO NÃO HÁ DADOS RECENTES)
             <div className="space-y-6">
               <Card className="shadow-lg border-border bg-card overflow-hidden">
                 <CardHeader className="pb-2 border-b border-border/50">
@@ -435,11 +438,11 @@ export default function CalcMinStock() {
                       Simulação de Cobertura
                     </CardTitle>
                     <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200">
-                      Previsão
+                      Previsão (Dados Fictícios)
                     </Badge>
                   </div>
                   <CardDescription>
-                    Projeção de como o novo mínimo cobriria a demanda (dados simulados).
+                    Projeção de como o novo cálculo cobriria a demanda. Clique em "Calcular" para ver dados reais.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6">
@@ -491,7 +494,7 @@ export default function CalcMinStock() {
                     <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Dias Segurança</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">7 <span className="text-sm font-normal text-muted-foreground">dias</span></div>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">15 <span className="text-sm font-normal text-muted-foreground">dias</span></div>
                   </CardContent>
                 </Card>
 
@@ -514,7 +517,7 @@ export default function CalcMinStock() {
               <div className="space-y-1">
                 <p className="text-sm font-bold text-amber-800 dark:text-amber-400">Dica de Gestão</p>
                 <p className="text-xs text-amber-700 dark:text-amber-500/90 leading-relaxed">
-                  Utilize o botão de exportação para salvar um instantâneo das alterações. Isso serve como auditoria futura para entender por que certos produtos dispararam compras automáticas.
+                  Após calcular, os produtos com consumo real serão listados aqui. Utilize o botão de exportação para salvar um histórico dessas alterações.
                 </p>
               </div>
             </CardContent>

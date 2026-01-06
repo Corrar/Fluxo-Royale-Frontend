@@ -3,14 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { 
-  Plus, Trash2, Search, Package, ShoppingCart, ArrowRight, History, Box, Lock,
+  Plus, Trash2, Search, ShoppingCart, ArrowRight, History, Box,
   Clock, CheckCircle2, XCircle, Truck, AlertTriangle, Send, Loader2
 } from "lucide-react";
 import { format } from "date-fns";
@@ -76,6 +75,28 @@ export default function MyRequests() {
     },
   });
 
+  // --- Função Auxiliar de Cálculo de Estoque (Lógica Inteligente) ---
+  const getAvailableStock = (product: any) => {
+    // Com a atualização do backend, 'stock' agora é um objeto estruturado
+    const stockInfo = product.stock; 
+    
+    // Se não existir informação de stock, retorna 0
+    if (!stockInfo) return 0;
+
+    // O onHand que vem do banco JÁ É o saldo livre da prateleira.
+    // (Porque quando aprovamos pedidos, já descontamos do on_hand no banco).
+    const onHand = Number(stockInfo.quantity_on_hand || 0);
+    
+    // 'openRequests' são os pedidos na fila (ainda 'aberto').
+    // Precisamos descontar eles virtualmente para você não pedir o que já foi pedido mas ainda não aprovado.
+    const openRequests = Number(stockInfo.quantity_open || 0); 
+
+    // NÃO subtraímos 'reserved' aqui, pois o banco já fez isso no onHand.
+    
+    // Estoque Virtual = Físico Livre - Fila de Espera
+    return Math.max(0, onHand - openRequests);
+  };
+
   // --- Lógica ---
   const filteredProducts = useMemo(() => {
     if (!products) return [];
@@ -87,17 +108,15 @@ export default function MyRequests() {
   }, [products, searchTerm]);
 
   const handleProductSelect = (product: any) => {
-    // Se já está no carrinho, avisa
     if (cart.find(item => item.product_id === product.id)) {
       toast.info("Item já adicionado. Remova do carrinho para editar.");
       return;
     }
 
-    const stockInfo = product.stock?.[0];
-    const available = stockInfo ? (stockInfo.quantity_on_hand - stockInfo.quantity_reserved) : 0;
+    const available = getAvailableStock(product);
 
     if (available <= 0) {
-      toast.error("Produto indisponível no estoque.");
+      toast.error("Produto indisponível ou já comprometido em outras solicitações.");
       return;
     }
 
@@ -176,7 +195,7 @@ export default function MyRequests() {
       {activeTab === "new" && (
         <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden pb-2">
           
-          {/* ESQUERDA: CATÁLOGO DE PRODUTOS (70% da tela em desktop grande) */}
+          {/* ESQUERDA: CATÁLOGO DE PRODUTOS */}
           <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden">
             <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-4">
               <div className="flex justify-between items-center">
@@ -208,8 +227,7 @@ export default function MyRequests() {
                   </div>
                 ) : (
                   filteredProducts.map((product: any) => {
-                    const stockInfo = product.stock?.[0];
-                    const available = stockInfo ? (stockInfo.quantity_on_hand - stockInfo.quantity_reserved) : 0;
+                    const available = getAvailableStock(product);
                     const inCart = cart.some(i => i.product_id === product.id);
                     
                     return (
@@ -222,7 +240,6 @@ export default function MyRequests() {
                         `}
                         onClick={() => available > 0 && handleProductSelect(product)}
                       >
-                        {/* Se estiver no carrinho, mostra selo */}
                         {inCart && (
                           <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-in zoom-in">
                             NO CARRINHO
@@ -230,7 +247,6 @@ export default function MyRequests() {
                         )}
 
                         <div className="flex justify-between items-start gap-3 mb-2">
-                          {/* Nome do produto com QUEBRA DE LINHA PERMITIDA */}
                           <h3 className="font-semibold text-sm leading-snug text-foreground break-words line-clamp-2" title={product.name}>
                             {product.name}
                           </h3>
@@ -259,7 +275,7 @@ export default function MyRequests() {
             </ScrollArea>
           </Card>
 
-          {/* DIREITA: CARRINHO / REVISÃO (30% da tela) */}
+          {/* DIREITA: CARRINHO / REVISÃO */}
           <Card className="flex flex-col flex-1 h-full border-l-4 border-l-primary shadow-lg bg-card overflow-hidden">
             <CardHeader className="pb-3 bg-muted/20 border-b">
               <CardTitle className="flex items-center gap-2 text-lg text-primary">
@@ -284,7 +300,6 @@ export default function MyRequests() {
                   cart.map((item) => (
                     <div key={item.product_id} className="flex gap-3 p-4 hover:bg-muted/10 transition-colors group">
                       <div className="flex-1 min-w-0">
-                        {/* Nome completo no carrinho também */}
                         <p className="font-medium text-sm text-foreground break-words leading-snug">
                           {item.name}
                         </p>

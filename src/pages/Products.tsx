@@ -171,14 +171,16 @@ export default function Products() {
   const handleEdit = (product: any) => {
     setEditingProduct(product);
     setUseAutoSku(false);
+    // CORREÇÃO: Lê o estoque do objeto aninhado 'stock'
+    const currentStock = product.stock?.quantity_on_hand || "0";
+    
     setFormData({
       sku: product.sku,
       name: product.name,
       description: product.description || "",
       unit: product.unit,
       min_stock: product.min_stock?.toString() || "0",
-      // CORREÇÃO AQUI: Lê direto de product.quantity em vez de stock[0]
-      quantity: product.quantity?.toString() || "0", 
+      quantity: currentStock.toString(), 
       unit_price: product.unit_price?.toString() || "0",
     });
   };
@@ -429,6 +431,9 @@ export default function Products() {
                   const hasPrice = product.unit_price && parseFloat(product.unit_price) > 0;
                   const priceFormatted = hasPrice ? Number(product.unit_price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "R$ 0,00";
                   const isEditingThis = editingProduct?.id === product.id;
+                  
+                  // CORREÇÃO: Leitura do estoque para exibição no card
+                  const stockDisplay = product.stock?.quantity_on_hand || 0;
 
                   return (
                     <div 
@@ -491,8 +496,7 @@ export default function Products() {
                           <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Estoque Atual</p>
                           <div className={`flex items-center gap-1.5 ${isEditingThis ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300'}`}>
                              <Box className="h-3.5 w-3.5 text-slate-400" />
-                             {/* CORREÇÃO AQUI: Lê direto de product.quantity */}
-                             <span className="font-bold text-sm">{product.quantity || 0}</span>
+                             <span className="font-bold text-sm">{stockDisplay}</span>
                           </div>
                         </div>
 
