@@ -5,6 +5,7 @@ type Listener = (isLoading: boolean) => void;
 let listeners: Listener[] = [];
 let activeRequests = 0;
 let loadingTimer: any = null;
+let isLoaderVisible = false; // Controle para evitar re-renderizações desnecessárias
 
 export const subscribeToLoading = (listener: Listener) => {
   listeners.push(listener);
@@ -24,6 +25,7 @@ const handleRequestStart = () => {
   if (activeRequests === 1) {
     // Só exibe o loading se a requisição demorar mais de 300ms
     loadingTimer = setTimeout(() => {
+      isLoaderVisible = true;
       notifyListeners(true);
     }, 300);
   }
@@ -34,11 +36,18 @@ const handleRequestEnd = () => {
   // Garante que nunca fique negativo e limpa corretamente
   if (activeRequests <= 0) {
     activeRequests = 0;
+    
+    // Se terminou antes do tempo limite, cancela o timer
     if (loadingTimer) {
       clearTimeout(loadingTimer);
       loadingTimer = null;
     }
-    notifyListeners(false);
+    
+    // Só notifica o fechamento se o loader chegou a aparecer na tela
+    if (isLoaderVisible) {
+      isLoaderVisible = false;
+      notifyListeners(false);
+    }
   }
 };
 
@@ -58,7 +67,7 @@ export const api = axios.create({
   baseURL: getBaseUrl(),
 });
 
-// --- INTERCEPTADORES COM LÓGICA DE SKIP LOADING ---
+// --- INTERCEPTADORES INTELIGENTES ---
 
 api.interceptors.request.use(
   (config) => {
@@ -67,16 +76,25 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // CORREÇÃO: Só inicia o loading SE NÃO tiver a flag skipLoading
-    if (!(config as any).skipLoading) {
+    // LÓGICA DE FILTRO ANTI-FLICKER:
+    // 1. Verifica se é GET (leitura)
+    const isGetRequest = config.method?.toLowerCase() === 'get';
+    // 2. Verifica se tem opção explícita de pular
+    const skipOption = (config as any).skipLoading;
+    
+    // Se não tiver opção explícita, assume TRUE (pular) para GET e FALSE para o resto
+    const shouldSkip = skipOption !== undefined ? skipOption : isGetRequest;
+
+    if (!shouldSkip) {
+      (config as any)._usesLoader = true; // Marca que essa requisição ativou o loader
       handleRequestStart(); 
     }
     
     return config;
   },
   (error) => {
-    // Se deu erro e não era silenciosa, finaliza
-    if (!(error.config as any)?.skipLoading) {
+    // Se deu erro antes de sair e estava usando loader, finaliza
+    if ((error.config as any)?._usesLoader) {
       handleRequestEnd(); 
     }
     return Promise.reject(error);
@@ -85,15 +103,15 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
-    // Se não era silenciosa, finaliza o loader
-    if (!(response.config as any).skipLoading) {
+    // Só finaliza se essa requisição específica ativou o loader
+    if ((response.config as any)._usesLoader) {
       handleRequestEnd(); 
     }
     return response;
   },
   (error) => {
-    // Se não era silenciosa, finaliza o loader
-    if (!(error.config as any)?.skipLoading) {
+    // Só finaliza se essa requisição específica ativou o loader
+    if ((error.config as any)?._usesLoader) {
       handleRequestEnd(); 
     }
     return Promise.reject(error);
