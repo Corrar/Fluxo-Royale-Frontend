@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext"; // <--- 1. Importar Socket
 import { 
   Check, X, Package, Search, Trash2, AlertCircle, Truck, 
-  FileText, Clock, CheckCircle2, XCircle, Eye, User, Layers, Calendar, Hash
+  FileText, Clock, CheckCircle2, XCircle, Eye, User, Layers, Calendar
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 
 // Configuração Visual dos Status
 const statusStyles: any = {
@@ -53,6 +53,7 @@ const statusStyles: any = {
 
 export default function Requests() {
   const { profile } = useAuth();
+  const { socket } = useSocket(); // <--- 2. Usar Socket
   const queryClient = useQueryClient();
   
   // Estados
@@ -67,11 +68,30 @@ export default function Requests() {
   
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // 1. BUSCAR DADOS
+  // 3. EFEITO DE ATUALIZAÇÃO EM TEMPO REAL
+  useEffect(() => {
+    if (socket) {
+      const handleUpdate = () => {
+        // Atualiza a lista quando chega um novo pedido ou o status muda
+        queryClient.invalidateQueries({ queryKey: ["requests"] });
+      };
+
+      socket.on("new_request", handleUpdate);
+      socket.on("refresh_requests", handleUpdate);
+
+      return () => {
+        socket.off("new_request", handleUpdate);
+        socket.off("refresh_requests", handleUpdate);
+      };
+    }
+  }, [socket, queryClient]);
+
+  // 1. BUSCAR DADOS (Com Anti-Flicker)
   const { data: requests, isLoading } = useQuery({
     queryKey: ["requests"],
     queryFn: async () => (await api.get("/requests")).data,
-    refetchInterval: 5000, 
+    refetchInterval: 10000, 
+    placeholderData: keepPreviousData, // <--- Evita piscar a tela
   });
 
   // 2. MUTAÇÕES
@@ -193,7 +213,8 @@ export default function Requests() {
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="w-[50px] text-center">#</TableHead>
+                {/* Cabeçalho Ajustado */}
+                <TableHead className="w-[80px] text-center">Data / Ref</TableHead>
                 <TableHead className="w-[180px]">Solicitante / Setor</TableHead>
                 <TableHead>Resumo dos Itens</TableHead>
                 <TableHead className="w-[140px] text-center">Status</TableHead>
@@ -202,10 +223,10 @@ export default function Requests() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center h-32">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center h-32">Carregando...</TableCell></TableRow>
               ) : filteredRequests?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center h-48">
+                  <TableCell colSpan={5} className="text-center h-48">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <FileText className="h-10 w-10 mb-2 opacity-20" />
                       <p>Nenhuma solicitação encontrada.</p>
@@ -220,11 +241,21 @@ export default function Requests() {
                   
                   return (
                     <TableRow key={request.id} className={`group hover:bg-muted/5 transition-colors border-l-4 ${style.rowBorder}`}>
-                      {/* ID e Data */}
+                      
+                      {/* === COLUNA DE ID SIMPLIFICADA === */}
                       <TableCell className="text-center">
-                        <div className="flex flex-col items-center">
-                          <span className="font-mono text-xs font-bold text-foreground">#{request.id}</span>
-                          <span className="text-[10px] text-muted-foreground">{format(new Date(request.created_at), "dd/MM")}</span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          {/* Data */}
+                          <span className="font-medium text-xs text-foreground">
+                            {format(new Date(request.created_at), "dd/MM")}
+                          </span>
+                          {/* ID Curto (ex: #A1B2C3) */}
+                          <span 
+                            className="font-mono text-[10px] text-muted-foreground uppercase bg-muted/50 px-1 rounded" 
+                            title={`ID Completo: ${request.id}`}
+                          >
+                            #{request.id.substring(0, 6)}
+                          </span>
                         </div>
                       </TableCell>
                       
@@ -342,7 +373,7 @@ export default function Requests() {
       </Card>
 
       {/* ================================================================= */}
-      {/* 🚀 NOVO MODAL DE DETALHES "ESTILO DOCUMENTO" 🚀 */}
+      {/* MODAL DE DETALHES (Mantido) */}
       {/* ================================================================= */}
       <Dialog open={!!selectedRequest} onOpenChange={() => closeAllDialogs()}>
         <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden shadow-2xl">
@@ -355,7 +386,7 @@ export default function Requests() {
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                    Solicitação #{selectedRequest?.id}
+                    Solicitação #{selectedRequest?.id.substring(0, 6)}
                   </DialogTitle>
                   <DialogDescription className="flex items-center gap-2 text-sm">
                     <Calendar className="h-3.5 w-3.5" />
