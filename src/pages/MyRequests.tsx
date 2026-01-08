@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // --- Configuração de Status ---
@@ -34,6 +35,7 @@ interface CartItem {
 
 export default function MyRequests() {
   const { profile } = useAuth();
+  const { socket } = useSocket();
   const queryClient = useQueryClient();
   
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
@@ -45,19 +47,39 @@ export default function MyRequests() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [qtyInput, setQtyInput] = useState("");
 
-  // 1. DADOS
+  // 1. SOCKET (Atualização em Tempo Real)
+  useEffect(() => {
+    if (socket) {
+      const handleRefresh = () => {
+        queryClient.invalidateQueries({ queryKey: ["my-requests"] });
+        queryClient.invalidateQueries({ queryKey: ["products-list"] });
+      };
+
+      socket.on("refresh_requests", handleRefresh);
+      socket.on("refresh_stock", handleRefresh);
+
+      return () => {
+        socket.off("refresh_requests", handleRefresh);
+        socket.off("refresh_stock", handleRefresh);
+      };
+    }
+  }, [socket, queryClient]);
+
+  // 2. DADOS
   const { data: requests, isLoading: isLoadingRequests } = useQuery({
     queryKey: ["my-requests"],
     queryFn: async () => (await api.get("/my-requests")).data,
     refetchInterval: 10000, 
+    placeholderData: keepPreviousData, 
   });
 
   const { data: products, isLoading: isLoadingProducts } = useQuery({
     queryKey: ["products-list"],
     queryFn: async () => (await api.get("/products")).data,
+    placeholderData: keepPreviousData,
   });
 
-  // 2. MUTAÇÃO
+  // 3. MUTAÇÃO
   const createRequestMutation = useMutation({
     mutationFn: async (data: { sector: string; items: Array<{ product_id: string; quantity: number }> }) => {
       await api.post("/requests", data);
@@ -65,6 +87,8 @@ export default function MyRequests() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-requests"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["products-list"] });
+
       toast.success("Solicitação enviada com sucesso!");
       setCart([]); 
       setActiveTab("history"); 
@@ -75,32 +99,18 @@ export default function MyRequests() {
     },
   });
 
-  // --- Função Auxiliar de Cálculo de Estoque (Lógica Inteligente) ---
+  // --- Helpers ---
   const getAvailableStock = (product: any) => {
-    // Com a atualização do backend, 'stock' agora é um objeto estruturado
     const stockInfo = product.stock; 
-    
-    // Se não existir informação de stock, retorna 0
     if (!stockInfo) return 0;
-
-    // O onHand que vem do banco JÁ É o saldo livre da prateleira.
-    // (Porque quando aprovamos pedidos, já descontamos do on_hand no banco).
     const onHand = Number(stockInfo.quantity_on_hand || 0);
-    
-    // 'openRequests' são os pedidos na fila (ainda 'aberto').
-    // Precisamos descontar eles virtualmente para você não pedir o que já foi pedido mas ainda não aprovado.
     const openRequests = Number(stockInfo.quantity_open || 0); 
-
-    // NÃO subtraímos 'reserved' aqui, pois o banco já fez isso no onHand.
-    
-    // Estoque Virtual = Físico Livre - Fila de Espera
     return Math.max(0, onHand - openRequests);
   };
 
-  // --- Lógica ---
   const filteredProducts = useMemo(() => {
     if (!products) return [];
-    if (!searchTerm) return products.slice(0, 20); // Mostra mais produtos inicialmente
+    if (!searchTerm) return products.slice(0, 20); 
     return products.filter((p: any) => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
@@ -109,17 +119,14 @@ export default function MyRequests() {
 
   const handleProductSelect = (product: any) => {
     if (cart.find(item => item.product_id === product.id)) {
-      toast.info("Item já adicionado. Remova do carrinho para editar.");
+      toast.info("Item já adicionado.");
       return;
     }
-
     const available = getAvailableStock(product);
-
     if (available <= 0) {
-      toast.error("Produto indisponível ou já comprometido em outras solicitações.");
+      toast.error("Produto indisponível.");
       return;
     }
-
     setSelectedProduct({ ...product, available });
     setQtyInput("");
     setIsQtyDialogOpen(true);
@@ -127,14 +134,8 @@ export default function MyRequests() {
 
   const confirmAddItem = () => {
     const qtd = parseFloat(qtyInput);
-    if (!qtd || qtd <= 0) {
-      toast.error("Quantidade inválida");
-      return;
-    }
-    if (qtd > selectedProduct.available) {
-      toast.error(`Quantidade indisponível. Máximo: ${selectedProduct.available}`);
-      return;
-    }
+    if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
+    if (qtd > selectedProduct.available) return toast.error(`Máximo: ${selectedProduct.available}`);
 
     setCart([...cart, {
       product_id: selectedProduct.id,
@@ -143,7 +144,6 @@ export default function MyRequests() {
       unit: selectedProduct.unit,
       quantity: qtd
     }]);
-
     setIsQtyDialogOpen(false);
     toast.success("Adicionado!");
   };
@@ -195,14 +195,14 @@ export default function MyRequests() {
       {activeTab === "new" && (
         <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden pb-2">
           
-          {/* ESQUERDA: CATÁLOGO DE PRODUTOS */}
+          {/* ESQUERDA: CATÁLOGO */}
           <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden">
             <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-4">
               <div className="flex justify-between items-center">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Search className="h-5 w-5 text-primary" /> Catálogo de Produtos
                 </CardTitle>
-                <Badge variant="outline" className="bg-background">{filteredProducts.length} itens encontrados</Badge>
+                <Badge variant="outline" className="bg-background">{filteredProducts.length} itens</Badge>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -223,7 +223,7 @@ export default function MyRequests() {
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="col-span-full text-center py-10 text-muted-foreground">
-                    Nenhum produto encontrado com este termo.
+                    Nenhum produto encontrado.
                   </div>
                 ) : (
                   filteredProducts.map((product: any) => {
@@ -275,7 +275,7 @@ export default function MyRequests() {
             </ScrollArea>
           </Card>
 
-          {/* DIREITA: CARRINHO / REVISÃO */}
+          {/* DIREITA: CARRINHO */}
           <Card className="flex flex-col flex-1 h-full border-l-4 border-l-primary shadow-lg bg-card overflow-hidden">
             <CardHeader className="pb-3 bg-muted/20 border-b">
               <CardTitle className="flex items-center gap-2 text-lg text-primary">
@@ -359,7 +359,7 @@ export default function MyRequests() {
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10">
                 <TableRow>
-                  <TableHead className="w-[140px]">Data</TableHead>
+                  <TableHead className="w-[100px] text-center">Data / Ref</TableHead>
                   <TableHead>Resumo</TableHead>
                   <TableHead className="w-[160px] text-center">Status</TableHead>
                 </TableRow>
@@ -376,11 +376,21 @@ export default function MyRequests() {
 
                     return (
                       <TableRow key={request.id} className="hover:bg-muted/5">
-                        <TableCell className="align-top py-4">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-sm">{format(new Date(request.created_at), "dd/MM/yy")}</span>
-                            <span className="text-xs text-muted-foreground">{format(new Date(request.created_at), "HH:mm")}</span>
-                            <span className="text-[10px] font-mono text-muted-foreground mt-1">#{request.id}</span>
+                        {/* === CÉLULA FORMATADA (DATA, HORA, ID) === */}
+                        <TableCell className="align-top py-4 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="font-medium text-xs text-foreground">
+                              {format(new Date(request.created_at), "dd/MM")}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground mb-1">
+                              {format(new Date(request.created_at), "HH:mm")}
+                            </span>
+                            <span 
+                              className="font-mono text-[10px] text-muted-foreground uppercase bg-muted/50 px-1 rounded"
+                              title={`ID: ${request.id}`}
+                            >
+                              #{request.id.substring(0, 6)}
+                            </span>
                           </div>
                         </TableCell>
                         
