@@ -1,474 +1,542 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { 
-  Plus, Trash2, Search, ShoppingCart, ArrowRight, History, Box,
-  Clock, CheckCircle2, XCircle, Truck, AlertTriangle, Send, Loader2
+  ShoppingCart, Eye, Search, X, Filter, CalendarClock, Truck, AlertOctagon,
+  Download, FileSpreadsheet, FileText
 } from "lucide-react";
-import { format } from "date-fns";
+import { toast } from "sonner";
+import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSocket } from "@/contexts/SocketContext";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 
-// --- Configuração de Status ---
-const statusConfig = {
-  aberto: { label: "Aberto", color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300", icon: Clock },
-  aprovado: { label: "Aprovado", color: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300", icon: CheckCircle2 },
-  rejeitado: { label: "Rejeitado", color: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300", icon: XCircle },
-  entregue: { label: "Entregue", color: "bg-gray-100 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-slate-300", icon: Truck },
-};
-
-interface CartItem {
-  product_id: string;
-  name: string;
-  sku: string;
-  unit: string;
-  quantity: number;
-}
-
-export default function MyRequests() {
+export default function LowStock() {
   const { profile } = useAuth();
-  const { socket } = useSocket();
   const queryClient = useQueryClient();
   
-  const [activeTab, setActiveTab] = useState<"new" | "history">("new");
-  const [sector] = useState(profile?.sector || "Setor não definido");
+  // --- ESTADOS ---
+  const [noteDialogItem, setNoteDialogItem] = useState<any>(null);
+  const [tempNote, setTempNote] = useState("");
+  const [tempDate, setTempDate] = useState(""); 
   const [searchTerm, setSearchTerm] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
-  
-  const [isQtyDialogOpen, setIsQtyDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [qtyInput, setQtyInput] = useState("");
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
-  // 1. SOCKET (Atualização em Tempo Real)
-  useEffect(() => {
-    if (socket) {
-      const handleRefresh = () => {
-        queryClient.invalidateQueries({ queryKey: ["my-requests"] });
-        queryClient.invalidateQueries({ queryKey: ["products-list"] });
-      };
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [vendorFilter, setVendorFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-      socket.on("refresh_requests", handleRefresh);
-      socket.on("refresh_stock", handleRefresh);
+  // Permissões
+  const canEdit = profile?.role === "compras" || profile?.role === "admin";
 
-      return () => {
-        socket.off("refresh_requests", handleRefresh);
-        socket.off("refresh_stock", handleRefresh);
-      };
-    }
-  }, [socket, queryClient]);
-
-  // 2. DADOS
-  const { data: requests, isLoading: isLoadingRequests } = useQuery({
-    queryKey: ["my-requests"],
-    queryFn: async () => (await api.get("/my-requests")).data,
-    refetchInterval: 10000, 
-    placeholderData: keepPreviousData, 
+  // 1. BUSCAR DADOS
+  const { data: lowStockItems, isLoading } = useQuery({
+    queryKey: ["low-stock"],
+    queryFn: async () => {
+      const response = await api.get("/products/low-stock");
+      return response.data;
+    },
   });
 
-  const { data: products, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["products-list"],
-    queryFn: async () => (await api.get("/products")).data,
-    placeholderData: keepPreviousData,
-  });
-
-  // 3. MUTAÇÃO
-  const createRequestMutation = useMutation({
-    mutationFn: async (data: { sector: string; items: Array<{ product_id: string; quantity: number }> }) => {
-      await api.post("/requests", data);
+  // 2. MUTAÇÃO: ATUALIZAR TUDO
+  const updateInfoMutation = useMutation({
+    mutationFn: async (data: { id: string; status: string; note: string; date?: string | null }) => {
+      await api.put(`/products/${data.id}/purchase-info`, {
+        purchase_status: data.status,
+        purchase_note: data.note,
+        delivery_forecast: data.date
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["products-list"] });
-
-      toast.success("Solicitação enviada com sucesso!");
-      setCart([]); 
-      setActiveTab("history"); 
+      queryClient.invalidateQueries({ queryKey: ["low-stock"] });
     },
-    onError: (error: any) => {
-      const msg = error.response?.data?.error || "Erro ao criar solicitação.";
-      toast.error(msg);
-    },
+    onError: () => toast.error("Erro ao atualizar item."),
   });
 
-  // --- Helpers ---
-  const getAvailableStock = (product: any) => {
-    const stockInfo = product.stock; 
-    if (!stockInfo) return 0;
-    const onHand = Number(stockInfo.quantity_on_hand || 0);
-    const openRequests = Number(stockInfo.quantity_open || 0); 
-    return Math.max(0, onHand - openRequests);
+  // --- FILTRAGEM ---
+  const filteredItems = useMemo(() => {
+    if (!lowStockItems) return [];
+    
+    return lowStockItems.filter((item: any) => {
+      const matchesSearch = 
+        searchTerm === "" ||
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const itemStatus = item.purchase_status || "pendente";
+      const matchesStatus = statusFilter === "all" || itemStatus === statusFilter;
+
+      const matchesVendor = 
+        vendorFilter === "" || 
+        (item.purchase_note && item.purchase_note.toLowerCase().includes(vendorFilter.toLowerCase()));
+
+      const matchesCategory = 
+        categoryFilter === "" ||
+        (item.description && item.description.toLowerCase().includes(categoryFilter.toLowerCase())) ||
+        item.name.toLowerCase().includes(categoryFilter.toLowerCase());
+
+      return matchesSearch && matchesStatus && matchesVendor && matchesCategory;
+    });
+  }, [lowStockItems, searchTerm, statusFilter, vendorFilter, categoryFilter]);
+
+  const activeFiltersCount = (statusFilter !== "all" ? 1 : 0) + (vendorFilter ? 1 : 0) + (categoryFilter ? 1 : 0);
+
+  // --- EXPORTAÇÃO ---
+  const handleExportReport = (type: 'pdf' | 'excel') => {
+    const itemsToExport = selectedItems.length > 0 
+        ? lowStockItems.filter((i: any) => selectedItems.includes(i.id))
+        : filteredItems;
+
+    if (!itemsToExport || itemsToExport.length === 0) {
+        toast.error("Nada para exportar");
+        return;
+    }
+
+    const exportData = itemsToExport.map((item: any) => ({
+        SKU: item.sku,
+        Produto: item.name,
+        "Estoque Atual": item.quantity || 0,
+        "Mínimo": item.min_stock,
+        "Status": (item.purchase_status || "pendente").toUpperCase(),
+        "Previsão": item.delivery_forecast ? format(new Date(item.delivery_forecast), "dd/MM/yyyy") : "-",
+        "Obs": item.purchase_note || ""
+    }));
+
+    if (type === 'excel') {
+        exportToExcel(exportData, "Relatorio_Compras");
+        toast.success("Excel baixado!");
+    } else {
+        const columns = [
+            { header: "SKU", dataKey: "SKU" },
+            { header: "Produto", dataKey: "Produto" },
+            { header: "Estoque", dataKey: "Estoque Atual" },
+            { header: "Mínimo", dataKey: "Mínimo" },
+            { header: "Status", dataKey: "Status" },
+            { header: "Previsão", dataKey: "Previsão" },
+        ];
+        exportToPDF("Relatório de Compras / Estoque Crítico", columns, exportData, "Relatorio_Compras_PDF");
+        toast.success("PDF gerado!");
+    }
+    
+    setSelectedItems([]);
   };
 
-  const filteredProducts = useMemo(() => {
-    if (!products) return [];
-    if (!searchTerm) return products.slice(0, 20); 
-    return products.filter((p: any) => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+  // --- HANDLERS ---
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = filteredItems.map((item: any) => item.id);
+      setSelectedItems(allIds);
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedItems((prev) => [...prev, id]);
+    } else {
+      setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
+    }
+  };
+
+  const handleBulkStatusChange = async (newStatus: string) => {
+    if (selectedItems.length === 0) return;
+    const promise = Promise.all(
+      selectedItems.map((id) => {
+        const originalItem = lowStockItems.find((i: any) => i.id === id);
+        return updateInfoMutation.mutateAsync({
+          id,
+          status: newStatus,
+          note: originalItem?.purchase_note || "",
+          date: originalItem?.delivery_forecast
+        });
+      })
     );
-  }, [products, searchTerm]);
-
-  const handleProductSelect = (product: any) => {
-    if (cart.find(item => item.product_id === product.id)) {
-      toast.info("Item já adicionado.");
-      return;
-    }
-    const available = getAvailableStock(product);
-    if (available <= 0) {
-      toast.error("Produto indisponível.");
-      return;
-    }
-    setSelectedProduct({ ...product, available });
-    setQtyInput("");
-    setIsQtyDialogOpen(true);
-  };
-
-  const confirmAddItem = () => {
-    const qtd = parseFloat(qtyInput);
-    if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
-    if (qtd > selectedProduct.available) return toast.error(`Máximo: ${selectedProduct.available}`);
-
-    setCart([...cart, {
-      product_id: selectedProduct.id,
-      name: selectedProduct.name,
-      sku: selectedProduct.sku,
-      unit: selectedProduct.unit,
-      quantity: qtd
-    }]);
-    setIsQtyDialogOpen(false);
-    toast.success("Adicionado!");
-  };
-
-  const handleRemoveItem = (id: string) => {
-    setCart(cart.filter(item => item.product_id !== id));
-  };
-
-  const handleSubmit = () => {
-    if (!sector) return toast.error("Erro: Setor não identificado.");
-    if (cart.length === 0) return toast.error("Carrinho vazio.");
-    createRequestMutation.mutate({
-      sector,
-      items: cart.map(item => ({ product_id: item.product_id, quantity: item.quantity })),
+    toast.promise(promise, {
+      loading: 'Atualizando...',
+      success: () => { setSelectedItems([]); return 'Itens atualizados com sucesso!'; },
+      error: 'Erro na atualização',
     });
   };
 
+  const handleStatusChange = (item: any, newStatus: string) => {
+    const shouldKeepDate = (newStatus === 'comprado' || newStatus === 'cotacao') && item.delivery_forecast;
+    updateInfoMutation.mutate({ 
+      id: item.id, 
+      status: newStatus, 
+      note: item.purchase_note || "",
+      date: shouldKeepDate ? item.delivery_forecast : null 
+    }, { onSuccess: () => toast.success("Status atualizado!") });
+  };
+
+  const openNoteDialog = (item: any) => {
+    setNoteDialogItem(item);
+    setTempNote(item.purchase_note || "");
+    setTempDate(item.delivery_forecast ? item.delivery_forecast.toString().split('T')[0] : "");
+  };
+
+  const handleSaveDialog = () => {
+    if (noteDialogItem) {
+      let statusToSave = noteDialogItem.purchase_status || "pendente";
+      if (tempDate && statusToSave === "pendente") {
+        statusToSave = "comprado";
+      }
+
+      updateInfoMutation.mutate({
+        id: noteDialogItem.id,
+        status: statusToSave,
+        note: tempNote,
+        date: tempDate || null
+      }, { 
+        onSuccess: () => { 
+          toast.success("Informações salvas!"); 
+          setNoteDialogItem(null); 
+        } 
+      });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "comprado": return "text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800";
+      case "cotacao": return "text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800";
+      case "nao_comprado": return "text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800";
+      default: return "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800";
+    }
+  };
+
+  const renderDeliveryDate = (dateString: any) => {
+    if (!dateString) return <span className="text-muted-foreground text-xs">-</span>;
+    try {
+      const date = new Date(dateString);
+      const userDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+      if (isNaN(userDate.getTime())) return <span className="text-muted-foreground text-xs">-</span>;
+      const isLate = isPast(userDate) && !isToday(userDate);
+      return (
+        <div className={`flex items-center justify-center gap-1 text-xs font-medium px-2 py-1 rounded-md border w-fit mx-auto ${isLate ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"}`}>
+          <CalendarClock className="h-3 w-3" />
+          {format(userDate, "dd/MM")}
+          {isLate && <span className="font-bold ml-1">!</span>}
+        </div>
+      );
+    } catch (e) {
+      return <span className="text-muted-foreground text-xs">-</span>;
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 animate-in fade-in duration-500">
-      
-      {/* CABEÇALHO */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+    <div className="space-y-6 pb-24 animate-in fade-in duration-500">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Painel do Setor</h1>
-          <p className="text-muted-foreground">Solicite materiais do estoque central</p>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3 text-slate-900 dark:text-slate-100">
+            <ShoppingCart className="h-8 w-8 text-primary" />
+            Progresso de Compras
+          </h1>
+          <p className="text-muted-foreground">Gestão inteligente de reposição, cotações e prazos.</p>
         </div>
         
-        <div className="flex bg-muted p-1 rounded-lg border">
-          <Button 
-            variant={activeTab === "new" ? "default" : "ghost"} 
-            size="sm"
-            onClick={() => setActiveTab("new")}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" /> Nova Solicitação
-          </Button>
-          <Button 
-            variant={activeTab === "history" ? "default" : "ghost"} 
-            size="sm"
-            onClick={() => setActiveTab("history")}
-            className="gap-2"
-          >
-            <History className="h-4 w-4" /> Meus Pedidos
-          </Button>
-        </div>
+        {/* --- BOTÃO DE EXPORTAÇÃO --- */}
+        {selectedItems.length === 0 && (
+            <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 border-dashed border-slate-300 dark:border-slate-700 dark:text-slate-300">
+                <Download className="h-4 w-4" />
+                Baixar Relatório
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="dark:bg-slate-900 dark:border-slate-800">
+                <DropdownMenuItem onClick={() => handleExportReport('excel')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                Baixar Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReport('pdf')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <FileText className="h-4 w-4 text-red-600" />
+                Baixar PDF
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
+        )}
       </div>
 
-      {/* --- ABA: NOVA SOLICITAÇÃO --- */}
-      {activeTab === "new" && (
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden pb-2">
-          
-          {/* ESQUERDA: CATÁLOGO */}
-          <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden">
-            <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Search className="h-5 w-5 text-primary" /> Catálogo de Produtos
-                </CardTitle>
-                <Badge variant="outline" className="bg-background">{filteredProducts.length} itens</Badge>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Digite o nome, SKU ou descrição..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-10 bg-background text-base"
-                />
-              </div>
-            </CardHeader>
-            
-            <ScrollArea className="flex-1 bg-muted/5">
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3">
-                {isLoadingProducts ? (
-                  <div className="col-span-full flex flex-col items-center justify-center h-40 text-muted-foreground">
-                    <Box className="h-8 w-8 animate-bounce mb-2" /> Carregando catálogo...
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div className="col-span-full text-center py-10 text-muted-foreground">
-                    Nenhum produto encontrado.
-                  </div>
-                ) : (
-                  filteredProducts.map((product: any) => {
-                    const available = getAvailableStock(product);
-                    const inCart = cart.some(i => i.product_id === product.id);
-                    
-                    return (
-                      <div 
-                        key={product.id} 
-                        className={`
-                          relative flex flex-col p-4 rounded-lg border shadow-sm transition-all bg-card
-                          ${available <= 0 ? 'opacity-60 grayscale cursor-not-allowed border-dashed' : 'hover:border-primary hover:shadow-md cursor-pointer'}
-                          ${inCart ? 'ring-2 ring-primary border-primary bg-primary/5' : ''}
-                        `}
-                        onClick={() => available > 0 && handleProductSelect(product)}
-                      >
-                        {inCart && (
-                          <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-in zoom-in">
-                            NO CARRINHO
-                          </div>
-                        )}
-
-                        <div className="flex justify-between items-start gap-3 mb-2">
-                          <h3 className="font-semibold text-sm leading-snug text-foreground break-words line-clamp-2" title={product.name}>
-                            {product.name}
-                          </h3>
-                          {available > 0 ? (
-                            <Badge variant="secondary" className="shrink-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200">
-                              {available} {product.unit}
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="shrink-0">Esgotado</Badge>
-                          )}
-                        </div>
-
-                        <div className="mt-auto flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-dashed">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{product.sku}</span>
-                          </div>
-                          <span className="flex items-center gap-1 text-primary font-medium group-hover:underline">
-                            Selecionar <ArrowRight className="h-3 w-3" />
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </Card>
-
-          {/* DIREITA: CARRINHO */}
-          <Card className="flex flex-col flex-1 h-full border-l-4 border-l-primary shadow-lg bg-card overflow-hidden">
-            <CardHeader className="pb-3 bg-muted/20 border-b">
-              <CardTitle className="flex items-center gap-2 text-lg text-primary">
-                <ShoppingCart className="h-5 w-5" /> Revisão do Pedido
-              </CardTitle>
-              <CardDescription>
-                Setor: <span className="font-semibold text-foreground">{sector}</span>
-              </CardDescription>
-            </CardHeader>
-            
-            <ScrollArea className="flex-1 p-0">
-              <div className="flex flex-col divide-y divide-border">
-                {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground space-y-3 px-4 text-center">
-                    <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center">
-                      <ShoppingCart className="h-8 w-8 opacity-50" />
-                    </div>
-                    <p>Seu carrinho está vazio.</p>
-                    <p className="text-sm opacity-70">Clique nos produtos à esquerda para adicionar.</p>
-                  </div>
-                ) : (
-                  cart.map((item) => (
-                    <div key={item.product_id} className="flex gap-3 p-4 hover:bg-muted/10 transition-colors group">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground break-words leading-snug">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono mt-1">{item.sku}</p>
-                      </div>
-                      
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-2 bg-muted px-2 py-1 rounded-md">
-                          <span className="font-bold text-sm">{item.quantity}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase">{item.unit}</span>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-50 -mr-1" 
-                          onClick={() => handleRemoveItem(item.product_id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-
-            <div className="p-4 bg-muted/20 border-t mt-auto">
-              <div className="flex justify-between items-center mb-4 text-sm">
-                <span className="text-muted-foreground">Total de Itens:</span>
-                <span className="font-bold text-lg">{cart.length}</span>
-              </div>
-              <Button 
-                className="w-full h-12 text-base font-bold shadow-md transition-all hover:scale-[1.02]" 
-                onClick={handleSubmit} 
-                disabled={cart.length === 0 || createRequestMutation.isPending}
-              >
-                {createRequestMutation.isPending ? (
-                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Enviando...</>
-                ) : (
-                  <><Send className="mr-2 h-5 w-5" /> Confirmar Pedido</>
-                )}
-              </Button>
-            </div>
-          </Card>
+      {/* FERRAMENTAS */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Pesquisar por Nome ou SKU..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+          />
         </div>
-      )}
 
-      {/* --- ABA: HISTÓRICO DE PEDIDOS --- */}
-      {activeTab === "history" && (
-        <Card className="flex-1 overflow-hidden border-muted-foreground/20 flex flex-col min-h-0 shadow-sm">
-          <CardHeader className="shrink-0 pb-2 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <History className="h-5 w-5 text-primary" /> Histórico de Solicitações
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-auto">
-            <Table>
-              <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead className="w-[100px] text-center">Data / Ref</TableHead>
-                  <TableHead>Resumo</TableHead>
-                  <TableHead className="w-[160px] text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingRequests ? (
-                  <TableRow><TableCell colSpan={3} className="text-center h-32">Carregando...</TableCell></TableRow>
-                ) : requests?.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="text-center h-32 text-muted-foreground">Nenhum pedido realizado.</TableCell></TableRow>
-                ) : (
-                  requests?.map((request: any) => {
-                    const status = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberto;
-                    const StatusIcon = status.icon;
-
-                    return (
-                      <TableRow key={request.id} className="hover:bg-muted/5">
-                        {/* === CÉLULA FORMATADA (DATA, HORA, ID) === */}
-                        <TableCell className="align-top py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="font-medium text-xs text-foreground">
-                              {format(new Date(request.created_at), "dd/MM")}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground mb-1">
-                              {format(new Date(request.created_at), "HH:mm")}
-                            </span>
-                            <span 
-                              className="font-mono text-[10px] text-muted-foreground uppercase bg-muted/50 px-1 rounded"
-                              title={`ID: ${request.id}`}
-                            >
-                              #{request.id.substring(0, 6)}
-                            </span>
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell className="align-top py-4">
-                          <div className="space-y-1">
-                            {request.request_items?.map((item: any) => (
-                              <div key={item.id} className="flex items-start gap-2 text-sm">
-                                <Badge variant="secondary" className="h-5 px-1.5 font-mono text-[10px] shrink-0">
-                                  {item.quantity_requested} {item.products?.unit}
-                                </Badge>
-                                <span className="text-foreground leading-tight">{item.products?.name || item.custom_product_name}</span>
-                              </div>
-                            ))}
-                            
-                            {request.rejection_reason && (
-                              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 rounded text-xs text-red-800 dark:text-red-300 flex gap-2">
-                                <AlertTriangle className="h-3 w-3 shrink-0" />
-                                <span>Recusa: {request.rejection_reason}</span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        
-                        <TableCell className="align-top py-4 text-center">
-                          <Badge variant="outline" className={`${status.color} px-3 py-1 gap-1.5 text-xs font-medium`}>
-                            <StatusIcon className="h-3.5 w-3.5" />
-                            {status.label}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* --- DIALOG DE QUANTIDADE (Formulário Simples) --- */}
-      <Dialog open={isQtyDialogOpen} onOpenChange={setIsQtyDialogOpen}>
-        <DialogContent className="max-w-sm bg-card">
-          <DialogHeader>
-            <DialogTitle>Quantas unidades?</DialogTitle>
-          </DialogHeader>
-          
-          {selectedProduct && (
-            <div className="space-y-4 py-2">
-              <div className="bg-muted/30 p-3 rounded-lg border">
-                <p className="font-semibold text-sm leading-tight mb-1">{selectedProduct.name}</p>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>SKU: {selectedProduct.sku}</span>
-                  <span>Disp: <strong className="text-foreground">{selectedProduct.available}</strong></span>
-                </div>
+        <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+          <PopoverTrigger asChild>
+            <Button variant={activeFiltersCount > 0 ? "secondary" : "outline"} className={`gap-2 shrink-0 ${activeFiltersCount === 0 ? "dark:bg-slate-900 dark:border-slate-700" : ""}`}>
+              <Filter className="h-4 w-4" />
+              Filtros
+              {activeFiltersCount > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">{activeFiltersCount}</Badge>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-4 shadow-xl dark:bg-slate-900 dark:border-slate-800" align="end">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium leading-none dark:text-slate-200">Filtros Avançados</h4>
+                <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-muted-foreground hover:text-primary" onClick={() => { setStatusFilter("all"); setVendorFilter(""); setCategoryFilter(""); }}>
+                  Limpar
+                </Button>
               </div>
+              <Separator className="dark:bg-slate-800" />
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold dark:text-slate-300">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 dark:bg-slate-800 dark:border-slate-700"><SelectValue /></SelectTrigger>
+                  <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pendente">🔴 Pendente</SelectItem>
+                    <SelectItem value="cotacao">🔵 Em Cotação</SelectItem>
+                    <SelectItem value="comprado">🟢 Comprado</SelectItem>
+                    <SelectItem value="nao_comprado">⚫ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold dark:text-slate-300">Fornecedor (Aviso)</Label>
+                <Input placeholder="Ex: Weg..." value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)} className="h-8 dark:bg-slate-800 dark:border-slate-700" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold dark:text-slate-300">Categoria</Label>
+                <Input placeholder="Ex: Elétrica..." value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-8 dark:bg-slate-800 dark:border-slate-700" />
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
 
-              <div className="flex gap-2 items-center">
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="0.00" 
-                  value={qtyInput}
-                  onChange={(e) => setQtyInput(e.target.value)}
-                  className="text-xl h-14 font-bold text-center bg-background" 
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && confirmAddItem()}
+      {/* TABELA */}
+      <div className="border rounded-lg bg-card border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <Table>
+          <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+            <TableRow className="border-slate-200 dark:border-slate-800">
+              <TableHead className="w-[40px] text-center">
+                <Checkbox 
+                  checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                  onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                  className="dark:border-slate-500 dark:data-[state=checked]:bg-primary"
                 />
-                <div className="h-14 w-16 bg-muted flex items-center justify-center rounded-md font-medium text-muted-foreground border">
-                  {selectedProduct.unit}
-                </div>
-              </div>
+              </TableHead>
+              <TableHead className="dark:text-slate-300">Produto</TableHead>
+              <TableHead className="dark:text-slate-300">Estoque / Mín</TableHead>
+              <TableHead className="dark:text-slate-300">Déficit</TableHead>
+              <TableHead className="dark:text-slate-300">Tempo Crítico</TableHead>
+              <TableHead className="dark:text-slate-300">Status</TableHead>
+              <TableHead className="text-center dark:text-slate-300">Previsão</TableHead>
+              <TableHead className="text-center dark:text-slate-300">Gestão</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={8} className="text-center h-24 dark:text-slate-400">Carregando...</TableCell></TableRow>
+            ) : filteredItems.length === 0 ? (
+              <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Nenhum produto encontrado.</TableCell></TableRow>
+            ) : (
+              filteredItems.map((item: any) => {
+                const currentQty = Number(item.quantity || 0);
+                const deficit = item.min_stock - currentQty;
+                const isSelected = selectedItems.includes(item.id);
+
+                return (
+                  <TableRow key={item.id} className={`transition-colors border-slate-100 dark:border-slate-800 ${isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-slate-50 dark:hover:bg-slate-900/50"}`}>
+                    <TableCell className="text-center">
+                      <Checkbox checked={isSelected} onCheckedChange={(checked) => handleSelectItem(item.id, !!checked)} className="dark:border-slate-500 dark:data-[state=checked]:bg-primary" />
+                    </TableCell>
+                    
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm text-slate-900 dark:text-slate-200">{item.name}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{item.sku}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                        {currentQty} / {item.min_stock}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-bold text-red-600 dark:text-red-400">+{deficit > 0 ? deficit.toFixed(2) : 0}</TableCell>
+                    
+                    {/* LÓGICA DO TEMPO CRÍTICO CORRIGIDA */}
+                    <TableCell>
+                        {(() => {
+                          const criticalDate = item.critical_since ? new Date(item.critical_since) : new Date();
+                          const days = differenceInDays(new Date(), criticalDate);
+                          
+                          return (
+                            <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full w-fit ${
+                              days > 7 ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800" : 
+                              days > 3 ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800" : 
+                              "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                            }`}>
+                              <AlertOctagon className="w-3 h-3" />
+                              {/* Correção Gramatical e Lógica de 0 dias */}
+                              {days <= 0 ? "Hoje" : days === 1 ? "1 dia" : `${days} dias`}
+                            </div>
+                          );
+                        })()}
+                    </TableCell>
+
+                    <TableCell>
+                      <Select 
+                        value={item.purchase_status || "pendente"} 
+                        onValueChange={(val) => handleStatusChange(item, val)}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger className={`w-[140px] h-8 focus:ring-0 shadow-none border ${getStatusColor(item.purchase_status)}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                          <SelectItem value="pendente">🔴 Pendente</SelectItem>
+                          <SelectItem value="cotacao">🔵 Em Cotação</SelectItem>
+                          <SelectItem value="comprado">🟢 Comprado</SelectItem>
+                          <SelectItem value="nao_comprado">⚫ Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+
+                    <TableCell className="text-center">
+                      {renderDeliveryDate(item.delivery_forecast)}
+                    </TableCell>
+
+                    <TableCell className="text-center">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={item.purchase_note || item.delivery_forecast ? "text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30" : "text-muted-foreground hover:bg-muted dark:hover:bg-slate-800"}
+                        onClick={() => openNoteDialog(item)}
+                        title="Editar detalhes e prazo"
+                      >
+                        {!canEdit && (item.purchase_note || item.delivery_forecast) ? <Eye className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* BARRA FLUTUANTE DE AÇÕES */}
+      {selectedItems.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-popover dark:bg-slate-900 border border-border/50 dark:border-slate-700 shadow-2xl rounded-full px-6 py-3 flex items-center gap-3 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div className="flex items-center gap-3 border-r dark:border-slate-700 pr-4 mr-2">
+            <Badge variant="secondary" className="rounded-full px-2 bg-primary text-primary-foreground">{selectedItems.length}</Badge>
+            <span className="text-sm font-medium whitespace-nowrap dark:text-slate-200">Selecionados</span>
+          </div>
+          
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => handleBulkStatusChange('cotacao')} className="text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/50">
+                Em Cotação
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => handleBulkStatusChange('comprado')} className="text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/50">
+                Comprado
+              </Button>
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsQtyDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmAddItem} className="w-full sm:w-auto">Adicionar ao Pedido</Button>
-          </DialogFooter>
+          {/* EXPORTAR SELECIONADOS */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-2 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+                <Download className="h-4 w-4" />
+                Exportar
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="dark:bg-slate-900 dark:border-slate-800">
+                <DropdownMenuItem onClick={() => handleExportReport('excel')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <FileSpreadsheet className="h-4 w-4 text-green-600" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReport('pdf')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <FileText className="h-4 w-4 text-red-600" /> PDF
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          <div className="border-l pl-2 ml-2 dark:border-slate-700">
+            <Button size="icon" variant="ghost" className="rounded-full h-8 w-8 hover:bg-muted dark:hover:bg-slate-800 dark:text-slate-400" onClick={() => setSelectedItems([])}><X className="h-4 w-4" /></Button>
+          </div>
+        </div>
+      )}
+
+      {/* DIALOG DE DETALHES */}
+      <Dialog open={!!noteDialogItem} onOpenChange={(open) => !open && setNoteDialogItem(null)}>
+        <DialogContent className="sm:max-w-md dark:bg-slate-900 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="dark:text-slate-100">{canEdit ? "Gerenciar Compra" : "Detalhes da Compra"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/30 dark:bg-slate-800 p-3 rounded-md">
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Produto</p>
+              <p className="text-sm font-medium dark:text-slate-200">{noteDialogItem?.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{noteDialogItem?.sku}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold dark:text-slate-300">Previsão de Entrega</Label>
+                <Input 
+                  type="date" 
+                  value={tempDate} 
+                  onChange={(e) => setTempDate(e.target.value)} 
+                  disabled={!canEdit}
+                  className={`dark:bg-slate-800 dark:border-slate-700 ${tempDate && new Date(tempDate) < new Date(new Date().setHours(0,0,0,0)) ? "border-red-300 text-red-600 dark:text-red-400 font-medium" : ""}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold dark:text-slate-300">Status Sugerido</Label>
+                <div className="text-xs pt-3 text-muted-foreground">
+                  {tempDate && noteDialogItem?.purchase_status === 'pendente' ? "Mudará p/ Comprado" : "Mantém atual"}
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="note" className="text-xs font-semibold dark:text-slate-300">Observações / Fornecedor</Label>
+              <Textarea 
+                id="note"
+                placeholder={canEdit ? "Ex: Comprado na Loja X, NF 123..." : "Nenhum detalhe registrado."}
+                value={tempNote}
+                onChange={(e) => setTempNote(e.target.value)}
+                rows={4}
+                readOnly={!canEdit}
+                className="resize-none dark:bg-slate-800 dark:border-slate-700"
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setNoteDialogItem(null)} className="dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">Cancelar</Button>
+              {canEdit && <Button onClick={handleSaveDialog} className="bg-primary text-primary-foreground hover:bg-primary/90">Salvar Alterações</Button>}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
