@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { 
-  ShoppingCart, Eye, Search, X, Filter, Users, Megaphone, CalendarClock, Truck, AlertOctagon,
+  ShoppingCart, Eye, Search, X, Filter, CalendarClock, Truck, AlertOctagon,
   Download, FileSpreadsheet, FileText
 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,7 +44,7 @@ export default function LowStock() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // --- CORREÇÃO DE PERMISSÃO ---
+  // Permissões
   const canEdit = profile?.role === "compras" || profile?.role === "admin";
 
   // 1. BUSCAR DADOS
@@ -99,7 +99,7 @@ export default function LowStock() {
 
   const activeFiltersCount = (statusFilter !== "all" ? 1 : 0) + (vendorFilter ? 1 : 0) + (categoryFilter ? 1 : 0);
 
-  // --- NOVA FUNÇÃO DE EXPORTAÇÃO ---
+  // --- EXPORTAÇÃO ---
   const handleExportReport = (type: 'pdf' | 'excel') => {
     const itemsToExport = selectedItems.length > 0 
         ? lowStockItems.filter((i: any) => selectedItems.includes(i.id))
@@ -113,7 +113,6 @@ export default function LowStock() {
     const exportData = itemsToExport.map((item: any) => ({
         SKU: item.sku,
         Produto: item.name,
-        // CORREÇÃO: Usando item.quantity em vez de item.disponivel
         "Estoque Atual": item.quantity || 0,
         "Mínimo": item.min_stock,
         "Status": (item.purchase_status || "pendente").toUpperCase(),
@@ -349,7 +348,6 @@ export default function LowStock() {
               <TableHead className="dark:text-slate-300">Estoque / Mín</TableHead>
               <TableHead className="dark:text-slate-300">Déficit</TableHead>
               <TableHead className="dark:text-slate-300">Tempo Crítico</TableHead>
-              <TableHead className="dark:text-slate-300">Demanda</TableHead>
               <TableHead className="dark:text-slate-300">Status</TableHead>
               <TableHead className="text-center dark:text-slate-300">Previsão</TableHead>
               <TableHead className="text-center dark:text-slate-300">Gestão</TableHead>
@@ -357,17 +355,14 @@ export default function LowStock() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center h-24 dark:text-slate-400">Carregando...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center h-24 dark:text-slate-400">Carregando...</TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center h-24 text-muted-foreground">Nenhum produto encontrado.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Nenhum produto encontrado.</TableCell></TableRow>
             ) : (
               filteredItems.map((item: any) => {
-                // CORREÇÃO PRINCIPAL AQUI:
-                // Mudamos de item.disponivel para item.quantity
                 const currentQty = Number(item.quantity || 0);
                 const deficit = item.min_stock - currentQty;
                 const isSelected = selectedItems.includes(item.id);
-                const demandaSetores = Number(item.demanda_reprimida || 0);
 
                 return (
                   <TableRow key={item.id} className={`transition-colors border-slate-100 dark:border-slate-800 ${isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-slate-50 dark:hover:bg-slate-900/50"}`}>
@@ -388,11 +383,12 @@ export default function LowStock() {
                     </TableCell>
                     <TableCell className="font-bold text-red-600 dark:text-red-400">+{deficit > 0 ? deficit.toFixed(2) : 0}</TableCell>
                     
-                    {/* INDICADOR DE TEMPO CRÍTICO */}
+                    {/* LÓGICA DO TEMPO CRÍTICO CORRIGIDA */}
                     <TableCell>
-                      {item.critical_since ? (
-                        (() => {
-                          const days = differenceInDays(new Date(), new Date(item.critical_since));
+                        {(() => {
+                          const criticalDate = item.critical_since ? new Date(item.critical_since) : new Date();
+                          const days = differenceInDays(new Date(), criticalDate);
+                          
                           return (
                             <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full w-fit ${
                               days > 7 ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800" : 
@@ -400,25 +396,13 @@ export default function LowStock() {
                               "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
                             }`}>
                               <AlertOctagon className="w-3 h-3" />
-                              {days === 0 ? "Hoje" : `${days} dias`}
+                              {/* Correção Gramatical e Lógica de 0 dias */}
+                              {days <= 0 ? "Hoje" : days === 1 ? "1 dia" : `${days} dias`}
                             </div>
                           );
-                        })()
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
+                        })()}
                     </TableCell>
 
-                    <TableCell>
-                      {demandaSetores > 0 ? (
-                        <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 gap-1 border-transparent">
-                          <Users className="h-3 w-3" /> +{demandaSetores}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    
                     <TableCell>
                       <Select 
                         value={item.purchase_status || "pendente"} 
@@ -514,12 +498,6 @@ export default function LowStock() {
               <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Produto</p>
               <p className="text-sm font-medium dark:text-slate-200">{noteDialogItem?.name}</p>
               <p className="text-xs text-muted-foreground font-mono">{noteDialogItem?.sku}</p>
-              {noteDialogItem?.demanda_reprimida > 0 && (
-                <div className="mt-2 flex items-center gap-2 text-orange-600 dark:text-orange-400 text-xs font-bold bg-orange-50 dark:bg-orange-900/20 p-1 rounded border border-orange-100 dark:border-orange-900">
-                  <Megaphone className="h-3 w-3" />
-                  {noteDialogItem.demanda_reprimida} unidades solicitadas em aberto!
-                </div>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
