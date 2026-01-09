@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSocket } from "@/contexts/SocketContext"; // <--- 1. Importar Socket
+import { useSocket } from "@/contexts/SocketContext"; 
 import { 
   Check, X, Package, Search, Trash2, AlertCircle, Truck, 
   FileText, Clock, CheckCircle2, XCircle, Eye, User, Layers, Calendar
@@ -53,7 +53,9 @@ const statusStyles: any = {
 
 export default function Requests() {
   const { profile } = useAuth();
-  const { socket } = useSocket(); // <--- 2. Usar Socket
+  
+  // === 1. IMPORTAR A FUNÇÃO DE LIMPEZA ===
+  const { socket, markRequestsAsRead } = useSocket(); 
   const queryClient = useQueryClient();
   
   // Estados
@@ -68,11 +70,15 @@ export default function Requests() {
   
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+  // === 2. EFEITO PARA LIMPAR A BOLINHA AO ENTRAR ===
+  useEffect(() => {
+    markRequestsAsRead();
+  }, [markRequestsAsRead]);
+
   // 3. EFEITO DE ATUALIZAÇÃO EM TEMPO REAL
   useEffect(() => {
     if (socket) {
       const handleUpdate = () => {
-        // Atualiza a lista quando chega um novo pedido ou o status muda
         queryClient.invalidateQueries({ queryKey: ["requests"] });
       };
 
@@ -86,15 +92,15 @@ export default function Requests() {
     }
   }, [socket, queryClient]);
 
-  // 1. BUSCAR DADOS (Com Anti-Flicker)
+  // 4. BUSCAR DADOS (Com Anti-Flicker)
   const { data: requests, isLoading } = useQuery({
     queryKey: ["requests"],
     queryFn: async () => (await api.get("/requests")).data,
     refetchInterval: 10000, 
-    placeholderData: keepPreviousData, // <--- Evita piscar a tela
+    placeholderData: keepPreviousData, 
   });
 
-  // 2. MUTAÇÕES
+  // MUTAÇÕES
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, reason }: { id: string; status: string; reason?: string }) => {
       await api.put(`/requests/${id}/status`, { status, rejection_reason: reason });
@@ -213,7 +219,6 @@ export default function Requests() {
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                {/* Cabeçalho Ajustado */}
                 <TableHead className="w-[80px] text-center">Data / Ref</TableHead>
                 <TableHead className="w-[180px]">Solicitante / Setor</TableHead>
                 <TableHead>Resumo dos Itens</TableHead>
@@ -245,11 +250,9 @@ export default function Requests() {
                       {/* === COLUNA DE ID SIMPLIFICADA === */}
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center gap-0.5">
-                          {/* Data */}
                           <span className="font-medium text-xs text-foreground">
                             {format(new Date(request.created_at), "dd/MM")}
                           </span>
-                          {/* ID Curto (ex: #A1B2C3) */}
                           <span 
                             className="font-mono text-[10px] text-muted-foreground uppercase bg-muted/50 px-1 rounded" 
                             title={`ID Completo: ${request.id}`}
@@ -259,7 +262,6 @@ export default function Requests() {
                         </div>
                       </TableCell>
                       
-                      {/* Solicitante */}
                       <TableCell>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
@@ -273,7 +275,6 @@ export default function Requests() {
                         </div>
                       </TableCell>
                       
-                      {/* Itens */}
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           {request.request_items?.slice(0, 2).map((item: any, idx: number) => (
@@ -297,7 +298,6 @@ export default function Requests() {
                         )}
                       </TableCell>
                       
-                      {/* Status */}
                       <TableCell className="text-center">
                         <Badge variant="outline" className={`${style.color} px-2.5 py-0.5 gap-1.5 text-xs font-medium border`}>
                           <StatusIcon className="h-3 w-3" />
@@ -305,7 +305,6 @@ export default function Requests() {
                         </Badge>
                       </TableCell>
                       
-                      {/* Ações */}
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button 
@@ -377,10 +376,7 @@ export default function Requests() {
       {/* ================================================================= */}
       <Dialog open={!!selectedRequest} onOpenChange={() => closeAllDialogs()}>
         <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden shadow-2xl">
-          
-          {/* TOPO COLORIDO CONFORME STATUS */}
           <div className={`h-2 w-full ${statusStyles[selectedRequest?.status]?.headerColor || "bg-slate-500"}`} />
-          
           <div className="p-6">
             <DialogHeader className="mb-6">
               <div className="flex justify-between items-start">
@@ -459,7 +455,6 @@ export default function Requests() {
               </div>
             </div>
 
-            {/* SEÇÃO DE RECUSA (VISÍVEL APENAS SE RECUSADO) */}
             {selectedRequest?.rejection_reason && (
               <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900 rounded-lg animate-in slide-in-from-bottom-2">
                 <h5 className="flex items-center gap-2 text-red-800 dark:text-red-400 font-bold text-sm mb-1">
