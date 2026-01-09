@@ -1,12 +1,15 @@
 import { 
   Home, Package, ShoppingCart, FileText, Users, BarChart3, LogOut, 
   Calculator, Eye, ClipboardList, Bell, ChevronLeft, ChevronRight, Rocket,
-  Truck, AlertTriangle, ShieldCheck, Lock 
+  Truck, AlertTriangle, ShieldCheck, Lock, User
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext";
 import { NavLink } from "./NavLink";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -15,107 +18,144 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isCollapsed, toggleSidebar, onItemClick }: SidebarProps) {
-  // Pegamos a função canAccess do contexto atualizado
   const { profile, signOut, canAccess } = useAuth();
+  
+  // Consumindo diretamente a contagem numérica do Contexto
+  const { unreadCount } = useSocket(); 
 
-  // --- CARGOS (Ainda úteis para estrutura geral ou Admin) ---
   const isAdmin = profile?.role === "admin";
   const isSetor = profile?.role === "setor";
 
-  // --- ESTILOS ---
-  const baseClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all hover:text-primary text-muted-foreground";
-  const activeClass = "bg-muted text-primary";
+  const baseClass = "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-muted/50 group";
+  const activeClass = "bg-primary/5 text-primary border-l-4 border-primary rounded-l-none font-semibold";
 
-  const renderLink = (to: string, icon: React.ReactNode, label: string) => (
-    <NavLink 
-      to={to} 
-      className={`${baseClass} ${isCollapsed ? "justify-center px-2" : ""}`}
-      activeClassName={activeClass}
-      title={isCollapsed ? label : ""}
-      onClick={onItemClick}
-    >
-      {icon}
-      {!isCollapsed && <span className="truncate">{label}</span>}
-    </NavLink>
-  );
+  // Formata o número (ex: 12 vira "9+")
+  const formatBadgeCount = (count: number) => {
+    if (!count || count <= 0) return null;
+    return count > 9 ? "9+" : count;
+  };
+
+  const renderLink = (to: string, icon: React.ReactNode, label: string) => {
+    // Lógica simplificada: Se for a rota de solicitações E tiver contagem > 0
+    const isRequestsRoute = to === "/requests";
+    const hasCount = unreadCount > 0;
+    const showBadge = isRequestsRoute && hasCount;
+    
+    return (
+      <NavLink 
+        to={to} 
+        className={`${baseClass} ${isCollapsed ? "justify-center px-2" : ""}`}
+        activeClassName={activeClass}
+        title={isCollapsed ? label : ""}
+        onClick={onItemClick}
+      >
+        <div className="relative flex items-center justify-center">
+          {icon}
+          
+          {/* --- BOLINHA (Modo Colapsado) --- */}
+          {showBadge && isCollapsed && (
+            <span className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full bg-red-600 border-[2px] border-card shadow-sm text-[9px] font-bold text-white animate-in zoom-in duration-300">
+              {formatBadgeCount(unreadCount)}
+            </span>
+          )}
+        </div>
+        
+        {!isCollapsed && (
+          <>
+            <span className="truncate group-hover:translate-x-1 transition-transform duration-300 flex-1">
+              {label}
+            </span>
+            
+            {/* --- BOLINHA (Modo Expandido) --- */}
+            {showBadge && (
+              <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 shadow-sm mr-1 text-[10px] font-bold text-white animate-in zoom-in duration-300">
+                {formatBadgeCount(unreadCount)}
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
-    <div 
-      className={`flex flex-col h-full bg-card text-card-foreground transition-all duration-300 ${isCollapsed ? "w-[70px]" : "w-64"} border-r`}
-    >
+    <div className={`flex flex-col h-full bg-card text-card-foreground transition-all duration-300 ${isCollapsed ? "w-[80px]" : "w-72"} border-r shadow-2xl z-20`}>
+      
       {/* CABEÇALHO */}
-      <div className={`p-4 flex items-center ${isCollapsed ? "justify-center" : "justify-between"}`}>
+      <div className={`h-20 flex items-center ${isCollapsed ? "justify-center" : "justify-between px-6"} border-b border-border/40 bg-muted/5`}>
         {!isCollapsed && (
-          <div className="overflow-hidden">
-            <h1 className="text-xl font-bold text-primary truncate tracking-tight">Fluxo Royale</h1>
-            <p className="text-xs text-muted-foreground truncate">Gestão Inteligente</p>
+          <div className="flex items-center gap-3 overflow-hidden animate-in fade-in slide-in-from-left-2 duration-500">
+            {/* --- ALTERAÇÃO AQUI: Imagem do Egg no lugar do foguete azul --- */}
+            <div className="h-10 w-10 flex items-center justify-center shrink-0">
+              <img 
+                src="/favicon.png" // Assumindo que este é o caminho da imagem da aba
+                alt="Fluxo Royale Logo" 
+                className="h-9 w-9 object-contain drop-shadow-sm animate-in zoom-in duration-700"
+              />
+            </div>
+            {/* --------------------------------------------------------- */}
+            <div className="flex flex-col">
+              <h1 className="text-xl font-extrabold tracking-tight text-foreground leading-none">Fluxo Royale</h1>
+              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em] mt-1">Sistema de Gestão</span>
+            </div>
           </div>
         )}
         
         <Button 
           variant="ghost" 
           size="icon" 
-          className="h-6 w-6 text-muted-foreground hover:text-primary hidden lg:flex" 
+          className={`text-muted-foreground hover:text-primary transition-colors ${isCollapsed ? "" : "hidden lg:flex"}`} 
           onClick={toggleSidebar}
         >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-3">
-        <nav className="flex flex-col gap-1 pt-2 pb-4">
+      {/* NAVEGAÇÃO */}
+      <ScrollArea className="flex-1 py-6">
+        <nav className="flex flex-col gap-1 px-3">
           
-          {/* MENU COMUM */}
-          {renderLink(isSetor ? "/stock-view" : "/inicio", <Rocket className="h-5 w-5" />, "Início")}
-
-          {/* DASHBOARD (Controlado por Permissão) */}
-          {canAccess('dashboard') && renderLink("/", <Home className="h-5 w-5" />, "Dashboard")}
-          
-          {/* AVISOS */}
+          {renderLink(isSetor ? "/stock-view" : "/inicio", <Home className="h-5 w-5" />, "Início")}
+          {canAccess('dashboard') && renderLink("/", <BarChart3 className="h-5 w-5" />, "Dashboard")}
           {canAccess('avisos') && renderLink("/reminders", <Bell className="h-5 w-5" />, "Avisos")}
-
-          {/* CALCULADORA */}
           {canAccess('calculadora') && renderLink("/calculator", <Calculator className="h-5 w-5" />, "Calculadora")}
 
-          {/* SEÇÃO: GESTÃO */}
+          {!isCollapsed && <Separator className="my-3 bg-border/40" />}
+
+          {/* GESTÃO */}
           {(canAccess('produtos') || canAccess('estoque') || canAccess('consultar')) && (
-            <div className="pt-4 pb-1">
-              {!isCollapsed && <p className="mb-2 px-2 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider truncate">Gestão</p>}
-              
+            <div className="mb-2">
+              {!isCollapsed && <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Gestão de Estoque</p>}
               {canAccess('produtos') && renderLink("/products", <Package className="h-5 w-5" />, "Produtos")}
-              {canAccess('estoque') && renderLink("/stock", <ShoppingCart className="h-5 w-5" />, "Estoque")}
-              {canAccess('consultar') && renderLink("/stock-view", <Eye className="h-5 w-5" />, "Consultar")}
+              {canAccess('estoque') && renderLink("/stock", <ShoppingCart className="h-5 w-5" />, "Movimentação")}
+              {canAccess('consultar') && renderLink("/stock-view", <Eye className="h-5 w-5" />, "Consulta Rápida")}
             </div>
           )}
 
-          {/* SEÇÃO: MOVIMENTAÇÃO (Atualizada) */}
+          {/* OPERACIONAL */}
           {(canAccess('solicitacoes') || canAccess('minhas_solicitacoes') || canAccess('separacoes') || canAccess('confronto_viagem')) && (
-            <div className="pt-4 pb-1">
-              {!isCollapsed && <p className="mb-2 px-2 text-xs font-semibold text-muted-foreground/70 uppercase truncate">Movimentação</p>}
+            <div className="mb-2">
+              {!isCollapsed && <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Operacional</p>}
               
               {canAccess('solicitacoes') && renderLink("/requests", <FileText className="h-5 w-5" />, "Solicitações")}
-              {canAccess('minhas_solicitacoes') && renderLink("/my-requests", <FileText className="h-5 w-5" />, "Minhas Solic.")}
-              {canAccess('separacoes') && renderLink("/separations", <Truck className="h-5 w-5" />, "Separações")}
               
-              {/* NOVO LINK DE CONFRONTO */}
+              {canAccess('minhas_solicitacoes') && renderLink("/my-requests", <ShoppingCart className="h-5 w-5" />, "Meus Pedidos")}
+              {canAccess('separacoes') && renderLink("/separations", <Truck className="h-5 w-5" />, "Separação")}
               {canAccess('confronto_viagem') && renderLink("/reconciliation", <ClipboardList className="h-5 w-5" />, "Confronto")}
             </div>
           )}
 
-          {/* SEÇÃO: ADMINISTRAÇÃO */}
+          {/* ADMINISTRAÇÃO */}
           {(isAdmin || canAccess('estoque_critico') || canAccess('relatorios')) && (
-            <div className="pt-4 pb-1">
-              {!isCollapsed && <p className="mb-2 px-2 text-xs font-semibold text-muted-foreground/70 uppercase truncate">Admin</p>}
-              
-              {canAccess('estoque_critico') && renderLink("/low-stock", <AlertTriangle className="h-5 w-5" />, "Compras")}
+            <div className="mb-2">
+              {!isCollapsed && <p className="px-3 py-2 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Administração</p>}
+              {canAccess('estoque_critico') && renderLink("/low-stock", <AlertTriangle className="h-5 w-5" />, "Compras & Críticos")}
               {canAccess('relatorios') && renderLink("/reports", <BarChart3 className="h-5 w-5" />, "Relatórios")}
-              {canAccess('calculo_minimo') && renderLink("/calc-min-stock", <Calculator className="h-5 w-5" />, "Estoque Mín.")}
               
               {isAdmin && (
                 <>
                   {renderLink("/users", <Users className="h-5 w-5" />, "Usuários")}
                   {renderLink("/audit", <ShieldCheck className="h-5 w-5" />, "Auditoria")}
-                  {/* LINK DE PERMISSÕES */}
                   {renderLink("/permissions", <Lock className="h-5 w-5" />, "Permissões")}
                 </>
               )}
@@ -125,27 +165,52 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick }: SidebarProp
       </ScrollArea>
 
       {/* RODAPÉ */}
-      <div className="p-4 border-t bg-muted/10">
-        {!isCollapsed && (
-          <div className="mb-3 px-1">
-            <p className="text-sm font-medium truncate">{profile?.name}</p>
-            <p className="text-xs text-muted-foreground capitalize truncate">
-              {profile?.role?.replace('_', ' ')}
-            </p>
+      <div className="p-4 border-t border-border/40 bg-muted/10">
+        {!isCollapsed ? (
+          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-background border shadow-sm">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {profile?.name}
+                </p>
+                <p className="text-xs text-muted-foreground capitalize truncate">
+                  {profile?.role?.replace('_', ' ')}
+                </p>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              className="w-full border-red-200/50 text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-950/30"
+              onClick={() => {
+                signOut();
+                if (onItemClick) onItemClick();
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" /> Encerrar Sessão
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4">
+             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 cursor-help" title={profile?.name}>
+                <User className="h-5 w-5 text-primary" />
+             </div>
+             <Button 
+                variant="ghost" 
+                size="icon"
+                className="text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  signOut();
+                  if (onItemClick) onItemClick();
+                }}
+                title="Sair"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
           </div>
         )}
-        <Button 
-          variant="ghost" 
-          className={`w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 ${isCollapsed ? "justify-center px-0" : "justify-start"}`} 
-          onClick={() => {
-            signOut();
-            if (onItemClick) onItemClick();
-          }}
-          title="Sair"
-        >
-          <LogOut className={`h-4 w-4 ${!isCollapsed && "mr-2"}`} />
-          {!isCollapsed && "Sair"}
-        </Button>
       </div>
     </div>
   );
