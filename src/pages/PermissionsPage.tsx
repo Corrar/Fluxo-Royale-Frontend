@@ -61,7 +61,19 @@ const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "permissoes", label: "Permissões", category: "Administração", description: "Gerenciamento de acesso (esta tela)" },
 ];
 
-const ROLES = ["admin", "almoxarife", "compras", "setor", "auxiliar", "chefe", "assistente_tecnico"];
+// --- ATUALIZADO: NOVOS CARGOS ADICIONADOS ---
+const ROLES = [
+  "admin", 
+  "almoxarife", 
+  "compras", 
+  "setor", 
+  "auxiliar", 
+  "chefe", 
+  "assistente_tecnico",
+  "engenharia",      // Novo
+  "prototipo",       // Novo
+  "desenvolvimento"  // Novo
+];
 
 const CATEGORY_ICONS: Record<PermissionCategory, any> = {
   "Geral": LayoutDashboard,
