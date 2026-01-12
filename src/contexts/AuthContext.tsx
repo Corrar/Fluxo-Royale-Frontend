@@ -1,10 +1,20 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/services/api";
 import { toast } from "sonner";
 
-// --- NOVOS CARGOS ---
-type UserRole = "admin" | "almoxarife" | "setor" | "compras" | "auxiliar" | "chefe" | "assistente_tecnico";
+// --- NOVOS CARGOS ADICIONADOS ---
+type UserRole = 
+  | "admin" 
+  | "almoxarife" 
+  | "setor" 
+  | "compras" 
+  | "auxiliar" 
+  | "chefe" 
+  | "assistente_tecnico"
+  | "engenharia"
+  | "prototipo"
+  | "desenvolvimento";
 
 interface User {
   id: string;
@@ -45,15 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Ref para evitar múltiplas chamadas simultâneas
+  const isHeartbeatRunning = useRef(false);
+
   // --- FUNÇÃO AUXILIAR PARA BUSCAR PERMISSÕES ---
-  // Essencial pois o login não retorna permissões diretamente
   const fetchUserPermissions = async (role: string) => {
     try {
-      // Busca todas as permissões do backend
       const response = await api.get("/admin/permissions");
       const allPermissions = response.data;
-      
-      // Filtra apenas as do cargo atual
       const myPermissions = allPermissions[role] || [];
       
       setPermissions(myPermissions);
@@ -77,35 +86,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (token && savedUser && savedProfile) {
         try {
-          // 1. Configura o token no Axios IMEDIATAMENTE
           api.defaults.headers.Authorization = `Bearer ${token}`;
-
           const parsedProfile = JSON.parse(savedProfile);
 
-          // 2. Restaura o estado
           setUser(JSON.parse(savedUser));
           setProfile(parsedProfile);
           
-          // 3. Tenta usar permissões salvas ou busca novas (mais seguro)
           if (savedPermissions) {
              setPermissions(JSON.parse(savedPermissions));
-             // Opcional: Atualizar em background para garantir que não mudou
              fetchUserPermissions(parsedProfile.role); 
           } else {
              await fetchUserPermissions(parsedProfile.role);
           }
-
         } catch (error) {
           console.error("Erro ao restaurar sessão:", error);
           localStorage.clear();
         }
       }
-      
       setLoading(false);
     };
-
     loadSession();
   }, []);
+
+  // ========================================================================
+  // ⏱️ RASTREADOR DE TEMPO ONLINE (HEARTBEAT) - OTIMIZADO
+  // ========================================================================
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (user && profile) {
+      const sendHeartbeat = async () => {
+        if (isHeartbeatRunning.current) return;
+        isHeartbeatRunning.current = true;
+
+        try {
+          // Passamos { skipLoading: true } para que o api.ts NÃO mostre o loader na tela
+          // O cast (as any) é necessário pois o axios padrão não conhece essa prop customizada
+          await api.put(`/users/${profile.id}/heartbeat`, {}, { skipLoading: true } as any);
+        } catch (error) {
+          // Silencioso para não atrapalhar o usuário
+        } finally {
+          isHeartbeatRunning.current = false;
+        }
+      };
+
+      // Executa imediatamente ao carregar
+      sendHeartbeat();
+      // Executa a cada 60 segundos
+      intervalId = setInterval(sendHeartbeat, 60000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, profile]);
 
   // ========================================================================
   // 🔥 HELPER DE ACESSO (RBAC)
@@ -115,9 +149,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return permissions.includes(pageKey);
   };
 
-  // ========================================================================
-  // 🔥 ATUALIZAÇÃO EM TEMPO REAL
-  // ========================================================================
   const updatePermissions = (newPermissions: string[]) => {
     console.log("🔄 Permissões atualizadas:", newPermissions);
     setPermissions(newPermissions);
@@ -129,41 +160,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ========================================================================
   const signIn = async (id: string, password: string) => {
     setLoading(true);
-
     try {
-      const email = id.includes("@")
-        ? id.trim().toLowerCase()
-        : `${id.trim().toLowerCase()}@fluxoroyale.local`;
-
+      const email = id.includes("@") ? id.trim().toLowerCase() : `${id.trim().toLowerCase()}@fluxoroyale.local`;
       const response = await api.post("/auth/login", { email, password });
-
-      // O Backend retorna APENAS: { token, user, profile }
       const { token, user, profile } = response.data;
 
-      // 1. Salvar dados básicos
       localStorage.setItem("auth_token", token);
       localStorage.setItem("user_data", JSON.stringify(user));
       localStorage.setItem("user_profile", JSON.stringify(profile));
-
-      // 2. Aplicar token ao Axios
       api.defaults.headers.Authorization = `Bearer ${token}`;
 
-      // 3. Atualizar estado
       setUser(user);
       setProfile(profile);
-
-      // 4. BUSCAR PERMISSÕES AGORA (Crucial!)
       await fetchUserPermissions(profile.role);
 
       navigate("/inicio");
       return { error: null };
     } catch (error: any) {
       console.error("LOGIN ERROR:", error);
-
-      if (error.response && error.response.status === 429) {
-         return { error: { message: "Muitas tentativas erradas. Aguarde 5 minutos." } };
-      }
-
       const msg = error.response?.data?.error || "Erro ao conectar com o servidor";
       return { error: { message: msg } };
     } finally {
@@ -190,19 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        permissions,
-        loading,
-        canAccess,
-        updatePermissions,
-        signIn,
-        signUp,
-        signOut
-      }}
-    >
+    <AuthContext.Provider value={{ user, profile, permissions, loading, canAccess, updatePermissions, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -210,7 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined)
-    throw new Error("useAuth must be used within an AuthProvider");
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
