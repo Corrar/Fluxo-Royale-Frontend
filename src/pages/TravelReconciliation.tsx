@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { exportToExcel, exportToPDF } from "@/utils/exportUtils"; // <--- Importando utilitário
+import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 
 // Definição do tipo de item
 interface TravelItem {
@@ -235,8 +235,8 @@ export default function TravelReconciliation() {
                 <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2">
-                    <Scale className="h-8 w-8 text-blue-600" />
+                <h1 className="text-3xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <Scale className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     Confronto de Viagem
                 </h1>
                 <p className="text-muted-foreground">Auditoria de materiais: Saída vs. Retorno físico.</p>
@@ -247,15 +247,15 @@ export default function TravelReconciliation() {
         {comparisonResult.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 border-dashed border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100">
+                <Button variant="outline" className="gap-2 border-dashed border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/40">
                   <Download className="h-4 w-4" /> Exportar Resultado
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExportResult('excel')} className="gap-2 cursor-pointer">
+              <DropdownMenuContent align="end" className="dark:bg-slate-900 dark:border-slate-800">
+                <DropdownMenuItem onClick={() => handleExportResult('excel')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
                   <FileSpreadsheet className="h-4 w-4 text-green-600" /> Excel (.xlsx)
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportResult('pdf')} className="gap-2 cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExportResult('pdf')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
                   <FileText className="h-4 w-4 text-red-600" /> PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -267,29 +267,29 @@ export default function TravelReconciliation() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* --- COLUNA 1: SAÍDA (Ida) --- */}
-        <Card className="border-t-4 border-t-blue-500 shadow-md">
-          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3">
+        <Card className="border-t-4 border-t-blue-500 shadow-md dark:bg-slate-900 dark:border-slate-800">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3 dark:border-slate-800">
             <CardTitle className="flex items-center justify-between text-base">
-                <div className="flex items-center gap-2">
-                    <Upload className="h-5 w-5 text-blue-600" /> 
+                <div className="flex items-center gap-2 dark:text-slate-200">
+                    <Upload className="h-5 w-5 text-blue-600 dark:text-blue-400" /> 
                     Lista de Saída (Ida)
                 </div>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200">{outboundList.length} itens</Badge>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300">{outboundList.length} itens</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="upload">Upload Excel</TabsTrigger>
-                <TabsTrigger value="manual">Manual</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-slate-100 dark:bg-slate-800">
+                <TabsTrigger value="upload" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950">Upload Excel</TabsTrigger>
+                <TabsTrigger value="manual" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950">Manual</TabsTrigger>
               </TabsList>
 
               <TabsContent value="upload">
-                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-blue-200 text-center">
+                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800/50 text-center">
                   <Label htmlFor="outbound-file" className="cursor-pointer block h-full">
                     <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet className="h-10 w-10 text-blue-400" />
-                      <span className="text-sm font-medium text-blue-700">Clique para carregar planilha</span>
+                      <FileSpreadsheet className="h-10 w-10 text-blue-400 dark:text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-400">Clique para carregar planilha</span>
                       <span className="text-xs text-muted-foreground">Colunas: SKU, Nome, Qtd</span>
                     </div>
                   </Label>
@@ -301,26 +301,26 @@ export default function TravelReconciliation() {
                 <div className="flex gap-2 items-end">
                   <div className="grid gap-1 w-20">
                     <Label className="text-xs">SKU</Label>
-                    <Input className="h-8" placeholder="Cód." value={manualOutbound.sku} onChange={(e) => handleSkuChange(e, 'outbound')} />
+                    <Input className="h-8 dark:bg-slate-800" placeholder="Cód." value={manualOutbound.sku} onChange={(e) => handleSkuChange(e, 'outbound')} />
                   </div>
                   <div className="grid gap-1 flex-1">
                     <Label className="text-xs">Produto</Label>
-                    <Input className="h-8" placeholder="Nome" value={manualOutbound.name} onChange={e => setManualOutbound({...manualOutbound, name: e.target.value})} />
+                    <Input className="h-8 dark:bg-slate-800" placeholder="Nome" value={manualOutbound.name} onChange={e => setManualOutbound({...manualOutbound, name: e.target.value})} />
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-8" type="number" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
+                    <Input className="h-8 dark:bg-slate-800" type="number" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
                   </div>
-                  <Button size="sm" onClick={() => addManualItem('outbound')} className="bg-blue-600 hover:bg-blue-700"><Plus className="h-4 w-4" /></Button>
+                  <Button size="sm" onClick={() => addManualItem('outbound')} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"><Plus className="h-4 w-4" /></Button>
                 </div>
               </TabsContent>
 
               {outboundList.length > 0 && (
-                <div className="rounded-md border h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
+                <div className="rounded-md border dark:border-slate-800 h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
                   <ScrollArea className="h-full">
                     <Table>
-                      <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                        <TableRow className="h-8">
+                      <TableHeader className="bg-muted/50 sticky top-0 z-10 dark:bg-slate-900">
+                        <TableRow className="h-8 border-b dark:border-slate-800">
                           <TableHead className="text-xs font-bold">Produto</TableHead>
                           <TableHead className="text-right text-xs font-bold w-16">Qtd</TableHead>
                           <TableHead className="w-8"></TableHead>
@@ -328,12 +328,12 @@ export default function TravelReconciliation() {
                       </TableHeader>
                       <TableBody>
                         {outboundList.map((item, idx) => (
-                          <TableRow key={`${item.sku}-${idx}`} className="h-10">
+                          <TableRow key={`${item.sku}-${idx}`} className="h-10 border-b dark:border-slate-800">
                             <TableCell className="py-1">
-                              <div className="font-medium text-xs truncate max-w-[200px]">{item.name}</div>
+                              <div className="font-medium text-xs truncate max-w-[200px] dark:text-slate-200">{item.name}</div>
                               <div className="text-[10px] text-muted-foreground">{item.sku}</div>
                             </TableCell>
-                            <TableCell className="text-right font-bold text-blue-600 py-1 text-sm">{item.quantity}</TableCell>
+                            <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400 py-1 text-sm">{item.quantity}</TableCell>
                             <TableCell className="py-1">
                               <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'outbound')} className="h-6 w-6 text-muted-foreground hover:text-red-500">
                                 <Trash2 className="h-3 w-3" />
@@ -351,29 +351,29 @@ export default function TravelReconciliation() {
         </Card>
 
         {/* --- COLUNA 2: RETORNO (Volta) --- */}
-        <Card className="border-t-4 border-t-orange-500 shadow-md">
-          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3">
+        <Card className="border-t-4 border-t-orange-500 shadow-md dark:bg-slate-900 dark:border-slate-800">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b pb-3 dark:border-slate-800">
             <CardTitle className="flex items-center justify-between text-base">
-                <div className="flex items-center gap-2">
-                    <ArrowRightLeft className="h-5 w-5 text-orange-600" /> 
+                <div className="flex items-center gap-2 dark:text-slate-200">
+                    <ArrowRightLeft className="h-5 w-5 text-orange-600 dark:text-orange-400" /> 
                     Lista de Retorno (Volta)
                 </div>
-                <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-200">{inboundList.length} itens</Badge>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-300">{inboundList.length} itens</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="upload">Upload Excel</TabsTrigger>
-                <TabsTrigger value="manual">Manual</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-slate-100 dark:bg-slate-800">
+                <TabsTrigger value="upload" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950">Upload Excel</TabsTrigger>
+                <TabsTrigger value="manual" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950">Manual</TabsTrigger>
               </TabsList>
               
               <TabsContent value="upload">
-                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-orange-200 text-center">
+                <div className="bg-muted/30 hover:bg-muted/50 transition-colors p-6 rounded-lg border-2 border-dashed border-orange-200 dark:border-orange-800/50 text-center">
                   <Label htmlFor="inbound-file" className="cursor-pointer block h-full">
                     <div className="flex flex-col items-center gap-2">
-                      <FileSpreadsheet className="h-10 w-10 text-orange-400" />
-                      <span className="text-sm font-medium text-orange-700">Clique para carregar planilha</span>
+                      <FileSpreadsheet className="h-10 w-10 text-orange-400 dark:text-orange-600" />
+                      <span className="text-sm font-medium text-orange-700 dark:text-orange-400">Clique para carregar planilha</span>
                       <span className="text-xs text-muted-foreground">Colunas: SKU, Nome, Qtd</span>
                     </div>
                   </Label>
@@ -385,26 +385,26 @@ export default function TravelReconciliation() {
                 <div className="flex gap-2 items-end">
                   <div className="grid gap-1 w-20">
                     <Label className="text-xs">SKU</Label>
-                    <Input className="h-8" placeholder="Cód." value={manualInbound.sku} onChange={(e) => handleSkuChange(e, 'inbound')} />
+                    <Input className="h-8 dark:bg-slate-800" placeholder="Cód." value={manualInbound.sku} onChange={(e) => handleSkuChange(e, 'inbound')} />
                   </div>
                   <div className="grid gap-1 flex-1">
                     <Label className="text-xs">Produto</Label>
-                    <Input className="h-8" placeholder="Nome" value={manualInbound.name} onChange={e => setManualInbound({...manualInbound, name: e.target.value})} />
+                    <Input className="h-8 dark:bg-slate-800" placeholder="Nome" value={manualInbound.name} onChange={e => setManualInbound({...manualInbound, name: e.target.value})} />
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-8" type="number" placeholder="0" value={manualInbound.quantity} onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} />
+                    <Input className="h-8 dark:bg-slate-800" type="number" placeholder="0" value={manualInbound.quantity} onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} />
                   </div>
-                  <Button size="sm" onClick={() => addManualItem('inbound')} className="bg-orange-600 hover:bg-orange-700"><Plus className="h-4 w-4" /></Button>
+                  <Button size="sm" onClick={() => addManualItem('inbound')} className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-600"><Plus className="h-4 w-4" /></Button>
                 </div>
               </TabsContent>
 
               {inboundList.length > 0 && (
-                <div className="rounded-md border h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
+                <div className="rounded-md border dark:border-slate-800 h-64 overflow-hidden mt-4 bg-white dark:bg-slate-950">
                   <ScrollArea className="h-full">
                     <Table>
-                      <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                        <TableRow className="h-8">
+                      <TableHeader className="bg-muted/50 sticky top-0 z-10 dark:bg-slate-900">
+                        <TableRow className="h-8 border-b dark:border-slate-800">
                           <TableHead className="text-xs font-bold">Produto</TableHead>
                           <TableHead className="text-right text-xs font-bold w-16">Qtd</TableHead>
                           <TableHead className="w-8"></TableHead>
@@ -412,12 +412,12 @@ export default function TravelReconciliation() {
                       </TableHeader>
                       <TableBody>
                         {inboundList.map((item, idx) => (
-                          <TableRow key={`${item.sku}-${idx}`} className="h-10">
+                          <TableRow key={`${item.sku}-${idx}`} className="h-10 border-b dark:border-slate-800">
                             <TableCell className="py-1">
-                              <div className="font-medium text-xs truncate max-w-[200px]">{item.name}</div>
+                              <div className="font-medium text-xs truncate max-w-[200px] dark:text-slate-200">{item.name}</div>
                               <div className="text-[10px] text-muted-foreground">{item.sku}</div>
                             </TableCell>
-                            <TableCell className="text-right font-bold text-orange-600 py-1 text-sm">{item.quantity}</TableCell>
+                            <TableCell className="text-right font-bold text-orange-600 dark:text-orange-400 py-1 text-sm">{item.quantity}</TableCell>
                             <TableCell className="py-1">
                               <Button variant="ghost" size="icon" onClick={() => removeItem(item.sku, 'inbound')} className="h-6 w-6 text-muted-foreground hover:text-red-500">
                                 <Trash2 className="h-3 w-3" />
@@ -441,72 +441,72 @@ export default function TravelReconciliation() {
             size="lg" 
             onClick={handleCompare} 
             disabled={outboundList.length === 0}
-            className="w-full md:w-1/2 h-14 text-lg font-bold bg-slate-900 hover:bg-slate-800 shadow-xl border-2 border-slate-700"
+            className="w-full md:w-1/2 h-14 text-lg font-bold bg-slate-900 hover:bg-slate-800 shadow-xl border-2 border-slate-700 dark:bg-blue-600 dark:hover:bg-blue-700 dark:border-blue-500 dark:text-white"
         >
           <Scale className="mr-3 h-6 w-6" /> REALIZAR CONFRONTO
         </Button>
       </div>
 
-      {/* --- RESULTADO DO CONFRONTO --- */}
+      {/* --- RESULTADO DO CONFRONTO (CORREÇÃO DE MODO ESCURO AQUI) --- */}
       {comparisonResult.length > 0 && (
-        <Card className="animate-in slide-in-from-bottom-10 fade-in duration-500 border-t-4 border-t-green-600 shadow-2xl">
-          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b">
-            <CardTitle>Resultado da Auditoria</CardTitle>
-            <CardDescription>Itens que não fecharam a conta estão destacados.</CardDescription>
+        <Card className="animate-in slide-in-from-bottom-10 fade-in duration-500 border-t-4 border-t-green-600 shadow-2xl dark:bg-slate-950 dark:border-slate-800">
+          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800">
+            <CardTitle className="dark:text-slate-100">Resultado da Auditoria</CardTitle>
+            <CardDescription className="dark:text-slate-400">Itens que não fecharam a conta estão destacados.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {/* CARDS DE RESUMO */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b divide-y md:divide-y-0 md:divide-x">
-               <div className="p-6 flex flex-col items-center justify-center bg-green-50/50">
-                 <div className="flex items-center gap-2 mb-2 text-green-700">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b dark:border-slate-800 divide-y md:divide-y-0 md:divide-x dark:divide-slate-800">
+               <div className="p-6 flex flex-col items-center justify-center bg-green-50/50 dark:bg-green-900/10">
+                 <div className="flex items-center gap-2 mb-2 text-green-700 dark:text-green-400">
                     <CheckCircle2 className="h-5 w-5" /> <span className="font-bold">Corretos</span>
                  </div>
-                 <span className="text-3xl font-bold text-green-800">{comparisonResult.filter(r => r.status === 'ok').length}</span>
+                 <span className="text-3xl font-bold text-green-800 dark:text-green-300">{comparisonResult.filter(r => r.status === 'ok').length}</span>
                </div>
-               <div className="p-6 flex flex-col items-center justify-center bg-red-50/50">
-                 <div className="flex items-center gap-2 mb-2 text-red-700">
+               <div className="p-6 flex flex-col items-center justify-center bg-red-50/50 dark:bg-red-900/10">
+                 <div className="flex items-center gap-2 mb-2 text-red-700 dark:text-red-400">
                     <AlertTriangle className="h-5 w-5" /> <span className="font-bold">Faltantes</span>
                  </div>
-                 <span className="text-3xl font-bold text-red-800">{comparisonResult.filter(r => r.status === 'missing').length}</span>
+                 <span className="text-3xl font-bold text-red-800 dark:text-red-300">{comparisonResult.filter(r => r.status === 'missing').length}</span>
                </div>
-               <div className="p-6 flex flex-col items-center justify-center bg-blue-50/50">
-                 <div className="flex items-center gap-2 mb-2 text-blue-700">
+               <div className="p-6 flex flex-col items-center justify-center bg-blue-50/50 dark:bg-blue-900/10">
+                 <div className="flex items-center gap-2 mb-2 text-blue-700 dark:text-blue-400">
                     <Plus className="h-5 w-5" /> <span className="font-bold">Sobrantes</span>
                  </div>
-                 <span className="text-3xl font-bold text-blue-800">{comparisonResult.filter(r => r.status === 'extra').length}</span>
+                 <span className="text-3xl font-bold text-blue-800 dark:text-blue-300">{comparisonResult.filter(r => r.status === 'extra').length}</span>
                </div>
             </div>
 
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">SKU</TableHead>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="text-center bg-blue-50/50 text-blue-700">Saída</TableHead>
-                  <TableHead className="text-center bg-orange-50/50 text-orange-700">Retorno</TableHead>
-                  <TableHead className="text-center border-l bg-slate-50/50">Diferença</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+                <TableRow className="dark:border-slate-800">
+                  <TableHead className="w-[100px] dark:text-slate-300">SKU</TableHead>
+                  <TableHead className="dark:text-slate-300">Produto</TableHead>
+                  <TableHead className="text-center bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">Saída</TableHead>
+                  <TableHead className="text-center bg-orange-50/50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300">Retorno</TableHead>
+                  <TableHead className="text-center border-l dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 dark:text-slate-300">Diferença</TableHead>
+                  <TableHead className="text-center dark:text-slate-300">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {comparisonResult.map((res) => (
-                  <TableRow key={res.sku} className={res.status === 'missing' ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-muted/20'}>
-                    <TableCell className="font-mono text-xs">{res.sku}</TableCell>
+                  <TableRow key={res.sku} className={`${res.status === 'missing' ? 'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40' : 'hover:bg-muted/50'} border-b dark:border-slate-800`}>
+                    <TableCell className="font-mono text-xs dark:text-slate-400">{res.sku}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{res.name}</div>
+                      <div className="font-medium dark:text-slate-200">{res.name}</div>
                       <div className="text-[10px] text-muted-foreground">{res.unit}</div>
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground bg-blue-50/30">{res.quantity}</TableCell>
-                    <TableCell className="text-center font-bold bg-orange-50/30">{res.returnedQuantity}</TableCell>
-                    <TableCell className="text-center border-l bg-slate-50/30">
-                      <span className={`text-lg font-bold ${res.difference < 0 ? "text-red-600" : res.difference > 0 ? "text-blue-600" : "text-green-600"}`}>
+                    <TableCell className="text-center text-muted-foreground bg-blue-50/30 dark:bg-blue-900/10 dark:text-blue-200">{res.quantity}</TableCell>
+                    <TableCell className="text-center font-bold bg-orange-50/30 dark:bg-orange-900/10 dark:text-orange-200">{res.returnedQuantity}</TableCell>
+                    <TableCell className="text-center border-l dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20">
+                      <span className={`text-lg font-bold ${res.difference < 0 ? "text-red-600 dark:text-red-400" : res.difference > 0 ? "text-blue-600 dark:text-blue-400" : "text-green-600 dark:text-green-400"}`}>
                         {res.difference > 0 ? `+${res.difference}` : res.difference}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      {res.status === 'ok' && <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-200">OK</Badge>}
+                      {res.status === 'ok' && <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800">OK</Badge>}
                       {res.status === 'missing' && <Badge variant="destructive">FALTA</Badge>}
-                      {res.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200">EXTRA</Badge>}
+                      {res.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">EXTRA</Badge>}
                     </TableCell>
                   </TableRow>
                 ))}
