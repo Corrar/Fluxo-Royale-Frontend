@@ -12,12 +12,14 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSocket } from "@/contexts/SocketContext"; 
+import { useSocket } from "@/contexts/SocketContext";
 import { 
   Check, X, Package, Search, Trash2, AlertCircle, Truck, 
   FileText, Clock, CheckCircle2, XCircle, Eye, User, Layers, Calendar
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
+// Removi o import do ScrollArea pois usaremos div nativa para garantir a rolagem
+// import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Configuração Visual dos Status
 const statusStyles: any = {
@@ -372,7 +374,7 @@ export default function Requests() {
       </Card>
 
       {/* ================================================================= */}
-      {/* MODAL DE DETALHES (Mantido) */}
+      {/* MODAL DE DETALHES (Scroll corrigido) */}
       {/* ================================================================= */}
       <Dialog open={!!selectedRequest} onOpenChange={() => closeAllDialogs()}>
         <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden shadow-2xl">
@@ -433,7 +435,9 @@ export default function Requests() {
                   <div className="col-span-7">PRODUTO</div>
                   <div className="col-span-3 text-right">QTD</div>
                 </div>
-                <ScrollArea className="max-h-[240px]">
+                
+                {/* --- AQUI ESTÁ A CORREÇÃO: DIV NATIVA COM OVERFLOW-Y-AUTO --- */}
+                <div className="max-h-[240px] overflow-y-auto">
                   <div className="divide-y divide-border">
                     {selectedRequest?.request_items?.map((item: any, i: number) => (
                       <div key={i} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm items-center hover:bg-muted/20 transition-colors">
@@ -451,7 +455,8 @@ export default function Requests() {
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
+                {/* ------------------------------------------------------------- */}
               </div>
             </div>
 
