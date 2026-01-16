@@ -105,6 +105,8 @@ export default function MyRequests() {
     if (!stockInfo) return 0;
     const onHand = Number(stockInfo.quantity_on_hand || 0);
     const openRequests = Number(stockInfo.quantity_open || 0); 
+    // Garante que o estoque visível também seja arredondado para baixo se quiser consistência total,
+    // mas aqui mantive a lógica original, apenas a entrada será inteira.
     return Math.max(0, onHand - openRequests);
   };
 
@@ -133,9 +135,13 @@ export default function MyRequests() {
   };
 
   const confirmAddItem = () => {
-    const qtd = parseFloat(qtyInput);
+    // ALTERAÇÃO: Usar parseInt para garantir número inteiro (base 10)
+    const qtd = parseInt(qtyInput, 10);
+    
     if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
-    if (qtd > selectedProduct.available) return toast.error(`Máximo: ${selectedProduct.available}`);
+    
+    // Verifica se a quantidade inteira solicitada é maior que o disponível
+    if (qtd > selectedProduct.available) return toast.error(`Máximo: ${Math.floor(selectedProduct.available)}`);
 
     setCart([...cart, {
       product_id: selectedProduct.id,
@@ -252,7 +258,8 @@ export default function MyRequests() {
                           </h3>
                           {available > 0 ? (
                             <Badge variant="secondary" className="shrink-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200">
-                              {available} {product.unit}
+                              {/* Arredonda visualmente para baixo se tiver decimal */}
+                              {Math.floor(available)} {product.unit}
                             </Badge>
                           ) : (
                             <Badge variant="destructive" className="shrink-0">Esgotado</Badge>
@@ -399,7 +406,8 @@ export default function MyRequests() {
                             {request.request_items?.map((item: any) => (
                               <div key={item.id} className="flex items-start gap-2 text-sm">
                                 <Badge variant="secondary" className="h-5 px-1.5 font-mono text-[10px] shrink-0">
-                                  {item.quantity_requested} {item.products?.unit}
+                                  {/* Mostra inteiro no histórico também */}
+                                  {Math.floor(item.quantity_requested)} {item.products?.unit}
                                 </Badge>
                                 <span className="text-foreground leading-tight">{item.products?.name || item.custom_product_name}</span>
                               </div>
@@ -443,15 +451,18 @@ export default function MyRequests() {
                 <p className="font-semibold text-sm leading-tight mb-1">{selectedProduct.name}</p>
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>SKU: {selectedProduct.sku}</span>
-                  <span>Disp: <strong className="text-foreground">{selectedProduct.available}</strong></span>
+                  {/* Visualização de disponibilidade arredondada para baixo */}
+                  <span>Disp: <strong className="text-foreground">{Math.floor(selectedProduct.available)}</strong></span>
                 </div>
               </div>
 
               <div className="flex gap-2 items-center">
                 <Input 
                   type="number" 
-                  step="0.01" 
-                  placeholder="0.00" 
+                  // ALTERAÇÃO: Step 1 para pular de 1 em 1
+                  step="1" 
+                  // ALTERAÇÃO: Placeholder sem casas decimais
+                  placeholder="0" 
                   value={qtyInput}
                   onChange={(e) => setQtyInput(e.target.value)}
                   className="text-xl h-14 font-bold text-center bg-background" 
