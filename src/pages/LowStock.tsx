@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,10 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { 
   ShoppingCart, Eye, Search, X, Filter, CalendarClock, Truck, AlertOctagon,
-  Download, FileSpreadsheet, FileText
+  Download, FileSpreadsheet, FileText, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, isPast, isToday, differenceInDays } from "date-fns";
+import { format, isPast, isToday, differenceInDays, isBefore, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
@@ -37,6 +37,7 @@ export default function LowStock() {
   const [tempDate, setTempDate] = useState(""); 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState("all");
@@ -70,6 +71,42 @@ export default function LowStock() {
     },
     onError: () => toast.error("Erro ao atualizar item."),
   });
+
+  // --- NOVA LÓGICA: AUTO-CORREÇÃO DE DADOS VELHOS ---
+  // Verifica se existem dados "Fantasmas" (Datas de previsão anteriores à data que ficou crítico)
+  useEffect(() => {
+    if (lowStockItems && lowStockItems.length > 0 && !isCleaning) {
+      const itemsToReset = lowStockItems.filter((item: any) => {
+        // Se tem status de compra ou previsão, mas a previsão é ANTERIOR à data crítica
+        // Significa que é um dado de um ciclo passado que ficou no banco
+        if (item.purchase_status !== 'pendente' && item.delivery_forecast && item.critical_since) {
+          const forecastDate = parseISO(item.delivery_forecast);
+          const criticalDate = parseISO(item.critical_since);
+          
+          // Se a previsão (ex: dia 10) é anterior ao dia que ficou crítico (ex: dia 20), está errado.
+          return isBefore(forecastDate, criticalDate);
+        }
+        return false;
+      });
+
+      if (itemsToReset.length > 0) {
+        setIsCleaning(true);
+        console.log("Detectado dados fantasmas. Limpando...", itemsToReset.length);
+        
+        Promise.all(itemsToReset.map((item: any) => 
+          updateInfoMutation.mutateAsync({
+            id: item.id,
+            status: "pendente",
+            note: "", // Limpa nota também
+            date: null
+          })
+        )).then(() => {
+          toast.info(`${itemsToReset.length} itens tiveram dados de compra antigos resetados.`);
+          setIsCleaning(false);
+        });
+      }
+    }
+  }, [lowStockItems]);
 
   // --- FILTRAGEM ---
   const filteredItems = useMemo(() => {
@@ -162,11 +199,15 @@ export default function LowStock() {
     const promise = Promise.all(
       selectedItems.map((id) => {
         const originalItem = lowStockItems.find((i: any) => i.id === id);
+        
+        // Se for voltar para pendente em massa, limpa os dados
+        const isResetting = newStatus === 'pendente';
+        
         return updateInfoMutation.mutateAsync({
           id,
           status: newStatus,
-          note: originalItem?.purchase_note || "",
-          date: originalItem?.delivery_forecast
+          note: isResetting ? "" : (originalItem?.purchase_note || ""),
+          date: isResetting ? null : originalItem?.delivery_forecast
         });
       })
     );
@@ -178,11 +219,16 @@ export default function LowStock() {
   };
 
   const handleStatusChange = (item: any, newStatus: string) => {
-    const shouldKeepDate = (newStatus === 'comprado' || newStatus === 'cotacao') && item.delivery_forecast;
+    // LÓGICA CORRIGIDA: Se mudar para pendente, LIMPA TUDO (Reset manual)
+    const isResetting = newStatus === 'pendente';
+    
+    // Se não for reset, mantém data apenas se for status de compra ativa
+    const shouldKeepDate = !isResetting && (newStatus === 'comprado' || newStatus === 'cotacao') && item.delivery_forecast;
+    
     updateInfoMutation.mutate({ 
       id: item.id, 
       status: newStatus, 
-      note: item.purchase_note || "",
+      note: isResetting ? "" : (item.purchase_note || ""), // Limpa nota se voltar pra pendente
       date: shouldKeepDate ? item.delivery_forecast : null 
     }, { onSuccess: () => toast.success("Status atualizado!") });
   };
@@ -196,6 +242,8 @@ export default function LowStock() {
   const handleSaveDialog = () => {
     if (noteDialogItem) {
       let statusToSave = noteDialogItem.purchase_status || "pendente";
+      
+      // Inteligência: Se usuário botou data mas status era pendente, muda pra comprado
       if (tempDate && statusToSave === "pendente") {
         statusToSave = "comprado";
       }
@@ -227,8 +275,11 @@ export default function LowStock() {
     if (!dateString) return <span className="text-muted-foreground text-xs">-</span>;
     try {
       const date = new Date(dateString);
+      // Ajuste de fuso simples para visualização
       const userDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+      
       if (isNaN(userDate.getTime())) return <span className="text-muted-foreground text-xs">-</span>;
+      
       const isLate = isPast(userDate) && !isToday(userDate);
       return (
         <div className={`flex items-center justify-center gap-1 text-xs font-medium px-2 py-1 rounded-md border w-fit mx-auto ${isLate ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"}`}>
@@ -354,8 +405,10 @@ export default function LowStock() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center h-24 dark:text-slate-400">Carregando...</TableCell></TableRow>
+            {isLoading || isCleaning ? (
+              <TableRow><TableCell colSpan={8} className="text-center h-24 dark:text-slate-400">
+                {isCleaning ? <span className="flex items-center justify-center gap-2"><RefreshCw className="h-4 w-4 animate-spin"/> Resetando dados de ciclos anteriores...</span> : "Carregando..."}
+              </TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Nenhum produto encontrado.</TableCell></TableRow>
             ) : (
@@ -383,7 +436,6 @@ export default function LowStock() {
                     </TableCell>
                     <TableCell className="font-bold text-red-600 dark:text-red-400">+{deficit > 0 ? deficit.toFixed(2) : 0}</TableCell>
                     
-                    {/* LÓGICA DO TEMPO CRÍTICO CORRIGIDA */}
                     <TableCell>
                         {(() => {
                           const criticalDate = item.critical_since ? new Date(item.critical_since) : new Date();
@@ -396,7 +448,6 @@ export default function LowStock() {
                               "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
                             }`}>
                               <AlertOctagon className="w-3 h-3" />
-                              {/* Correção Gramatical e Lógica de 0 dias */}
                               {days <= 0 ? "Hoje" : days === 1 ? "1 dia" : `${days} dias`}
                             </div>
                           );
@@ -454,6 +505,10 @@ export default function LowStock() {
           
           {canEdit && (
             <div className="flex items-center gap-2">
+               {/* BOTÃO PARA RESETAR MANUALMENTE SELECIONADOS */}
+              <Button size="sm" variant="secondary" onClick={() => handleBulkStatusChange('pendente')} className="text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                 Resetar Dados
+              </Button>
               <Button size="sm" variant="secondary" onClick={() => handleBulkStatusChange('cotacao')} className="text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/50">
                 Em Cotação
               </Button>
