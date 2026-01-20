@@ -145,7 +145,7 @@ const KPICard = ({ title, value, subtext, icon: Icon, colorClass, bgClass, trend
     </Card>
 );
 
-// --- COMPONENTE: Gráfico de Pizza Reutilizável (Atualizado) ---
+// --- COMPONENTE: Gráfico de Pizza Reutilizável ---
 const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEnter }: any) => (
     <Card className="shadow-sm border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 h-full flex flex-col">
         <CardHeader className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 pb-4">
@@ -157,7 +157,7 @@ const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEn
         <CardContent className="flex-1 pt-6 min-h-[300px]">
             {data && data.length > 0 ? (
                 <div className="flex flex-col md:flex-row items-center h-full gap-6">
-                    {/* Gráfico (Sem texto sobreposto) */}
+                    {/* Gráfico */}
                     <div className="relative w-full md:w-1/2 h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -181,7 +181,7 @@ const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEn
                         </ResponsiveContainer>
                     </div>
                     
-                    {/* Legenda Lateral + Total Geral em Destaque */}
+                    {/* Legenda */}
                     <div className="w-full md:w-1/2 h-full border-l border-slate-100 dark:border-slate-800 pl-6 flex flex-col justify-center">
                         <div className="mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Total Geral</span>
@@ -206,9 +206,11 @@ const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEn
     </Card>
 );
 
+// --- COMPONENTE PRINCIPAL ---
 export default function Reports() {
-  const [startDate, setStartDate] = useState(subDays(new Date(), 30).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(startOfMonth(new Date()).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(endOfMonth(new Date()).toISOString().split('T')[0]);
+  
   const [activeTab, setActiveTab] = useState("insights"); 
   
   const [activeIndexPie1, setActiveIndexPie1] = useState(0);
@@ -288,7 +290,7 @@ export default function Reports() {
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
 
-        if (!shouldGroup) return raw; // Retorna TODOS se não agrupar
+        if (!shouldGroup) return raw;
 
         const final = [];
         if (raw.length > 6) {
@@ -332,7 +334,6 @@ export default function Reports() {
     };
   }, [reportData]);
 
-  // Exportação
   const handleExportExcel = () => {
     if (!analytics) return;
     const wb = XLSX.utils.book_new();
@@ -379,7 +380,9 @@ export default function Reports() {
                 <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl"><Activity className="h-8 w-8 text-indigo-600 dark:text-indigo-400" /></div>
                 Relatórios Gerenciais
             </h1>
-            <p className="text-slate-500 mt-2 ml-16">Intelligence de dados e fluxo de movimentação.</p>
+            <p className="text-slate-500 mt-2 ml-16">
+                Intelligence de dados: <span className="font-bold text-indigo-600">Visão do Mês Atual</span>
+            </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto bg-slate-50 dark:bg-slate-900 p-1.5 rounded-xl">
             <div className="flex items-center gap-3 bg-white dark:bg-slate-950 px-3 py-1.5 rounded-lg border shadow-sm">
@@ -388,7 +391,7 @@ export default function Reports() {
                 <Input type="date" className="h-9 w-32 border-none focus-visible:ring-0 text-xs md:text-sm bg-transparent" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             <div className="flex gap-2">
-                <Button onClick={() => setQuickDate('last30')} variant="ghost" size="sm" className="h-full font-medium hover:bg-white dark:hover:bg-slate-800 shadow-sm">30 Dias</Button>
+                <Button onClick={() => setQuickDate('month')} variant="ghost" size="sm" className="h-full font-medium hover:bg-white dark:hover:bg-slate-800 shadow-sm">Mês Atual</Button>
                 <Button onClick={() => refetch()} size="icon" className="h-full w-10 shadow-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"><RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /></Button>
             </div>
         </div>
@@ -435,7 +438,6 @@ export default function Reports() {
                         <Tooltip cursor={{fill: '#f1f5f9', radius: 4}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
                         <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                        {/* BARRAS SEPARADAS */}
                         <Bar dataKey="saidas_sistema" name="Solicitações" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
                         <Bar dataKey="saidas_manual" name="Saída Manual" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={30} />
                     </BarChart>
