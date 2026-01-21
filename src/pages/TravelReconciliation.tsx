@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   CheckCircle2, AlertTriangle, ArrowLeft, Upload, FileSpreadsheet, Plus, Trash2,
-  ArrowRightLeft, FileText, Download, Scale
+  ArrowRightLeft, FileText, Download, Scale, MapPin, Users 
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
+import { exportToExcel } from "@/utils/exportUtils"; // Removi exportToPDF pois faremos manual
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Definição do tipo de item
 interface TravelItem {
@@ -46,6 +48,10 @@ export default function TravelReconciliation() {
   const [inboundList, setInboundList] = useState<TravelItem[]>([]);
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult[]>([]);
   
+  // Estados para o Cabeçalho
+  const [technicians, setTechnicians] = useState("");
+  const [city, setCity] = useState("");
+
   // Estados para Itens Manuais
   const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
   const [manualInbound, setManualInbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
@@ -111,15 +117,22 @@ export default function TravelReconciliation() {
     const setList = type === 'outbound' ? setOutboundList : setInboundList;
     const setInput = type === 'outbound' ? setManualOutbound : setManualInbound;
 
+    const qtd = parseFloat(itemData.quantity);
+
     if (!itemData.sku || !itemData.quantity) {
       toast.warning("Preencha SKU e Quantidade");
+      return;
+    }
+
+    if (qtd <= 0) {
+      toast.warning("A quantidade deve ser maior que zero.");
       return;
     }
 
     const newItem: TravelItem = {
       sku: itemData.sku,
       name: itemData.name || "Item Manual",
-      quantity: parseFloat(itemData.quantity),
+      quantity: qtd,
       unit: itemData.unit || "un"
     };
 
@@ -143,6 +156,12 @@ export default function TravelReconciliation() {
   const handleCompare = () => {
     if (outboundList.length === 0) {
       toast.error("A lista de SAÍDA está vazia.");
+      return;
+    }
+
+    if (!technicians || !city) {
+      toast.warning("Por favor, preencha o nome dos Técnicos e a Cidade antes de confrontar.");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -192,13 +211,62 @@ export default function TravelReconciliation() {
     }, 100);
   };
 
-  // --- EXPORTAÇÃO DO RELATÓRIO FINAL ---
-  const handleExportResult = (type: 'pdf' | 'excel') => {
+  // --- EXPORTAÇÃO PERSONALIZADA DO PDF ---
+  const handleExportPDF = () => {
     if (comparisonResult.length === 0) {
         toast.error("Realize o confronto primeiro.");
         return;
     }
 
+    const doc = new jsPDF();
+
+    // 1. Título Principal (Letra Grande e Negrito)
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Relatório de Confronto de Viagem", 14, 20);
+
+    // 2. Subtítulos (Letra Menor)
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100); // Cinza para o subtítulo
+
+    const dateStr = new Date().toLocaleDateString();
+    
+    // Linha 1 de informações
+    doc.text(`Cidade: ${city}  |  Técnicos: ${technicians}`, 14, 28);
+    // Linha 2 de informações
+    doc.text(`Data: ${dateStr}  |  Sistema: Fluxo Royale`, 14, 34);
+
+    // 3. Tabela
+    const tableColumn = ["SKU", "Produto", "Saída", "Retorno", "Dif.", "Status"];
+    const tableRows: any[] = [];
+
+    comparisonResult.forEach(item => {
+        const rowData = [
+            item.sku,
+            item.name,
+            item.quantity,
+            item.returnedQuantity,
+            item.difference,
+            item.status === 'ok' ? "OK" : item.status === 'missing' ? "FALTA" : "SOBRA"
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 40, // Começa logo abaixo do cabeçalho
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [71, 85, 105] }, // Cor do cabeçalho da tabela (Slate-600)
+    });
+
+    doc.save(`Confronto_${city.replace(/\s/g, '_')}.pdf`);
+    toast.success("PDF gerado com sucesso!");
+  };
+
+  const handleExportExcel = () => {
+    if (comparisonResult.length === 0) return;
     const exportData = comparisonResult.map(item => ({
         SKU: item.sku,
         Produto: item.name,
@@ -207,22 +275,8 @@ export default function TravelReconciliation() {
         "Diferença": item.difference,
         "Status": item.status === 'ok' ? "OK" : item.status === 'missing' ? "FALTA" : "SOBRA"
     }));
-
-    if (type === 'excel') {
-        exportToExcel(exportData, "Relatorio_Confronto_Viagem");
-        toast.success("Excel baixado!");
-    } else {
-        const columns = [
-            { header: "SKU", dataKey: "SKU" },
-            { header: "Produto", dataKey: "Produto" },
-            { header: "Saída", dataKey: "Qtd. Saída" },
-            { header: "Retorno", dataKey: "Qtd. Retorno" },
-            { header: "Dif.", dataKey: "Diferença" },
-            { header: "Status", dataKey: "Status" },
-        ];
-        exportToPDF("Relatório de Confronto de Viagem", columns, exportData, "Confronto_PDF");
-        toast.success("PDF gerado!");
-    }
+    exportToExcel(exportData, `Confronto_${city.replace(/\s/g, '_')}`);
+    toast.success("Excel baixado!");
   };
 
   return (
@@ -252,16 +306,56 @@ export default function TravelReconciliation() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="dark:bg-slate-900 dark:border-slate-800">
-                <DropdownMenuItem onClick={() => handleExportResult('excel')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <DropdownMenuItem onClick={handleExportExcel} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
                   <FileSpreadsheet className="h-4 w-4 text-green-600" /> Excel (.xlsx)
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExportResult('pdf')} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
+                <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer dark:focus:bg-slate-800">
                   <FileText className="h-4 w-4 text-red-600" /> PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
         )}
       </div>
+
+      {/* --- DADOS DA VIAGEM --- */}
+      <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+        <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-indigo-500" /> Dados da Viagem
+            </CardTitle>
+            <CardDescription>Informe os detalhes para identificar este confronto no relatório.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="tecnicos">Nome dos Técnicos</Label>
+                    <div className="relative">
+                        <Users className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            id="tecnicos" 
+                            placeholder="Ex: João Silva, Maria Oliveira..." 
+                            className="pl-9 bg-slate-50 dark:bg-slate-900/50"
+                            value={technicians}
+                            onChange={(e) => setTechnicians(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="cidade">Cidade / Destino</Label>
+                    <div className="relative">
+                        <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            id="cidade" 
+                            placeholder="Ex: São Paulo - SP" 
+                            className="pl-9 bg-slate-50 dark:bg-slate-900/50" 
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                        />
+                    </div>
+                </div>
+            </div>
+        </CardContent>
+      </Card>
 
       {/* ÁREA DE INPUTS (GRIDS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -309,7 +403,16 @@ export default function TravelReconciliation() {
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-8 dark:bg-slate-800" type="number" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
+                    {/* INPUT COM PROTEÇÃO CONTRA NEGATIVOS */}
+                    <Input 
+                      className="h-8 dark:bg-slate-800" 
+                      type="number" 
+                      min="0"
+                      placeholder="0" 
+                      value={manualOutbound.quantity} 
+                      onKeyDown={(e) => ["-", "e", "+"].includes(e.key) && e.preventDefault()}
+                      onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} 
+                    />
                   </div>
                   <Button size="sm" onClick={() => addManualItem('outbound')} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"><Plus className="h-4 w-4" /></Button>
                 </div>
@@ -393,7 +496,16 @@ export default function TravelReconciliation() {
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-8 dark:bg-slate-800" type="number" placeholder="0" value={manualInbound.quantity} onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} />
+                    {/* INPUT COM PROTEÇÃO CONTRA NEGATIVOS */}
+                    <Input 
+                      className="h-8 dark:bg-slate-800" 
+                      type="number" 
+                      min="0"
+                      placeholder="0" 
+                      value={manualInbound.quantity} 
+                      onKeyDown={(e) => ["-", "e", "+"].includes(e.key) && e.preventDefault()}
+                      onChange={e => setManualInbound({...manualInbound, quantity: e.target.value})} 
+                    />
                   </div>
                   <Button size="sm" onClick={() => addManualItem('inbound')} className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-600"><Plus className="h-4 w-4" /></Button>
                 </div>
@@ -447,12 +559,15 @@ export default function TravelReconciliation() {
         </Button>
       </div>
 
-      {/* --- RESULTADO DO CONFRONTO (CORREÇÃO DE MODO ESCURO AQUI) --- */}
+      {/* --- RESULTADO DO CONFRONTO --- */}
       {comparisonResult.length > 0 && (
         <Card className="animate-in slide-in-from-bottom-10 fade-in duration-500 border-t-4 border-t-green-600 shadow-2xl dark:bg-slate-950 dark:border-slate-800">
-          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800">
-            <CardTitle className="dark:text-slate-100">Resultado da Auditoria</CardTitle>
-            <CardDescription className="dark:text-slate-400">Itens que não fecharam a conta estão destacados.</CardDescription>
+          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b dark:border-slate-800 flex flex-row justify-between items-center">
+            <div>
+                <CardTitle className="dark:text-slate-100">Resultado da Auditoria</CardTitle>
+                <CardDescription className="dark:text-slate-400">Itens que não fecharam a conta estão destacados.</CardDescription>
+            </div>
+            {/* Botão de salvar histórico removido conforme solicitação */}
           </CardHeader>
           <CardContent className="p-0">
             {/* CARDS DE RESUMO */}
