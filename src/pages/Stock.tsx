@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { 
   Settings2, Search, LogOut, ArrowDownToLine, Trash2, Package, ArrowRight, RotateCcw,
   CheckCircle2, TrendingDown, TrendingUp, DollarSign, Pencil, 
-  Download, FileSpreadsheet, FileText // <--- Ícones Importados
+  Download, FileSpreadsheet, FileText, Menu // <--- Menu adicionado para mobile
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
@@ -23,9 +23,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // <--- Dropdown Importado
-
-// IMPORTA OS UTILITÁRIOS
+} from "@/components/ui/dropdown-menu";
 import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 
 const SECTORS = ["ELETRICA", "FLOW", "ESTEIRA", "LAVADORA", "USINAGEM", "DESENVOLVIMENTO", "VIAGEM", "TERCEIROS", "ACUMULADOR", "REPOSIÇÃO"];
@@ -74,7 +72,7 @@ export default function Stock() {
     queryFn: async () => (await api.get("/stock")).data,
   });
 
-  // 2. MUTAÇÕES (Mantidas iguais)
+  // 2. MUTAÇÕES
   const manualEntryMutation = useMutation({
     mutationFn: async (items: any[]) => await api.post("/manual-entry", { items }),
     onSuccess: () => { 
@@ -141,7 +139,7 @@ export default function Stock() {
 
   const filteredStocks = useMemo(() => {
     if (!stocks) return [];
-    if (!searchTerm) return viewMode === "table" ? stocks : stocks.slice(0, 20);
+    if (!searchTerm) return viewMode === "table" ? stocks : stocks.slice(0, 50); // Aumentei um pouco o slice na busca
     const term = searchTerm.toLowerCase();
     return stocks.filter((stock: any) => 
       stock.products?.name?.toLowerCase().includes(term) || stock.products?.sku?.toLowerCase().includes(term)
@@ -156,14 +154,11 @@ export default function Stock() {
 
   const totalPages = Math.ceil(filteredStocks.length / ITEMS_PER_PAGE);
 
-  // --- NOVA FUNÇÃO EXPORTAR (Excel + PDF) ---
   const handleExportReport = (type: 'pdf' | 'excel') => {
     if (!filteredStocks || filteredStocks.length === 0) {
       toast.error("Sem dados para exportar.");
       return;
     }
-
-    // Formata os dados para ficarem bonitos no relatório
     const exportData = filteredStocks.map((item: any) => {
       const available = (Number(item.quantity_on_hand) || 0) - (Number(item.quantity_reserved) || 0);
       return {
@@ -246,7 +241,6 @@ export default function Stock() {
     }
   };
 
-  // Handlers Dialogs
   const handleOpenAdjust = (stock: any) => { setSelectedStock(stock); setAdjustValue(stock.quantity_on_hand.toString()); setAdjustDialog(true); };
   const handleConfirmAdjust = (e: React.FormEvent) => { e.preventDefault(); if(selectedStock) adjustMutation.mutate({ id: selectedStock.id, quantity: parseFloat(adjustValue) }); };
 
@@ -275,17 +269,20 @@ export default function Stock() {
     </>
   );
 
+  // --- RENDER TABLE MODE ---
   if (viewMode === "table") {
     return (
-      <div className="space-y-6 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div><h1 className="text-3xl font-bold">Gestão de Estoque</h1><p className="text-muted-foreground">Visão geral e controle</p></div>
+      <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Gestão de Estoque</h1>
+            <p className="text-sm md:text-base text-muted-foreground">Visão geral e controle</p>
+          </div>
           
-          <div className="flex gap-3">
-            {/* NOVO BOTÃO DROPDOWN EXPORTAR */}
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="border-dashed gap-2">
+                <Button variant="outline" className="border-dashed gap-2 flex-1 md:flex-none">
                   <Download className="h-4 w-4" /> Exportar
                 </Button>
               </DropdownMenuTrigger>
@@ -301,21 +298,32 @@ export default function Stock() {
 
             {canEditStock && (
               <>
-                <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setViewMode("entry")}><ArrowDownToLine className="mr-2 h-5 w-5"/> Entrada</Button>
-                <Button size="lg" variant="destructive" onClick={() => setViewMode("exit")}><LogOut className="mr-2 h-5 w-5"/> Saída</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 md:flex-none" onClick={() => setViewMode("entry")}>
+                  <ArrowDownToLine className="mr-2 h-4 w-4"/> Entrada
+                </Button>
+                <Button variant="destructive" className="flex-1 md:flex-none" onClick={() => setViewMode("exit")}>
+                  <LogOut className="mr-2 h-4 w-4"/> Saída
+                </Button>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-4 bg-card p-4 rounded-lg border shadow-sm">
+        {/* Campo de Pesquisa */}
+        <div className="flex items-center gap-4 bg-card p-3 md:p-4 rounded-lg border shadow-sm">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Pesquisar..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} className="pl-10"/>
+            <Input 
+              placeholder="Pesquisar por nome ou SKU..." 
+              value={searchTerm} 
+              onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}} 
+              className="pl-10"
+            />
           </div>
         </div>
 
-        <div className="border rounded-lg bg-card shadow-sm overflow-hidden">
+        {/* --- VIEW DESKTOP: TABELA --- */}
+        <div className="hidden md:block border rounded-lg bg-card shadow-sm overflow-hidden">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -324,17 +332,14 @@ export default function Stock() {
                 <TableHead>Físico</TableHead>
                 <TableHead>Reservado</TableHead>
                 <TableHead>Disponível</TableHead>
-                <TableHead>Custo Unit. (R$)</TableHead>
-                {canViewSalesPrice && <TableHead className="text-blue-600">Preço Venda (R$)</TableHead>}
+                <TableHead>Custo (R$)</TableHead>
+                {canViewSalesPrice && <TableHead className="text-blue-600">Venda (R$)</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                <TableSkeleton />
-              ) : (
-               paginatedStocks.map((stock: any) => {
+              {isLoading ? <TableSkeleton /> : paginatedStocks.map((stock: any) => {
                 const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
                 const isLow = stock.products?.min_stock && available < stock.products.min_stock;
                 return (
@@ -344,62 +349,98 @@ export default function Stock() {
                     <TableCell>{stock.quantity_on_hand}</TableCell>
                     <TableCell className="text-amber-600">{stock.quantity_reserved}</TableCell>
                     <TableCell className="font-bold">{available.toFixed(2)}</TableCell>
-                    
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span>{stock.products?.unit_price ? `R$ ${Number(stock.products.unit_price).toFixed(2)}` : "-"}</span>
-                        {canEditCost && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenCostPrice(stock)}>
-                            <Pencil className="h-3 w-3 text-muted-foreground hover:text-emerald-600" />
-                          </Button>
-                        )}
+                        {canEditCost && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenCostPrice(stock)}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
                       </div>
                     </TableCell>
-
                     {canViewSalesPrice && (
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-blue-700">{stock.products?.sales_price ? `R$ ${Number(stock.products.sales_price).toFixed(2)}` : "-"}</span>
-                          {canEditSalesPrice && (
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenSalesPrice(stock)}>
-                              <Pencil className="h-3 w-3 text-muted-foreground hover:text-blue-600" />
-                            </Button>
-                          )}
+                          {canEditSalesPrice && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleOpenSalesPrice(stock)}><Pencil className="h-3 w-3 text-muted-foreground" /></Button>}
                         </div>
                       </TableCell>
                     )}
-
-                    <TableCell>
-                      {isLow ? <Badge variant="outline" className="text-amber-600 bg-amber-50">Baixo</Badge> : <Badge variant="outline" className="text-green-600 bg-green-50">OK</Badge>}
-                    </TableCell>
-                    
+                    <TableCell>{isLow ? <Badge variant="outline" className="text-amber-600 bg-amber-50">Baixo</Badge> : <Badge variant="outline" className="text-green-600 bg-green-50">OK</Badge>}</TableCell>
                     <TableCell className="text-right">
-                      {canEditStock && (
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenAdjust(stock)}>
-                          <Settings2 className="h-4 w-4 mr-2" /> Ajustar
-                        </Button>
-                      )}
+                      {canEditStock && <Button variant="ghost" size="sm" onClick={() => handleOpenAdjust(stock)}><Settings2 className="h-4 w-4 mr-2" /> Ajustar</Button>}
                     </TableCell>
                   </TableRow>
                 );
-              }))}
+              })}
             </TableBody>
           </Table>
-          
-          {filteredStocks.length > 0 && !isLoading && (
-            <div className="border-t p-2">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem><Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</Button></PaginationItem>
-                  <PaginationItem><span className="text-sm mx-2">Página {currentPage} de {totalPages}</span></PaginationItem>
-                  <PaginationItem><Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Próximo</Button></PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
+        </div>
+
+        {/* --- VIEW MOBILE: CARDS --- */}
+        <div className="md:hidden space-y-3">
+          {isLoading ? (
+             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)
+          ) : (
+            paginatedStocks.map((stock: any) => {
+              const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
+              return (
+                <Card key={stock.id} className="shadow-sm">
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-base font-bold line-clamp-2">{stock.products?.name}</CardTitle>
+                        <p className="text-xs text-muted-foreground font-mono mt-1">{stock.products?.sku}</p>
+                      </div>
+                      {canEditStock && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><Settings2 className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleOpenAdjust(stock)}>Ajustar Quantidade</DropdownMenuItem>
+                            {canEditCost && <DropdownMenuItem onClick={() => handleOpenCostPrice(stock)}>Alterar Custo</DropdownMenuItem>}
+                            {canEditSalesPrice && <DropdownMenuItem onClick={() => handleOpenSalesPrice(stock)}>Alterar Preço Venda</DropdownMenuItem>}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-2 space-y-2 text-sm">
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-muted-foreground">Físico:</span>
+                      <span className="font-semibold">{stock.quantity_on_hand} {stock.products?.unit}</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-muted-foreground">Disponível:</span>
+                      <span className={available > 0 ? "font-bold text-green-600" : "font-bold text-red-600"}>
+                        {available.toFixed(2)}
+                      </span>
+                    </div>
+                    {canViewSalesPrice && (
+                      <div className="flex justify-between">
+                         <span className="text-muted-foreground">Preço:</span>
+                         <span className="font-bold text-blue-600">R$ {Number(stock.products?.sales_price || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
           )}
         </div>
 
-        {/* DIALOGS */}
+        {/* Paginação */}
+        {filteredStocks.length > 0 && !isLoading && (
+          <div className="py-2">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem><Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Anterior</Button></PaginationItem>
+                <PaginationItem><span className="text-sm mx-2">Pg {currentPage} de {totalPages}</span></PaginationItem>
+                <PaginationItem><Button variant="ghost" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Próximo</Button></PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
+
+        {/* Dialogs de Ajuste (Mantidos iguais) */}
         <Dialog open={adjustDialog} onOpenChange={setAdjustDialog}>
           <DialogContent>
             <DialogHeader><DialogTitle>Ajuste de Quantidade</DialogTitle></DialogHeader>
@@ -413,26 +454,23 @@ export default function Stock() {
 
         <Dialog open={priceDialog} onOpenChange={setPriceDialog}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Definir Preço de Venda (Catálogo)</DialogTitle></DialogHeader>
-            <form onSubmit={handleConfirmSalesPrice} className="space-y-4">
-              <Label>Novo Preço de Venda (R$)</Label>
-              <div className="relative"><DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/><Input className="pl-9" type="number" step="0.01" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} /></div>
-              <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setPriceDialog(false)}>Cancelar</Button><Button type="submit" className="bg-blue-600 hover:bg-blue-700">Salvar Venda</Button></div>
-            </form>
+             <DialogHeader><DialogTitle>Definir Preço de Venda</DialogTitle></DialogHeader>
+             <form onSubmit={handleConfirmSalesPrice} className="space-y-4">
+                <Label>Novo Preço (R$)</Label>
+                <Input type="number" step="0.01" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
+                <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setPriceDialog(false)}>Cancelar</Button><Button type="submit">Salvar</Button></div>
+             </form>
           </DialogContent>
         </Dialog>
 
         <Dialog open={costDialog} onOpenChange={setCostDialog}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Atualizar Custo Unitário</DialogTitle></DialogHeader>
-            <form onSubmit={handleConfirmCostPrice} className="space-y-4">
-              <Label>Novo Custo Unitário (R$)</Label>
-              <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800 mb-2">
-                Use a <strong>Calculadora de Custo</strong> na barra lateral para descobrir o valor correto antes de salvar.
-              </div>
-              <div className="relative"><DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"/><Input className="pl-9" type="number" step="0.01" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} /></div>
-              <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setCostDialog(false)}>Cancelar</Button><Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">Salvar Custo</Button></div>
-            </form>
+             <DialogHeader><DialogTitle>Atualizar Custo</DialogTitle></DialogHeader>
+             <form onSubmit={handleConfirmCostPrice} className="space-y-4">
+                <Label>Novo Custo (R$)</Label>
+                <Input type="number" step="0.01" value={priceValue} onChange={(e) => setPriceValue(e.target.value)} />
+                <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setCostDialog(false)}>Cancelar</Button><Button type="submit">Salvar</Button></div>
+             </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -446,51 +484,43 @@ export default function Stock() {
   const borderClass = isEntry ? "border-emerald-200" : "border-red-200";
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col gap-4 animate-in fade-in duration-500">
+    // Alterado para h-auto no mobile e min-h-screen para evitar problemas de scroll
+    <div className="flex flex-col gap-4 animate-in fade-in duration-500 pb-10 min-h-[calc(100vh-4rem)]">
+      
       {/* Header do Modo */}
-      <div className="flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 w-full">
           <Button variant="outline" size="icon" onClick={resetTransaction}>
             <RotateCcw className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              {isEntry ? <TrendingUp className="h-6 w-6 text-emerald-600" /> : <TrendingDown className="h-6 w-6 text-red-600" />}
-              {isEntry ? "Nova Entrada de Estoque" : "Nova Saída de Estoque"}
+          <div className="flex-1">
+            <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+              {isEntry ? <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" /> : <TrendingDown className="h-5 w-5 md:h-6 md:w-6 text-red-600" />}
+              {isEntry ? "Entrada" : "Saída"}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground hidden md:block">
               {isEntry ? "Adicionar materiais ao almoxarifado" : "Registrar retirada manual de materiais"}
             </p>
           </div>
-        </div>
-        
-        <div className="flex bg-muted p-1 rounded-lg">
-          <Button 
-            size="sm" 
-            variant={isEntry ? "default" : "ghost"} 
-            className={isEntry ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-            onClick={() => { setViewMode("entry"); setCart([]); }}
-          >
-            Entrada
-          </Button>
-          <Button 
-            size="sm" 
-            variant={!isEntry ? "default" : "ghost"} 
-            className={!isEntry ? "bg-red-600 hover:bg-red-700" : ""}
-            onClick={() => { setViewMode("exit"); setCart([]); }}
-          >
-            Saída
-          </Button>
+
+          <div className="flex bg-muted p-1 rounded-lg shrink-0">
+             <Button size="sm" variant={isEntry ? "default" : "ghost"} className={isEntry ? "bg-emerald-600" : ""} onClick={() => { setViewMode("entry"); setCart([]); }}>Entrada</Button>
+             <Button size="sm" variant={!isEntry ? "default" : "ghost"} className={!isEntry ? "bg-red-600" : ""} onClick={() => { setViewMode("exit"); setCart([]); }}>Saída</Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
+      {/* GRID RESPONSIVO: 
+        Mobile: Flex-col (Vertical)
+        Desktop (lg): Grid 12 colunas 
+      */}
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 flex-1">
         
-        {/* COLUNA 1: PRODUTOS */}
-        <Card className="col-span-12 lg:col-span-3 flex flex-col h-full border-muted-foreground/20 shadow-sm overflow-hidden">
-          <CardHeader className="pb-3 bg-muted/10 shrink-0">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Package className="h-4 w-4" /> Produtos Disponíveis
+        {/* COLUNA 1: PRODUTOS (No mobile fica no topo) */}
+        <Card className="lg:col-span-3 flex flex-col h-[400px] lg:h-[calc(100vh-10rem)] border-muted-foreground/20 shadow-sm overflow-hidden order-1">
+          <CardHeader className="pb-3 bg-muted/10 shrink-0 p-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Package className="h-4 w-4" /> Produtos
             </CardTitle>
             <div className="relative mt-2">
               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
@@ -498,7 +528,7 @@ export default function Stock() {
                 placeholder="Buscar..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 text-sm"
+                className="pl-8 h-9 text-sm"
               />
             </div>
           </CardHeader>
@@ -508,7 +538,7 @@ export default function Stock() {
                return (
                 <div 
                   key={stock.id} 
-                  className="flex flex-col p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all group"
+                  className="flex flex-col p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all active:scale-95"
                   onClick={() => addToCart(stock)}
                 >
                   <span className="font-medium text-sm break-words leading-tight">{stock.products?.name}</span>
@@ -524,19 +554,18 @@ export default function Stock() {
           </CardContent>
         </Card>
 
-        {/* COLUNA 2: ITENS DA TRANSAÇÃO */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col h-full gap-4 overflow-y-auto pr-1">
-          <div className="flex items-center justify-between">
+        {/* COLUNA 2: ITENS DA TRANSAÇÃO (No mobile fica no meio) */}
+        <div className="lg:col-span-6 flex flex-col h-auto lg:h-[calc(100vh-10rem)] gap-4 order-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              {isEntry ? "Itens para Entrada" : "Itens para Saída"}
-              <Badge variant="secondary">{cart.length} itens</Badge>
+              Carrinho <Badge variant="secondary">{cart.length} itens</Badge>
             </h3>
             
             {/* Seletor de Destino */}
             {!isEntry && (
-              <div className="w-64">
+              <div className="w-full md:w-64">
                 <Select value={destination} onValueChange={setDestination}>
-                  <SelectTrigger className="h-9 border-red-200 bg-red-50/50">
+                  <SelectTrigger className="h-10 border-red-200 bg-red-50/50">
                     <SelectValue placeholder="Selecione o Destino..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -547,11 +576,11 @@ export default function Stock() {
             )}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-1 min-h-[200px]">
             {cart.length === 0 ? (
-              <div className="h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground">
+              <div className="h-full min-h-[200px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground bg-muted/20">
                 <Package className="h-10 w-10 mb-2 opacity-20" />
-                <p>Selecione produtos na lista ao lado</p>
+                <p className="text-sm">Toque nos produtos para adicionar</p>
               </div>
             ) : (
               cart.map((item) => {
@@ -561,49 +590,49 @@ export default function Stock() {
 
                 return (
                   <Card key={item.product_id} className={`overflow-hidden transition-all ${isEntry ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-red-500'}`}>
-                    <div className="p-4 flex items-center gap-4">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${bgClass} ${themeClass}`}>
-                        <Package className="h-5 w-5" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <div>
+                    <div className="p-3 md:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 md:gap-4">
+                      {/* Icone e Nome */}
+                      <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${bgClass} ${themeClass}`}>
+                            <Package className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <h4 className="font-bold text-sm truncate">{item.name}</h4>
                             <span className="text-xs text-muted-foreground font-mono">{item.sku}</span>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 -mr-2 text-muted-foreground hover:text-red-500" onClick={() => removeFromCart(item.product_id)}>
-                            <Trash2 className="h-3 w-3" />
+                          {/* Botão Remover (Mobile: Fica na direita) */}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500 sm:hidden" onClick={() => removeFromCart(item.product_id)}>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
+                      </div>
 
-                        <div className="flex items-center gap-3 mt-3 text-sm">
-                          <div className="text-center">
-                            <span className="text-xs text-muted-foreground block">Atual</span>
-                            <span className="font-semibold">{item.current_stock}</span>
-                          </div>
-                          
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                          
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded-md ${bgClass} border ${borderClass}`}>
-                            <span className={`text-xs font-bold ${themeClass}`}>
-                              {isEntry ? "+" : "-"}
-                            </span>
-                            <Input 
-                              type="number"
-                              className={`h-6 w-20 text-center font-bold bg-transparent border-none focus-visible:ring-0 p-0 ${themeClass}`}
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(item.product_id, parseFloat(e.target.value) || 0)}
-                            />
-                          </div>
+                      {/* Controles de Quantidade */}
+                      <div className="flex items-center justify-between w-full sm:w-auto gap-4 mt-2 sm:mt-0">
+                         <div className="text-center hidden sm:block">
+                           <span className="text-[10px] text-muted-foreground block">Atual</span>
+                           <span className="font-semibold text-sm">{item.current_stock}</span>
+                         </div>
+                         
+                         <div className={`flex items-center gap-1 px-3 py-1 rounded-md ${bgClass} border ${borderClass} flex-1 sm:flex-none justify-center`}>
+                           <span className={`text-sm font-bold ${themeClass} mr-1`}>{isEntry ? "+" : "-"}</span>
+                           <Input 
+                             type="number"
+                             inputMode="decimal"
+                             className={`h-8 w-20 text-center font-bold bg-transparent border-none focus-visible:ring-0 p-0 ${themeClass} text-lg`}
+                             value={item.quantity}
+                             onChange={(e) => updateQuantity(item.product_id, parseFloat(e.target.value) || 0)}
+                           />
+                         </div>
 
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                         <div className="text-center hidden sm:block">
+                           <span className="text-[10px] text-muted-foreground block">Novo</span>
+                           <span className="font-bold text-sm">{finalStock}</span>
+                         </div>
 
-                          <div className="text-center">
-                            <span className="text-xs text-muted-foreground block">Novo</span>
-                            <span className="font-bold">{finalStock} <span className="text-[10px] font-normal text-muted-foreground">{item.unit}</span></span>
-                          </div>
-                        </div>
+                         {/* Botão Remover (Desktop) */}
+                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500 hidden sm:inline-flex" onClick={() => removeFromCart(item.product_id)}>
+                           <Trash2 className="h-4 w-4" />
+                         </Button>
                       </div>
                     </div>
                   </Card>
@@ -613,22 +642,22 @@ export default function Stock() {
           </div>
         </div>
 
-        {/* COLUNA 3: RESUMO */}
-        <Card className="col-span-12 lg:col-span-3 flex flex-col h-fit sticky top-4 border-muted-foreground/20 shadow-md">
-          <CardHeader className="pb-2">
+        {/* COLUNA 3: RESUMO (No mobile fica no final) */}
+        <Card className="lg:col-span-3 flex flex-col h-fit lg:sticky lg:top-4 border-muted-foreground/20 shadow-md order-3 mb-6 lg:mb-0">
+          <CardHeader className="pb-2 p-4">
             <CardTitle className="text-base flex items-center gap-2">
-              {isEntry ? "Resumo da Entrada" : "Resumo da Saída"}
+              Resumo
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-muted/30 p-3 rounded-lg text-center">
-                <span className="text-xs text-muted-foreground block mb-1">Itens Diferentes</span>
-                <span className="text-2xl font-bold">{cart.length}</span>
+              <div className="bg-muted/30 p-2 rounded-lg text-center">
+                <span className="text-xs text-muted-foreground block mb-1">Itens</span>
+                <span className="text-xl font-bold">{cart.length}</span>
               </div>
-              <div className={`p-3 rounded-lg text-center ${bgClass} border ${borderClass}`}>
-                <span className={`text-xs block mb-1 ${themeClass}`}>Qtd. Total</span>
-                <span className={`text-2xl font-bold ${themeClass}`}>
+              <div className={`p-2 rounded-lg text-center ${bgClass} border ${borderClass}`}>
+                <span className={`text-xs block mb-1 ${themeClass}`}>Total Qtd.</span>
+                <span className={`text-xl font-bold ${themeClass}`}>
                   {isEntry ? "+" : "-"}{cart.reduce((acc, item) => acc + item.quantity, 0)}
                 </span>
               </div>
@@ -637,13 +666,11 @@ export default function Stock() {
             <div className={`p-3 rounded-md flex items-start gap-3 ${cart.length > 0 ? "bg-green-50 text-green-800" : "bg-muted text-muted-foreground"}`}>
               <CheckCircle2 className="h-5 w-5 shrink-0" />
               <p className="text-xs leading-tight">
-                {cart.length > 0 
-                  ? "Tudo pronto! Revise os valores antes de confirmar a transação." 
-                  : "Aguardando itens..."}
+                {cart.length > 0 ? "Pronto para confirmar." : "Adicione itens..."}
               </p>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-3 pt-0">
+          <CardFooter className="flex flex-col gap-3 p-4 pt-0">
             <Button 
               className={`w-full h-12 text-lg font-bold shadow-lg ${isEntry ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200" : "bg-red-600 hover:bg-red-700 shadow-red-200"}`}
               onClick={handleConfirmTransaction}
@@ -654,7 +681,7 @@ export default function Stock() {
               )}
             </Button>
             <Button variant="ghost" className="w-full" onClick={resetTransaction}>
-              Cancelar / Limpar
+              Cancelar
             </Button>
           </CardFooter>
         </Card>
