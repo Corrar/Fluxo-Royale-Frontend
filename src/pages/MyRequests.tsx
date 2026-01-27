@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -121,8 +121,6 @@ export default function MyRequests() {
   }, [products, searchTerm]);
 
   const handleProductSelect = (product: any) => {
-    // Se já estiver no carrinho, permite editar (reabrindo o modal) ou avisa
-    // Aqui optei por permitir selecionar para adicionar mais ou alterar
     const available = getAvailableStock(product);
     if (available <= 0) {
       toast.error("Produto indisponível.");
@@ -130,7 +128,6 @@ export default function MyRequests() {
     }
     setSelectedProduct({ ...product, available });
     
-    // Se já existe, pré-carrega a quantidade
     const existing = cart.find(i => i.product_id === product.id);
     setQtyInput(existing ? existing.quantity.toString() : "");
     
@@ -142,7 +139,6 @@ export default function MyRequests() {
     if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
     if (qtd > selectedProduct.available) return toast.error(`Máximo disponível: ${Math.floor(selectedProduct.available)}`);
 
-    // Atualiza se já existir, ou adiciona novo
     const existingIndex = cart.findIndex(i => i.product_id === selectedProduct.id);
     
     if (existingIndex >= 0) {
@@ -160,7 +156,6 @@ export default function MyRequests() {
         }]);
         toast.success("Adicionado ao carrinho!");
     }
-    
     setIsQtyDialogOpen(false);
   };
 
@@ -179,9 +174,9 @@ export default function MyRequests() {
     });
   };
 
-  // --- COMPONENTE VISUAL DO CARRINHO (Conteúdo) ---
+  // --- COMPONENTE VISUAL DO CARRINHO ---
   const CartListContent = () => (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4">
             <ShoppingCart className="h-12 w-12 opacity-20" />
@@ -216,7 +211,7 @@ export default function MyRequests() {
           </ScrollArea>
         )}
 
-      <div className="p-4 border-t bg-background mt-auto">
+      <div className="p-4 border-t bg-background mt-auto pb-8 md:pb-4">
          <div className="flex justify-between items-center mb-4">
             <span className="text-sm font-medium text-muted-foreground">Total de Itens</span>
             <span className="text-xl font-bold">{cart.length}</span>
@@ -268,7 +263,6 @@ export default function MyRequests() {
         <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 relative">
           
           {/* ESQUERDA: CATÁLOGO */}
-          {/* Adicionei 'pb-24' no mobile para o conteúdo não ficar atrás da barra fixa */}
           <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden pb-24 lg:pb-0">
             <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b p-4">
               <div className="relative">
@@ -353,7 +347,7 @@ export default function MyRequests() {
 
           {/* === BARRA FIXA INFERIOR (Apenas Mobile) === */}
           {cart.length > 0 && (
-            <div className="fixed bottom-0 left-0 w-full bg-background border-t p-4 z-50 lg:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom-full duration-300">
+            <div className="fixed bottom-0 left-0 w-full bg-background border-t p-4 z-40 lg:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                <div className="flex items-center gap-4 max-w-md mx-auto">
                  <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Total de itens</p>
@@ -508,9 +502,19 @@ export default function MyRequests() {
         </DialogContent>
       </Dialog>
 
-      {/* --- DIALOG CARRINHO MOBILE (Full Screen Type) --- */}
+      {/* --- DIALOG CARRINHO MOBILE (CORRIGIDO: CSS FORCE OVERRIDE) --- */}
       <Dialog open={isMobileCartOpen} onOpenChange={setIsMobileCartOpen}>
-        <DialogContent className="w-[95%] max-w-[95%] h-[85vh] flex flex-col p-0 rounded-t-xl rounded-b-none fixed bottom-0 left-[2.5%] translate-y-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-300">
+        <DialogContent 
+            className="fixed z-50 left-0 bottom-0 w-full max-w-none h-[85vh] translate-x-0 translate-y-0 p-0 gap-0 bg-background rounded-t-xl border-t shadow-2xl data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom duration-300"
+            // Forçamos estilos inline para garantir que o Radix UI não centralize
+            style={{ 
+                left: 0, 
+                bottom: 0, 
+                top: 'auto', 
+                transform: 'none', 
+                maxWidth: '100%' 
+            }}
+        >
           <DialogHeader className="p-4 border-b bg-muted/20 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5"/> Revisar Pedido
