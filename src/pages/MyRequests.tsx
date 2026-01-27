@@ -3,14 +3,15 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
 import { 
   Plus, Trash2, Search, ShoppingCart, ArrowRight, History, Box,
-  Clock, CheckCircle2, XCircle, Truck, AlertTriangle, Send, Loader2
+  Clock, CheckCircle2, XCircle, Truck, AlertTriangle, Send, Loader2,
+  ChevronRight, Package
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,10 +20,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 // --- Configuração de Status ---
 const statusConfig = {
-  aberto: { label: "Aberto", color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300", icon: Clock },
-  aprovado: { label: "Aprovado", color: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300", icon: CheckCircle2 },
-  rejeitado: { label: "Rejeitado", color: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300", icon: XCircle },
-  entregue: { label: "Entregue", color: "bg-gray-100 text-gray-700 border-gray-200 dark:bg-slate-800 dark:text-slate-300", icon: Truck },
+  aberto: { label: "Aberto", color: "bg-blue-100 text-blue-700 border-blue-200", icon: Clock },
+  aprovado: { label: "Aprovado", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  rejeitado: { label: "Rejeitado", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle },
+  entregue: { label: "Entregue", color: "bg-gray-100 text-gray-700 border-gray-200", icon: Truck },
 };
 
 interface CartItem {
@@ -43,21 +44,22 @@ export default function MyRequests() {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   
+  // Controle de Modais
   const [isQtyDialogOpen, setIsQtyDialogOpen] = useState(false);
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); // Novo para mobile
+  
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [qtyInput, setQtyInput] = useState("");
 
-  // 1. SOCKET (Atualização em Tempo Real)
+  // 1. SOCKET
   useEffect(() => {
     if (socket) {
       const handleRefresh = () => {
         queryClient.invalidateQueries({ queryKey: ["my-requests"] });
         queryClient.invalidateQueries({ queryKey: ["products-list"] });
       };
-
       socket.on("refresh_requests", handleRefresh);
       socket.on("refresh_stock", handleRefresh);
-
       return () => {
         socket.off("refresh_requests", handleRefresh);
         socket.off("refresh_stock", handleRefresh);
@@ -91,6 +93,7 @@ export default function MyRequests() {
 
       toast.success("Solicitação enviada com sucesso!");
       setCart([]); 
+      setIsMobileCartOpen(false);
       setActiveTab("history"); 
     },
     onError: (error: any) => {
@@ -105,14 +108,12 @@ export default function MyRequests() {
     if (!stockInfo) return 0;
     const onHand = Number(stockInfo.quantity_on_hand || 0);
     const openRequests = Number(stockInfo.quantity_open || 0); 
-    // Garante que o estoque visível também seja arredondado para baixo se quiser consistência total,
-    // mas aqui mantive a lógica original, apenas a entrada será inteira.
     return Math.max(0, onHand - openRequests);
   };
 
   const filteredProducts = useMemo(() => {
     if (!products) return [];
-    if (!searchTerm) return products.slice(0, 20); 
+    if (!searchTerm) return products.slice(0, 50); 
     return products.filter((p: any) => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
@@ -121,7 +122,7 @@ export default function MyRequests() {
 
   const handleProductSelect = (product: any) => {
     if (cart.find(item => item.product_id === product.id)) {
-      toast.info("Item já adicionado.");
+      toast.info("Item já adicionado. Remova para editar.");
       return;
     }
     const available = getAvailableStock(product);
@@ -135,13 +136,9 @@ export default function MyRequests() {
   };
 
   const confirmAddItem = () => {
-    // ALTERAÇÃO: Usar parseInt para garantir número inteiro (base 10)
     const qtd = parseInt(qtyInput, 10);
-    
     if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
-    
-    // Verifica se a quantidade inteira solicitada é maior que o disponível
-    if (qtd > selectedProduct.available) return toast.error(`Máximo: ${Math.floor(selectedProduct.available)}`);
+    if (qtd > selectedProduct.available) return toast.error(`Máximo disponível: ${Math.floor(selectedProduct.available)}`);
 
     setCart([...cart, {
       product_id: selectedProduct.id,
@@ -151,11 +148,12 @@ export default function MyRequests() {
       quantity: qtd
     }]);
     setIsQtyDialogOpen(false);
-    toast.success("Adicionado!");
+    toast.success("Item adicionado ao carrinho");
   };
 
   const handleRemoveItem = (id: string) => {
     setCart(cart.filter(item => item.product_id !== id));
+    if (cart.length === 1) setIsMobileCartOpen(false); // Fecha modal se esvaziar
   };
 
   const handleSubmit = () => {
@@ -167,65 +165,111 @@ export default function MyRequests() {
     });
   };
 
+  // --- COMPONENTE VISUAL DO CARRINHO (Reusável) ---
+  const CartSummary = () => (
+    <div className="flex flex-col h-full">
+      <ScrollArea className="flex-1 -mx-6 px-6">
+        <div className="space-y-3 py-2">
+          {cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground text-center">
+              <ShoppingCart className="h-12 w-12 opacity-20 mb-3" />
+              <p>Seu carrinho está vazio.</p>
+              <p className="text-sm opacity-70">Adicione itens do catálogo.</p>
+            </div>
+          ) : (
+            cart.map((item) => (
+              <div key={item.product_id} className="flex gap-3 items-center bg-card p-3 rounded-lg border shadow-sm">
+                <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">{item.sku}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-sm font-bold px-2">
+                    {item.quantity} {item.unit}
+                  </Badge>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => handleRemoveItem(item.product_id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+      
+      <div className="pt-4 mt-auto border-t">
+         <div className="flex justify-between items-center mb-4">
+            <span className="text-sm text-muted-foreground">Itens no pedido:</span>
+            <span className="text-xl font-bold">{cart.length}</span>
+         </div>
+         <Button 
+            className="w-full h-12 text-base" 
+            onClick={handleSubmit} 
+            disabled={cart.length === 0 || createRequestMutation.isPending}
+         >
+            {createRequestMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
+            Confirmar Solicitação
+         </Button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 animate-in fade-in duration-500">
+    <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 animate-in fade-in duration-500 pb-20 md:pb-0">
       
       {/* CABEÇALHO */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Painel do Setor</h1>
-          <p className="text-muted-foreground">Solicite materiais do estoque central</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Minhas Solicitações</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Painel de pedidos do setor: <span className="font-semibold text-foreground">{sector}</span></p>
         </div>
         
-        <div className="flex bg-muted p-1 rounded-lg border">
+        <div className="flex bg-muted p-1 rounded-lg border w-full md:w-auto">
           <Button 
             variant={activeTab === "new" ? "default" : "ghost"} 
             size="sm"
             onClick={() => setActiveTab("new")}
-            className="gap-2"
+            className="flex-1 md:flex-none gap-2"
           >
-            <Plus className="h-4 w-4" /> Nova Solicitação
+            <Plus className="h-4 w-4" /> Nova
           </Button>
           <Button 
             variant={activeTab === "history" ? "default" : "ghost"} 
             size="sm"
             onClick={() => setActiveTab("history")}
-            className="gap-2"
+            className="flex-1 md:flex-none gap-2"
           >
-            <History className="h-4 w-4" /> Meus Pedidos
+            <History className="h-4 w-4" /> Histórico
           </Button>
         </div>
       </div>
 
       {/* --- ABA: NOVA SOLICITAÇÃO --- */}
       {activeTab === "new" && (
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden pb-2">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
           
           {/* ESQUERDA: CATÁLOGO */}
           <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden">
-            <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-4">
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Search className="h-5 w-5 text-primary" /> Catálogo de Produtos
-                </CardTitle>
-                <Badge variant="outline" className="bg-background">{filteredProducts.length} itens</Badge>
-              </div>
+            <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-3 p-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Digite o nome, SKU ou descrição..." 
+                  placeholder="Buscar produto..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-10 bg-background text-base"
+                  className="pl-10 bg-background"
                 />
               </div>
             </CardHeader>
             
             <ScrollArea className="flex-1 bg-muted/5">
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3">
+              <div className="p-3 md:p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {isLoadingProducts ? (
                   <div className="col-span-full flex flex-col items-center justify-center h-40 text-muted-foreground">
-                    <Box className="h-8 w-8 animate-bounce mb-2" /> Carregando catálogo...
+                    <Box className="h-8 w-8 animate-bounce mb-2" /> Carregando...
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="col-span-full text-center py-10 text-muted-foreground">
@@ -240,39 +284,28 @@ export default function MyRequests() {
                       <div 
                         key={product.id} 
                         className={`
-                          relative flex flex-col p-4 rounded-lg border shadow-sm transition-all bg-card
-                          ${available <= 0 ? 'opacity-60 grayscale cursor-not-allowed border-dashed' : 'hover:border-primary hover:shadow-md cursor-pointer'}
+                          relative flex flex-col p-3 md:p-4 rounded-lg border shadow-sm transition-all bg-card
+                          ${available <= 0 ? 'opacity-60 grayscale cursor-not-allowed border-dashed' : 'hover:border-primary hover:shadow-md cursor-pointer active:scale-95'}
                           ${inCart ? 'ring-2 ring-primary border-primary bg-primary/5' : ''}
                         `}
                         onClick={() => available > 0 && handleProductSelect(product)}
                       >
-                        {inCart && (
-                          <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-in zoom-in">
-                            NO CARRINHO
-                          </div>
-                        )}
+                        {inCart && <Badge className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px]">No Carrinho</Badge>}
 
-                        <div className="flex justify-between items-start gap-3 mb-2">
-                          <h3 className="font-semibold text-sm leading-snug text-foreground break-words line-clamp-2" title={product.name}>
-                            {product.name}
-                          </h3>
+                        <div className="flex justify-between items-start gap-2 mb-2">
+                          <h3 className="font-semibold text-sm leading-snug line-clamp-2">{product.name}</h3>
                           {available > 0 ? (
-                            <Badge variant="secondary" className="shrink-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200">
-                              {/* Arredonda visualmente para baixo se tiver decimal */}
+                            <Badge variant="secondary" className="shrink-0 bg-green-100 text-green-800 h-5 px-1.5 text-[10px]">
                               {Math.floor(available)} {product.unit}
                             </Badge>
                           ) : (
-                            <Badge variant="destructive" className="shrink-0">Esgotado</Badge>
+                            <Badge variant="destructive" className="shrink-0 h-5 px-1.5 text-[10px]">0</Badge>
                           )}
                         </div>
 
                         <div className="mt-auto flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-dashed">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{product.sku}</span>
-                          </div>
-                          <span className="flex items-center gap-1 text-primary font-medium group-hover:underline">
-                            Selecionar <ArrowRight className="h-3 w-3" />
-                          </span>
+                          <span className="font-mono bg-muted px-1 rounded">{product.sku}</span>
+                          <span className="text-primary font-medium flex items-center">Adicionar <Plus className="h-3 w-3 ml-1"/></span>
                         </div>
                       </div>
                     );
@@ -282,93 +315,48 @@ export default function MyRequests() {
             </ScrollArea>
           </Card>
 
-          {/* DIREITA: CARRINHO */}
-          <Card className="flex flex-col flex-1 h-full border-l-4 border-l-primary shadow-lg bg-card overflow-hidden">
-            <CardHeader className="pb-3 bg-muted/20 border-b">
+          {/* DIREITA: CARRINHO (Apenas Desktop) */}
+          <Card className="hidden lg:flex flex-col flex-1 h-full border-l-4 border-l-primary shadow-lg bg-card overflow-hidden">
+            <CardHeader className="pb-3 bg-muted/20 border-b p-4">
               <CardTitle className="flex items-center gap-2 text-lg text-primary">
-                <ShoppingCart className="h-5 w-5" /> Revisão do Pedido
+                <ShoppingCart className="h-5 w-5" /> Seu Carrinho
               </CardTitle>
-              <CardDescription>
-                Setor: <span className="font-semibold text-foreground">{sector}</span>
-              </CardDescription>
             </CardHeader>
-            
-            <ScrollArea className="flex-1 p-0">
-              <div className="flex flex-col divide-y divide-border">
-                {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground space-y-3 px-4 text-center">
-                    <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center">
-                      <ShoppingCart className="h-8 w-8 opacity-50" />
-                    </div>
-                    <p>Seu carrinho está vazio.</p>
-                    <p className="text-sm opacity-70">Clique nos produtos à esquerda para adicionar.</p>
-                  </div>
-                ) : (
-                  cart.map((item) => (
-                    <div key={item.product_id} className="flex gap-3 p-4 hover:bg-muted/10 transition-colors group">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground break-words leading-snug">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono mt-1">{item.sku}</p>
-                      </div>
-                      
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-2 bg-muted px-2 py-1 rounded-md">
-                          <span className="font-bold text-sm">{item.quantity}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase">{item.unit}</span>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 text-muted-foreground hover:text-red-600 hover:bg-red-50 -mr-1" 
-                          onClick={() => handleRemoveItem(item.product_id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
+            <CardContent className="flex-1 p-4 overflow-hidden flex flex-col">
+              <CartSummary />
+            </CardContent>
+          </Card>
 
-            <div className="p-4 bg-muted/20 border-t mt-auto">
-              <div className="flex justify-between items-center mb-4 text-sm">
-                <span className="text-muted-foreground">Total de Itens:</span>
-                <span className="font-bold text-lg">{cart.length}</span>
-              </div>
+          {/* RODAPÉ DO CARRINHO (Apenas Mobile - Sticky Bottom) */}
+          {cart.length > 0 && (
+            <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50 animate-in slide-in-from-bottom-5">
               <Button 
-                className="w-full h-12 text-base font-bold shadow-md transition-all hover:scale-[1.02]" 
-                onClick={handleSubmit} 
-                disabled={cart.length === 0 || createRequestMutation.isPending}
+                className="w-full h-14 shadow-xl text-lg flex justify-between px-6 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => setIsMobileCartOpen(true)}
               >
-                {createRequestMutation.isPending ? (
-                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Enviando...</>
-                ) : (
-                  <><Send className="mr-2 h-5 w-5" /> Confirmar Pedido</>
-                )}
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 px-2 py-1 rounded text-sm font-bold">{cart.length}</div>
+                  <span className="text-sm font-normal opacity-90">itens</span>
+                </div>
+                <span className="font-bold flex items-center gap-2">Ver Carrinho <ChevronRight className="h-5 w-5" /></span>
               </Button>
             </div>
-          </Card>
+          )}
         </div>
       )}
 
-      {/* --- ABA: HISTÓRICO DE PEDIDOS --- */}
+      {/* --- ABA: HISTÓRICO --- */}
       {activeTab === "history" && (
-        <Card className="flex-1 overflow-hidden border-muted-foreground/20 flex flex-col min-h-0 shadow-sm">
-          <CardHeader className="shrink-0 pb-2 border-b">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <History className="h-5 w-5 text-primary" /> Histórico de Solicitações
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-auto">
+        <Card className="flex-1 overflow-hidden border-muted-foreground/20 flex flex-col min-h-0 shadow-sm bg-transparent border-none md:bg-card md:border">
+          
+          {/* VISUALIZAÇÃO DESKTOP (TABELA) */}
+          <div className="hidden md:block h-full overflow-auto rounded-md border bg-card">
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10">
                 <TableRow>
-                  <TableHead className="w-[100px] text-center">Data / Ref</TableHead>
-                  <TableHead>Resumo</TableHead>
-                  <TableHead className="w-[160px] text-center">Status</TableHead>
+                  <TableHead className="w-[120px] text-center">Data</TableHead>
+                  <TableHead>Itens Solicitados</TableHead>
+                  <TableHead className="w-[140px] text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -380,52 +368,32 @@ export default function MyRequests() {
                   requests?.map((request: any) => {
                     const status = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberto;
                     const StatusIcon = status.icon;
-
                     return (
                       <TableRow key={request.id} className="hover:bg-muted/5">
-                        {/* === CÉLULA FORMATADA (DATA, HORA, ID) === */}
-                        <TableCell className="align-top py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="font-medium text-xs text-foreground">
-                              {format(new Date(request.created_at), "dd/MM")}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground mb-1">
-                              {format(new Date(request.created_at), "HH:mm")}
-                            </span>
-                            <span 
-                              className="font-mono text-[10px] text-muted-foreground uppercase bg-muted/50 px-1 rounded"
-                              title={`ID: ${request.id}`}
-                            >
-                              #{request.id.substring(0, 6)}
-                            </span>
+                        <TableCell className="align-top text-center py-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-foreground">{format(new Date(request.created_at), "dd/MM/yyyy")}</span>
+                            <span className="text-xs text-muted-foreground">{format(new Date(request.created_at), "HH:mm")}</span>
                           </div>
                         </TableCell>
-                        
                         <TableCell className="align-top py-4">
                           <div className="space-y-1">
                             {request.request_items?.map((item: any) => (
-                              <div key={item.id} className="flex items-start gap-2 text-sm">
-                                <Badge variant="secondary" className="h-5 px-1.5 font-mono text-[10px] shrink-0">
-                                  {/* Mostra inteiro no histórico também */}
-                                  {Math.floor(item.quantity_requested)} {item.products?.unit}
-                                </Badge>
-                                <span className="text-foreground leading-tight">{item.products?.name || item.custom_product_name}</span>
+                              <div key={item.id} className="text-sm flex gap-2 items-center">
+                                <Badge variant="outline" className="h-5 px-1 font-mono text-[10px]">{Math.floor(item.quantity_requested)} {item.products?.unit}</Badge>
+                                <span className="text-foreground">{item.products?.name || item.custom_product_name}</span>
                               </div>
                             ))}
-                            
                             {request.rejection_reason && (
-                              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 rounded text-xs text-red-800 dark:text-red-300 flex gap-2">
-                                <AlertTriangle className="h-3 w-3 shrink-0" />
-                                <span>Recusa: {request.rejection_reason}</span>
+                              <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded flex items-center gap-2">
+                                <AlertTriangle className="h-3 w-3"/> Motivo da Recusa: {request.rejection_reason}
                               </div>
                             )}
                           </div>
                         </TableCell>
-                        
-                        <TableCell className="align-top py-4 text-center">
-                          <Badge variant="outline" className={`${status.color} px-3 py-1 gap-1.5 text-xs font-medium`}>
-                            <StatusIcon className="h-3.5 w-3.5" />
-                            {status.label}
+                        <TableCell className="align-top text-center py-4">
+                          <Badge variant="outline" className={`${status.color} px-3 py-1`}>
+                            <StatusIcon className="h-3 w-3 mr-1" /> {status.label}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -434,54 +402,103 @@ export default function MyRequests() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
+          </div>
+
+          {/* VISUALIZAÇÃO MOBILE (CARDS) */}
+          <div className="md:hidden space-y-3 overflow-auto pb-4">
+            {isLoadingRequests ? <div className="text-center p-4">Carregando...</div> : 
+             requests?.length === 0 ? <div className="text-center p-10 text-muted-foreground bg-card rounded-lg border">Sem histórico.</div> :
+             requests?.map((request: any) => {
+               const status = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberto;
+               const StatusIcon = status.icon;
+               return (
+                <Card key={request.id} className="shadow-sm border-l-4" style={{ borderLeftColor: status.label === 'Aprovado' ? '#10b981' : status.label === 'Rejeitado' ? '#ef4444' : '#3b82f6' }}>
+                  <CardHeader className="p-4 pb-2 flex flex-row justify-between items-start space-y-0">
+                    <div>
+                      <CardTitle className="text-sm font-bold flex items-center gap-2">
+                        Pedido #{request.id.toString().slice(0,6)}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {format(new Date(request.created_at), "dd 'de' MMM, HH:mm")}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className={`text-xs ${status.color}`}>
+                      <StatusIcon className="h-3 w-3 mr-1"/> {status.label}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-2">
+                    <div className="space-y-2 mt-2">
+                      {request.request_items?.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center text-sm border-b border-dashed last:border-0 pb-1 last:pb-0">
+                          <span className="text-foreground line-clamp-1 mr-2">{item.products?.name}</span>
+                          <span className="font-mono text-xs font-bold text-muted-foreground whitespace-nowrap">
+                            {Math.floor(item.quantity_requested)} {item.products?.unit}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {request.rejection_reason && (
+                      <div className="mt-3 bg-red-50 p-2 rounded text-xs text-red-700">
+                        <strong>Motivo:</strong> {request.rejection_reason}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+               )
+             })
+            }
+          </div>
         </Card>
       )}
 
-      {/* --- DIALOG DE QUANTIDADE (Formulário Simples) --- */}
+      {/* --- DIALOG DE QUANTIDADE --- */}
       <Dialog open={isQtyDialogOpen} onOpenChange={setIsQtyDialogOpen}>
-        <DialogContent className="max-w-sm bg-card">
+        <DialogContent className="max-w-[90%] sm:max-w-sm rounded-xl">
           <DialogHeader>
-            <DialogTitle>Quantas unidades?</DialogTitle>
+            <DialogTitle>Quantidade</DialogTitle>
           </DialogHeader>
           
           {selectedProduct && (
             <div className="space-y-4 py-2">
-              <div className="bg-muted/30 p-3 rounded-lg border">
+              <div className="bg-muted/50 p-3 rounded-lg border">
                 <p className="font-semibold text-sm leading-tight mb-1">{selectedProduct.name}</p>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>SKU: {selectedProduct.sku}</span>
-                  {/* Visualização de disponibilidade arredondada para baixo */}
-                  <span>Disp: <strong className="text-foreground">{Math.floor(selectedProduct.available)}</strong></span>
+                   <span>Disponível: <strong>{Math.floor(selectedProduct.available)}</strong></span>
+                   <span>Un: {selectedProduct.unit}</span>
                 </div>
               </div>
 
               <div className="flex gap-2 items-center">
                 <Input 
                   type="number" 
-                  // ALTERAÇÃO: Step 1 para pular de 1 em 1
                   step="1" 
-                  // ALTERAÇÃO: Placeholder sem casas decimais
                   placeholder="0" 
                   value={qtyInput}
                   onChange={(e) => setQtyInput(e.target.value)}
-                  className="text-xl h-14 font-bold text-center bg-background" 
+                  className="text-2xl h-14 font-bold text-center" 
                   autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && confirmAddItem()}
                 />
-                <div className="h-14 w-16 bg-muted flex items-center justify-center rounded-md font-medium text-muted-foreground border">
-                  {selectedProduct.unit}
-                </div>
               </div>
+              <Button onClick={confirmAddItem} className="w-full h-12 text-lg">Adicionar</Button>
             </div>
           )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsQtyDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmAddItem} className="w-full sm:w-auto">Adicionar ao Pedido</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* --- DIALOG CARRINHO MOBILE --- */}
+      <Dialog open={isMobileCartOpen} onOpenChange={setIsMobileCartOpen}>
+        <DialogContent className="max-w-[95%] h-[80vh] flex flex-col p-0 rounded-xl gap-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b bg-muted/20">
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5"/> Resumo do Pedido
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 p-4 overflow-hidden">
+            <CartSummary />
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
