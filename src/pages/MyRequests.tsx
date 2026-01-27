@@ -3,15 +3,15 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { 
-  Plus, Trash2, Search, ShoppingCart, ArrowRight, History, Box,
+  Plus, Trash2, Search, ShoppingCart, History, Box,
   Clock, CheckCircle2, XCircle, Truck, AlertTriangle, Send, Loader2,
-  ChevronRight, Package
+  ChevronUp, Package
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,9 +44,9 @@ export default function MyRequests() {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   
-  // Controle de Modais
+  // Modais
   const [isQtyDialogOpen, setIsQtyDialogOpen] = useState(false);
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); // Novo para mobile
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); 
   
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [qtyInput, setQtyInput] = useState("");
@@ -121,17 +121,19 @@ export default function MyRequests() {
   }, [products, searchTerm]);
 
   const handleProductSelect = (product: any) => {
-    if (cart.find(item => item.product_id === product.id)) {
-      toast.info("Item já adicionado. Remova para editar.");
-      return;
-    }
+    // Se já estiver no carrinho, permite editar (reabrindo o modal) ou avisa
+    // Aqui optei por permitir selecionar para adicionar mais ou alterar
     const available = getAvailableStock(product);
     if (available <= 0) {
       toast.error("Produto indisponível.");
       return;
     }
     setSelectedProduct({ ...product, available });
-    setQtyInput("");
+    
+    // Se já existe, pré-carrega a quantidade
+    const existing = cart.find(i => i.product_id === product.id);
+    setQtyInput(existing ? existing.quantity.toString() : "");
+    
     setIsQtyDialogOpen(true);
   };
 
@@ -140,20 +142,32 @@ export default function MyRequests() {
     if (!qtd || qtd <= 0) return toast.error("Quantidade inválida");
     if (qtd > selectedProduct.available) return toast.error(`Máximo disponível: ${Math.floor(selectedProduct.available)}`);
 
-    setCart([...cart, {
-      product_id: selectedProduct.id,
-      name: selectedProduct.name,
-      sku: selectedProduct.sku,
-      unit: selectedProduct.unit,
-      quantity: qtd
-    }]);
+    // Atualiza se já existir, ou adiciona novo
+    const existingIndex = cart.findIndex(i => i.product_id === selectedProduct.id);
+    
+    if (existingIndex >= 0) {
+        const newCart = [...cart];
+        newCart[existingIndex].quantity = qtd;
+        setCart(newCart);
+        toast.success("Quantidade atualizada!");
+    } else {
+        setCart([...cart, {
+          product_id: selectedProduct.id,
+          name: selectedProduct.name,
+          sku: selectedProduct.sku,
+          unit: selectedProduct.unit,
+          quantity: qtd
+        }]);
+        toast.success("Adicionado ao carrinho!");
+    }
+    
     setIsQtyDialogOpen(false);
-    toast.success("Item adicionado ao carrinho");
   };
 
   const handleRemoveItem = (id: string) => {
-    setCart(cart.filter(item => item.product_id !== id));
-    if (cart.length === 1) setIsMobileCartOpen(false); // Fecha modal se esvaziar
+    const newCart = cart.filter(item => item.product_id !== id);
+    setCart(newCart);
+    if (newCart.length === 0) setIsMobileCartOpen(false); 
   };
 
   const handleSubmit = () => {
@@ -165,52 +179,54 @@ export default function MyRequests() {
     });
   };
 
-  // --- COMPONENTE VISUAL DO CARRINHO (Reusável) ---
-  const CartSummary = () => (
+  // --- COMPONENTE VISUAL DO CARRINHO (Conteúdo) ---
+  const CartListContent = () => (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 -mx-6 px-6">
-        <div className="space-y-3 py-2">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground text-center">
-              <ShoppingCart className="h-12 w-12 opacity-20 mb-3" />
-              <p>Seu carrinho está vazio.</p>
-              <p className="text-sm opacity-70">Adicione itens do catálogo.</p>
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground space-y-4">
+            <ShoppingCart className="h-12 w-12 opacity-20" />
+            <p>Seu carrinho está vazio.</p>
+          </div>
+        ) : (
+          <ScrollArea className="flex-1 px-4">
+            <div className="space-y-3 py-4">
+              {cart.map((item) => (
+                <div key={item.product_id} className="flex gap-3 items-center bg-card p-3 rounded-lg border shadow-sm">
+                  <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
+                    <Package className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{item.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded">{item.sku}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                        <span className="block text-sm font-bold">{item.quantity}</span>
+                        <span className="block text-[10px] text-muted-foreground uppercase">{item.unit}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => handleRemoveItem(item.product_id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ) : (
-            cart.map((item) => (
-              <div key={item.product_id} className="flex gap-3 items-center bg-card p-3 rounded-lg border shadow-sm">
-                <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
-                  <Package className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">{item.sku}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-sm font-bold px-2">
-                    {item.quantity} {item.unit}
-                  </Badge>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => handleRemoveItem(item.product_id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-      
-      <div className="pt-4 mt-auto border-t">
+          </ScrollArea>
+        )}
+
+      <div className="p-4 border-t bg-background mt-auto">
          <div className="flex justify-between items-center mb-4">
-            <span className="text-sm text-muted-foreground">Itens no pedido:</span>
+            <span className="text-sm font-medium text-muted-foreground">Total de Itens</span>
             <span className="text-xl font-bold">{cart.length}</span>
          </div>
          <Button 
-            className="w-full h-12 text-base" 
+            className="w-full h-12 text-base font-bold shadow-lg" 
             onClick={handleSubmit} 
             disabled={cart.length === 0 || createRequestMutation.isPending}
          >
-            {createRequestMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />}
+            {createRequestMutation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Send className="mr-2 h-5 w-5" />}
             Confirmar Solicitação
          </Button>
       </div>
@@ -218,13 +234,13 @@ export default function MyRequests() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 animate-in fade-in duration-500 pb-20 md:pb-0">
+    <div className="flex flex-col h-[calc(100vh-6rem)] gap-4 animate-in fade-in duration-500">
       
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Minhas Solicitações</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Painel de pedidos do setor: <span className="font-semibold text-foreground">{sector}</span></p>
+          <p className="text-sm md:text-base text-muted-foreground">Setor: <span className="font-semibold text-foreground">{sector}</span></p>
         </div>
         
         <div className="flex bg-muted p-1 rounded-lg border w-full md:w-auto">
@@ -249,18 +265,19 @@ export default function MyRequests() {
 
       {/* --- ABA: NOVA SOLICITAÇÃO --- */}
       {activeTab === "new" && (
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 relative">
           
           {/* ESQUERDA: CATÁLOGO */}
-          <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden">
-            <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b space-y-3 p-4">
+          {/* Adicionei 'pb-24' no mobile para o conteúdo não ficar atrás da barra fixa */}
+          <Card className="flex flex-col flex-[2] h-full border-muted-foreground/20 shadow-sm overflow-hidden pb-24 lg:pb-0">
+            <CardHeader className="pb-3 bg-muted/10 shrink-0 border-b p-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Buscar produto..." 
+                  placeholder="Buscar produto por nome ou SKU..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-background"
+                  className="pl-10 bg-background h-10"
                 />
               </div>
             </CardHeader>
@@ -279,6 +296,7 @@ export default function MyRequests() {
                   filteredProducts.map((product: any) => {
                     const available = getAvailableStock(product);
                     const inCart = cart.some(i => i.product_id === product.id);
+                    const cartItem = cart.find(i => i.product_id === product.id);
                     
                     return (
                       <div 
@@ -290,7 +308,11 @@ export default function MyRequests() {
                         `}
                         onClick={() => available > 0 && handleProductSelect(product)}
                       >
-                        {inCart && <Badge className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px]">No Carrinho</Badge>}
+                        {inCart && (
+                            <Badge className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] animate-in zoom-in">
+                                {cartItem?.quantity} {cartItem?.unit} no Carrinho
+                            </Badge>
+                        )}
 
                         <div className="flex justify-between items-start gap-2 mb-2">
                           <h3 className="font-semibold text-sm leading-snug line-clamp-2">{product.name}</h3>
@@ -299,13 +321,15 @@ export default function MyRequests() {
                               {Math.floor(available)} {product.unit}
                             </Badge>
                           ) : (
-                            <Badge variant="destructive" className="shrink-0 h-5 px-1.5 text-[10px]">0</Badge>
+                            <Badge variant="destructive" className="shrink-0 h-5 px-1.5 text-[10px]">Esgotado</Badge>
                           )}
                         </div>
 
                         <div className="mt-auto flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-dashed">
                           <span className="font-mono bg-muted px-1 rounded">{product.sku}</span>
-                          <span className="text-primary font-medium flex items-center">Adicionar <Plus className="h-3 w-3 ml-1"/></span>
+                          <span className={`font-medium flex items-center ${inCart ? 'text-primary' : 'text-muted-foreground'}`}>
+                             {inCart ? 'Editar Qtd.' : 'Adicionar'} <Plus className="h-3 w-3 ml-1"/>
+                          </span>
                         </div>
                       </div>
                     );
@@ -322,24 +346,27 @@ export default function MyRequests() {
                 <ShoppingCart className="h-5 w-5" /> Seu Carrinho
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 p-4 overflow-hidden flex flex-col">
-              <CartSummary />
+            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col">
+              <CartListContent />
             </CardContent>
           </Card>
 
-          {/* RODAPÉ DO CARRINHO (Apenas Mobile - Sticky Bottom) */}
+          {/* === BARRA FIXA INFERIOR (Apenas Mobile) === */}
           {cart.length > 0 && (
-            <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50 animate-in slide-in-from-bottom-5">
-              <Button 
-                className="w-full h-14 shadow-xl text-lg flex justify-between px-6 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => setIsMobileCartOpen(true)}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="bg-white/20 px-2 py-1 rounded text-sm font-bold">{cart.length}</div>
-                  <span className="text-sm font-normal opacity-90">itens</span>
-                </div>
-                <span className="font-bold flex items-center gap-2">Ver Carrinho <ChevronRight className="h-5 w-5" /></span>
-              </Button>
+            <div className="fixed bottom-0 left-0 w-full bg-background border-t p-4 z-50 lg:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom-full duration-300">
+               <div className="flex items-center gap-4 max-w-md mx-auto">
+                 <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">Total de itens</p>
+                    <p className="font-bold text-lg leading-none">{cart.length} produto(s)</p>
+                 </div>
+                 <Button 
+                    size="lg" 
+                    className="gap-2 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6"
+                    onClick={() => setIsMobileCartOpen(true)}
+                 >
+                    Ver Carrinho <ChevronUp className="h-4 w-4" />
+                 </Button>
+               </div>
             </div>
           )}
         </div>
@@ -349,7 +376,7 @@ export default function MyRequests() {
       {activeTab === "history" && (
         <Card className="flex-1 overflow-hidden border-muted-foreground/20 flex flex-col min-h-0 shadow-sm bg-transparent border-none md:bg-card md:border">
           
-          {/* VISUALIZAÇÃO DESKTOP (TABELA) */}
+          {/* DESKTOP TABLE */}
           <div className="hidden md:block h-full overflow-auto rounded-md border bg-card">
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -386,7 +413,7 @@ export default function MyRequests() {
                             ))}
                             {request.rejection_reason && (
                               <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded flex items-center gap-2">
-                                <AlertTriangle className="h-3 w-3"/> Motivo da Recusa: {request.rejection_reason}
+                                <AlertTriangle className="h-3 w-3"/> Motivo: {request.rejection_reason}
                               </div>
                             )}
                           </div>
@@ -404,7 +431,7 @@ export default function MyRequests() {
             </Table>
           </div>
 
-          {/* VISUALIZAÇÃO MOBILE (CARDS) */}
+          {/* MOBILE CARDS */}
           <div className="md:hidden space-y-3 overflow-auto pb-4">
             {isLoadingRequests ? <div className="text-center p-4">Carregando...</div> : 
              requests?.length === 0 ? <div className="text-center p-10 text-muted-foreground bg-card rounded-lg border">Sem histórico.</div> :
@@ -437,11 +464,6 @@ export default function MyRequests() {
                         </div>
                       ))}
                     </div>
-                    {request.rejection_reason && (
-                      <div className="mt-3 bg-red-50 p-2 rounded text-xs text-red-700">
-                        <strong>Motivo:</strong> {request.rejection_reason}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
                )
@@ -451,7 +473,7 @@ export default function MyRequests() {
         </Card>
       )}
 
-      {/* --- DIALOG DE QUANTIDADE --- */}
+      {/* --- DIALOG DE QUANTIDADE (Adicionar Item) --- */}
       <Dialog open={isQtyDialogOpen} onOpenChange={setIsQtyDialogOpen}>
         <DialogContent className="max-w-[90%] sm:max-w-sm rounded-xl">
           <DialogHeader>
@@ -477,24 +499,25 @@ export default function MyRequests() {
                   onChange={(e) => setQtyInput(e.target.value)}
                   className="text-2xl h-14 font-bold text-center" 
                   autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && confirmAddItem()}
                 />
               </div>
-              <Button onClick={confirmAddItem} className="w-full h-12 text-lg">Adicionar</Button>
+              <Button onClick={confirmAddItem} className="w-full h-12 text-lg">Confirmar</Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* --- DIALOG CARRINHO MOBILE --- */}
+      {/* --- DIALOG CARRINHO MOBILE (Full Screen Type) --- */}
       <Dialog open={isMobileCartOpen} onOpenChange={setIsMobileCartOpen}>
-        <DialogContent className="max-w-[95%] h-[80vh] flex flex-col p-0 rounded-xl gap-0 overflow-hidden">
-          <DialogHeader className="p-4 border-b bg-muted/20">
+        <DialogContent className="w-[95%] max-w-[95%] h-[85vh] flex flex-col p-0 rounded-t-xl rounded-b-none fixed bottom-0 left-[2.5%] translate-y-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-300">
+          <DialogHeader className="p-4 border-b bg-muted/20 shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5"/> Resumo do Pedido
+              <ShoppingCart className="h-5 w-5"/> Revisar Pedido
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 p-4 overflow-hidden">
-            <CartSummary />
+          <div className="flex-1 overflow-hidden">
+            <CartListContent />
           </div>
         </DialogContent>
       </Dialog>
