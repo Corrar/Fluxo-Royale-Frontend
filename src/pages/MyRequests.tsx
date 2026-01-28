@@ -186,17 +186,22 @@ export default function MyRequests() {
           <ScrollArea className="flex-1 px-4">
             <div className="space-y-3 py-4">
               {cart.map((item) => (
-                <div key={item.product_id} className="flex gap-3 items-center bg-card p-3 rounded-lg border shadow-sm">
+                <div key={item.product_id} className="flex gap-3 items-center bg-card p-3 rounded-lg border shadow-sm overflow-hidden">
                   <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
                     <Package className="h-5 w-5" />
                   </div>
+                  
+                  {/* ALTERAÇÃO: Removido line-clamp-2 para exibir nome completo no carrinho */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.name}</p>
+                    <p className="font-medium text-sm leading-tight break-words" title={item.name}>
+                      {item.name}
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded">{item.sku}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+
+                  <div className="flex items-center gap-3 shrink-0 ml-1">
                     <div className="text-right">
                         <span className="block text-sm font-bold">{item.quantity}</span>
                         <span className="block text-[10px] text-muted-foreground uppercase">{item.unit}</span>
@@ -309,7 +314,8 @@ export default function MyRequests() {
                         )}
 
                         <div className="flex justify-between items-start gap-2 mb-2">
-                          <h3 className="font-semibold text-sm leading-snug line-clamp-2">{product.name}</h3>
+                          {/* ALTERAÇÃO: Removido line-clamp-2 para exibir nome completo */}
+                          <h3 className="font-semibold text-sm leading-snug break-words">{product.name}</h3>
                           {available > 0 ? (
                             <Badge variant="secondary" className="shrink-0 bg-green-100 text-green-800 h-5 px-1.5 text-[10px]">
                               {Math.floor(available)} {product.unit}
