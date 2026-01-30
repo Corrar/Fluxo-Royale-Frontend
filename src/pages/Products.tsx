@@ -25,7 +25,8 @@ import {
   Calendar,
   ListChecks,
   Filter,
-  Eraser
+  Eraser,
+  Sparkles
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -42,7 +43,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 // --- 🎨 FUNÇÃO DE ESTILO DINÂMICO PARA TAGS ---
-// Gera uma cor consistente baseada no texto da tag (Hash de String)
 const getTagStyle = (tag: string) => {
   const styles = [
     "bg-red-100 text-red-700 border-red-200 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
@@ -123,7 +123,6 @@ export default function Products() {
     queryFn: async () => {
       const response = await api.get("/products");
       
-      // Normalização dos dados
       return response.data.map((p: any) => {
         let normalizedTags: string[] = [];
 
@@ -142,15 +141,12 @@ export default function Products() {
             }
         }
         
-        return {
-            ...p,
-            tags: normalizedTags 
-        };
+        return { ...p, tags: normalizedTags };
       });
     },
   });
 
-  // Calcular todas as tags únicas disponíveis para o filtro
+  // Calcular todas as tags disponíveis
   const availableTags = useMemo(() => {
     if (!products) return [] as string[];
     const allTags = products.flatMap((p: any) => (p.tags as string[]) || []);
@@ -199,10 +195,7 @@ export default function Products() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const payload = {
-          ...data,
-          tags: Array.isArray(data.tags) ? data.tags : []
-      };
+      const payload = { ...data, tags: Array.isArray(data.tags) ? data.tags : [] };
       const response = await api.put(`/products/${id}`, payload);
       return response.data;
     },
@@ -363,6 +356,14 @@ export default function Products() {
     }
   };
 
+  // ✅ Função para adicionar tag vinda da sugestão
+  const handleAddTagFromSuggestion = (tagToAdd: string) => {
+    if (!canEditTags) return;
+    if (!formData.tags.includes(tagToAdd)) {
+        setFormData({ ...formData, tags: [...formData.tags, tagToAdd] });
+    }
+  };
+
   const handleRemoveTag = (tagToRemove: string) => {
     if (!canEditTags) return;
     setFormData({ ...formData, tags: formData.tags.filter((tag) => tag !== tagToRemove) });
@@ -429,6 +430,14 @@ export default function Products() {
   }, [filteredProducts, currentPage]);
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+
+  // ✅ Calcular sugestões de tags (Filtrando as que já estão selecionadas e pelo input)
+  const suggestedTags = useMemo(() => {
+    return availableTags.filter(tag => 
+        !formData.tags.includes(tag) && 
+        tag.toLowerCase().includes(tagInput.trim().toLowerCase())
+    );
+  }, [availableTags, formData.tags, tagInput]);
 
   return (
     <div className="space-y-6 h-full flex flex-col pb-20 relative">
@@ -532,15 +541,16 @@ export default function Products() {
                   </div>
                 </div>
 
-                {/* --- SEÇÃO DE TAGS (NOVO DESIGN) --- */}
+                {/* --- SEÇÃO DE TAGS (COM SUGESTÕES) --- */}
                 {canEditTags && (
-                    <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                    <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 transition-all">
                         <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                            <Tag className="h-3 w-3" /> Adicionar Etiquetas
+                            <Tag className="h-3 w-3" /> Etiquetas
                         </Label>
+                        
                         <div className="flex gap-2">
                             <Input
-                                placeholder="Ex: Urgente, Frágil..."
+                                placeholder="Nova tag..."
                                 value={tagInput}
                                 onChange={(e) => setTagInput(e.target.value)}
                                 onKeyDown={handleKeyDownTag}
@@ -550,9 +560,11 @@ export default function Products() {
                                 <Plus className="h-4 w-4" />
                             </Button>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 mt-2 min-h-[24px]">
-                            {formData.tags.length > 0 ? (
-                                formData.tags.map((tag) => {
+
+                        {/* Lista de Tags Selecionadas */}
+                        {formData.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 min-h-[24px]">
+                                {formData.tags.map((tag) => {
                                     const colorStyle = getTagStyle(tag);
                                     return (
                                         <Badge key={tag} className={`flex items-center gap-1 pr-1 font-normal rounded-full ${colorStyle}`} variant="outline">
@@ -566,11 +578,33 @@ export default function Products() {
                                             </button>
                                         </Badge>
                                     );
-                                })
-                            ) : (
-                                <span className="text-xs text-muted-foreground italic">Nenhuma etiqueta adicionada.</span>
-                            )}
-                        </div>
+                                })}
+                            </div>
+                        )}
+
+                        {/* ✅ ÁREA DE SUGESTÕES INTELIGENTES */}
+                        {suggestedTags.length > 0 && (
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
+                                    <Sparkles className="h-3 w-3 text-amber-500" /> Sugestões:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto pr-1 custom-scrollbar">
+                                    {suggestedTags.map((tag) => {
+                                        const colorStyle = getTagStyle(tag);
+                                        return (
+                                            <Badge 
+                                                key={tag} 
+                                                onClick={() => handleAddTagFromSuggestion(tag)}
+                                                className={`cursor-pointer opacity-70 hover:opacity-100 hover:scale-105 transition-all text-[10px] px-2 py-0.5 rounded-full font-medium shadow-sm ${colorStyle}`}
+                                                variant="outline"
+                                            >
+                                                + {tag}
+                                            </Badge>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
