@@ -19,7 +19,7 @@ import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas"; 
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, Sector
+  LabelList
 } from "recharts";
 import { toast } from "sonner";
 
@@ -55,39 +55,24 @@ const getBase64FromUrl = async (url: string): Promise<string> => {
   }
 };
 
-// --- COMPONENTES AUXILIARES DE GRÁFICOS ---
-const renderActiveShape = (props: any) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  return (
-    <g>
-      <text x={cx} y={cy} dy={-20} textAnchor="middle" fill="#94a3b8" fontSize={12} fontWeight={500} className="fill-slate-500 dark:fill-slate-400">
-        {payload.name && payload.name.length > 15 ? `${payload.name.substring(0, 15)}...` : payload.name}
-      </text>
-      <text x={cx} y={cy} dy={10} textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize={20} className="fill-slate-900 dark:fill-white">
-        {value}
-      </text>
-      <text x={cx} y={cy} dy={30} textAnchor="middle" fill="#94a3b8" fontSize={12} className="fill-slate-400 dark:fill-slate-500">
-        {`${(percent * 100).toFixed(1)}%`}
-      </text>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8} startAngle={startAngle} endAngle={endAngle} fill={fill} />
-      <Sector cx={cx} cy={cy} startAngle={startAngle} endAngle={endAngle} innerRadius={innerRadius - 6} outerRadius={outerRadius + 12} fill={fill} fillOpacity={0.1} />
-    </g>
-  );
-};
-
-const CustomPieTooltip = ({ active, payload, totalValue }: any) => {
+// --- COMPONENTE TOOLTIP PERSONALIZADO PARA BARRA ---
+const CustomBarTooltip = ({ active, payload, label, totalValue }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0];
-    const percent = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : 0;
+    const value = payload[0].value;
+    const percent = totalValue > 0 ? ((value / totalValue) * 100).toFixed(1) : 0;
+    
     return (
       <div className="bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-lg shadow-xl text-sm z-50 backdrop-blur-sm">
-        <div className="flex items-center gap-2 mb-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.payload.fill }}></div>
-            <p className="font-bold text-slate-800 dark:text-slate-100">{data.name}</p>
-        </div>
-        <div className="space-y-1.5 text-slate-600 dark:text-slate-300">
-            <div className="flex justify-between gap-4"><span>Qtd:</span><span className="font-bold text-slate-900 dark:text-white">{data.value}</span></div>
-            <div className="flex justify-between gap-4"><span>%:</span><span className="font-bold text-slate-900 dark:text-white">{percent}%</span></div>
+        <p className="font-bold text-slate-800 dark:text-slate-100 mb-1">{label}</p>
+        <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
+            <div className="flex justify-between gap-4">
+                <span>Quantidade:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{value}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+                <span>Representatividade:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">{percent}%</span>
+            </div>
         </div>
       </div>
     );
@@ -95,25 +80,73 @@ const CustomPieTooltip = ({ active, payload, totalValue }: any) => {
   return null;
 };
 
-const ScrollableLegend = ({ data }: any) => {
-    if (!data || data.length === 0) return null;
+// --- NOVO COMPONENTE DE GRÁFICO DE BARRAS POR SETOR ---
+const SectorBarChart = ({ data, totalValue, title, icon: Icon, color }: any) => {
+    // 🔥 CORREÇÃO CRÍTICA DO CRASH: Pré-calcula o texto da label
+    const processedData = useMemo(() => {
+        if(!data) return [];
+        return data.map((item: any) => ({
+            ...item,
+            labelContent: `${item.value}  (${((item.value / totalValue) * 100).toFixed(1)}%)`
+        }));
+    }, [data, totalValue]);
+
     return (
-        <div className="h-[250px] overflow-y-auto pr-2 flex flex-col gap-2 custom-scrollbar">
-            {data.map((entry: any, index: number) => (
-                <div key={index} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-default">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                        <span className="text-slate-600 dark:text-slate-300 truncate max-w-[130px] font-medium">{entry.name}</span>
+        <Card className="shadow-md border-none bg-white dark:bg-slate-950 h-full flex flex-col rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
+            <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 pb-4">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+                    {Icon && <Icon className={`h-5 w-5 ${color || "text-indigo-500"}`} />} {title}
+                </CardTitle>
+                <CardDescription>
+                    Total: <span className="font-bold text-slate-900 dark:text-white">{totalValue}</span> registros
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 pt-6 min-h-[350px]">
+                {processedData && processedData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart 
+                            layout="vertical" 
+                            data={processedData} 
+                            margin={{ top: 5, right: 60, left: 10, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                            <XAxis type="number" hide />
+                            <YAxis 
+                                dataKey="name" 
+                                type="category" 
+                                width={100} 
+                                tick={{fontSize: 11, fill: '#64748b'}} 
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <Tooltip content={<CustomBarTooltip totalValue={totalValue} />} cursor={{fill: 'transparent'}} />
+                            <Bar 
+                                dataKey="value" 
+                                fill={color === 'text-indigo-500' ? '#6366f1' : '#f59e0b'} 
+                                radius={[0, 4, 4, 0]} 
+                                barSize={24}
+                                isAnimationActive={false} 
+                            >
+                                <LabelList 
+                                    dataKey="labelContent" 
+                                    position="right" 
+                                    style={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} 
+                                />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 gap-3 min-h-[250px]">
+                        <Archive className="h-8 w-8 opacity-50" />
+                        <span className="text-sm">Sem dados registrados.</span>
                     </div>
-                    <span className="font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10px] border border-slate-200 dark:border-slate-700">{entry.value}</span>
-                </div>
-            ))}
-        </div>
+                )}
+            </CardContent>
+        </Card>
     );
 };
 
-// --- COMPONENTES AUXILIARES DE UI (DESIGN NOVO & DARK MODE CORRIGIDO) ---
-
+// --- KPICard ---
 const KPICard = ({ title, value, subtext, icon: Icon, colorClass, bgClass, trend }: any) => (
     <Card className="relative overflow-hidden border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white dark:bg-slate-950 group">
         <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-transparent via-slate-200 to-transparent dark:via-slate-800 opacity-50"></div>
@@ -143,59 +176,11 @@ const KPICard = ({ title, value, subtext, icon: Icon, colorClass, bgClass, trend
     </Card>
 );
 
-const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEnter }: any) => (
-    <Card className="shadow-md border-none bg-white dark:bg-slate-950 h-full flex flex-col rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
-        <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 pb-4">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
-                {Icon && <Icon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />} {title}
-            </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 pt-6 min-h-[300px]">
-            {data && data.length > 0 ? (
-                <div className="flex flex-col md:flex-row items-center h-full gap-6">
-                    <div className="relative w-full md:w-1/2 h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie activeIndex={activeIndex} activeShape={renderActiveShape} data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none" onMouseEnter={onEnter}>
-                                    {data.map((_: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0)" />)}
-                                </Pie>
-                                <Tooltip content={<CustomPieTooltip totalValue={totalValue} />} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="w-full md:w-1/2 h-full border-l border-slate-100 dark:border-slate-800 pl-6 flex flex-col justify-center">
-                        <div className="mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">Total Geral</span>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{totalValue}</span>
-                                <span className="text-sm text-slate-500 dark:text-slate-400">registros</span>
-                            </div>
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                            <ScrollableLegend data={data} />
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 gap-3 min-h-[250px]">
-                    <Archive className="h-8 w-8 opacity-50" />
-                    <span className="text-sm">Sem dados registrados.</span>
-                </div>
-            )}
-        </CardContent>
-    </Card>
-);
-
 // --- COMPONENTE PRINCIPAL ---
 export default function Reports() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(endOfMonth(new Date()).toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState("insights"); 
-  const [activeIndexPie1, setActiveIndexPie1] = useState(0);
-  const [activeIndexPie2, setActiveIndexPie2] = useState(0);
-
-  const onPieEnter1 = useCallback((_: any, index: number) => setActiveIndexPie1(index), []);
-  const onPieEnter2 = useCallback((_: any, index: number) => setActiveIndexPie2(index), []);
 
   const { data: reportData, isLoading, refetch } = useQuery({
     queryKey: ["reports-general", startDate, endDate],
@@ -242,9 +227,9 @@ export default function Reports() {
             map.set(s, (map.get(s) || 0) + 1);
         });
         const raw = Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-        if (!group || raw.length <= 6) return raw;
-        const final = raw.slice(0, 6);
-        final.push({ name: "Outros", value: raw.slice(6).reduce((acc, c) => acc + c.value, 0) });
+        if (!group || raw.length <= 10) return raw; 
+        const final = raw.slice(0, 10);
+        final.push({ name: "Outros", value: raw.slice(10).reduce((acc, c) => acc + c.value, 0) });
         return final;
     };
 
@@ -479,7 +464,7 @@ export default function Reports() {
                 },
                 styles: { 
                     fontSize: 8, 
-                    cellPadding: 3,
+                    cellPadding: 3, 
                     textColor: C_TEXTO_ESCURO
                 },
                 alternateRowStyles: { fillColor: [245, 248, 255] },
@@ -502,29 +487,78 @@ export default function Reports() {
             drawFooter(i);
         }
 
-        // --- PÁGINA 3 (GRÁFICOS PIZZA) ---
+        // --- PÁGINA 3 (GRÁFICOS DE BARRA - CAPTURA INDIVIDUAL) ---
         doc.addPage();
         drawHeader("Análise Visual");
-        const finalPageNum = (doc.internal as any).getNumberOfPages();
+        
+        // Posição inicial
+        let pdfY = 50; 
 
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text("Distribuição percentual da demanda por setor.", margin, 50);
+        doc.text("Distribuição de demanda por setor (Quantidade e Percentual).", margin, pdfY);
+        pdfY += 10;
 
-        const pieCharts = document.getElementById('charts-pie');
-        if (pieCharts) {
-            try {
-                const canvasPie = await html2canvas(pieCharts, { scale: 3, backgroundColor: null });
-                const imgPieData = canvasPie.toDataURL('image/png');
-                const imgWidth = pageWidth - (margin * 2);
-                const imgHeight = (canvasPie.height * imgWidth) / canvasPie.width;
-                doc.addImage(imgPieData, 'PNG', margin, 55, imgWidth, imgHeight);
-            } catch(e) {
-                console.error("Erro ao capturar pizza:", e);
+        // IDs dos gráficos a capturar
+        const chartIds = ['chart-sector-solicitacao', 'chart-sector-manual'];
+        
+        for (const id of chartIds) {
+            const element = document.getElementById(id);
+            if (element) {
+                try {
+                    const canvas = await html2canvas(element, { scale: 2, backgroundColor: null });
+                    const imgData = canvas.toDataURL('image/png');
+                    const imgWidth = pageWidth - (margin * 2);
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                    // Se não couber na página, adiciona nova
+                    if (pdfY + imgHeight > pageHeight - 40) { 
+                        doc.addPage();
+                        drawHeader("Análise Visual");
+                        pdfY = 50;
+                    }
+
+                    doc.addImage(imgData, 'PNG', margin, pdfY, imgWidth, imgHeight);
+                    pdfY += imgHeight + 10; 
+                } catch (e) {
+                    console.error(`Erro ao capturar ${id}:`, e);
+                }
             }
         }
 
-        drawFooter(finalPageNum);
+        // --- ASSINATURA NA ÚLTIMA PÁGINA ---
+        const signatureHeight = 30;
+        let sigY = pdfY + 10;
+        
+        // Lógica de rodapé da assinatura
+        // Se couber, fica no fim da página. Se não, nova página.
+        if (sigY + signatureHeight < pageHeight - 30) {
+             sigY = pageHeight - 45; // Fixa no fundo se tiver espaço
+        } else if (sigY + signatureHeight > pageHeight - 15) {
+             doc.addPage();
+             drawHeader("Validação");
+             sigY = pageHeight - 45;
+        }
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(40, 44, 52); 
+        doc.text("Ass: _______________________________________________", margin, sigY);
+
+        doc.setFont("helvetica", "bold");
+        doc.text("Evandro Luiz Campos", margin, sigY + 6);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100); 
+        doc.text("Responsável pelo Almoxarifado", margin, sigY + 11);
+
+        // Numeração de páginas final
+        const totalPages = (doc.internal as any).getNumberOfPages();
+        for(let i=1; i <= totalPages; i++) {
+            doc.setPage(i);
+            drawFooter(i);
+        }
 
         doc.save(`Royale_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
         toast.dismiss();
@@ -576,7 +610,6 @@ export default function Reports() {
             <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-100 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-950 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
                     <CalendarIcon className="w-4 h-4 text-slate-400" />
-                    {/* INPUTS DE DATA COM VISIBILIDADE CORRIGIDA EM DARK MODE */}
                     <Input 
                         type="date" 
                         className="h-9 w-32 border-none bg-transparent focus-visible:ring-0 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer dark:[color-scheme:dark]" 
@@ -673,8 +706,6 @@ export default function Reports() {
                                 backgroundColor: 'rgba(255, 255, 255, 0.95)', // Background para light mode
                                 color: '#1e293b' // Texto para light mode
                             }}
-                            // Recharts não suporta classes tailwind no contentStyle diretamente para dark mode fácil, 
-                            // mas o wrapper padrão já se adapta razoavelmente bem.
                         />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
                         <Bar dataKey="entradas" name="Entradas" fill={COLORS[2]} radius={[4, 4, 0, 0]} barSize={20} />
@@ -686,23 +717,26 @@ export default function Reports() {
             </CardContent>
           </Card>
 
-          <div id="charts-pie" className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <SectorPieChart 
-                data={analytics?.sectorDataSolicitacao} 
-                totalValue={analytics?.totalSolicitacao}
-                title="Solicitações por Setor" 
-                icon={ClipboardCheck} 
-                activeIndex={activeIndexPie1}
-                onEnter={onPieEnter1}
-             />
-             <SectorPieChart 
-                data={analytics?.sectorDataManual} 
-                totalValue={analytics?.totalManual}
-                title="Saídas Manuais por Destino" 
-                icon={Package} 
-                activeIndex={activeIndexPie2}
-                onEnter={onPieEnter2}
-             />
+          {/* NOVOS GRÁFICOS DE BARRA (SUBSTITUINDO PIZZA) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div id="chart-sector-solicitacao" className="w-full">
+                 <SectorBarChart 
+                    data={analytics?.sectorDataSolicitacao} 
+                    totalValue={analytics?.totalSolicitacao}
+                    title="Solicitações por Setor" 
+                    icon={ClipboardCheck} 
+                    color="text-indigo-500"
+                 />
+             </div>
+             <div id="chart-sector-manual" className="w-full">
+                 <SectorBarChart 
+                    data={analytics?.sectorDataManual} 
+                    totalValue={analytics?.totalManual}
+                    title="Saídas Manuais por Destino" 
+                    icon={Package} 
+                    color="text-amber-500"
+                 />
+             </div>
           </div>
         </TabsContent>
 
