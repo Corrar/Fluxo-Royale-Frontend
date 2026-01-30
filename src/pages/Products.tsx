@@ -118,7 +118,7 @@ export default function Products() {
   const isBuyer = profile?.role === "compras";
 
   // Produtos
-  const { data: products, isLoading } = useQuery({
+  const { data: products, isLoading } = useQuery<any[]>({
     queryKey: ["products"],
     queryFn: async () => {
       const response = await api.get("/products");
@@ -146,10 +146,12 @@ export default function Products() {
     },
   });
 
-  // Calcular todas as tags disponíveis
-  const availableTags = useMemo(() => {
-    if (!products) return [] as string[];
-    const allTags = products.flatMap((p: any) => (p.tags as string[]) || []);
+  // Calcular todas as tags disponíveis - CORRIGIDO TIPO
+  const availableTags = useMemo<string[]>(() => {
+    if (!products) return [];
+    // Força cast para garantir que products é tratado como array
+    const prodList = products as any[];
+    const allTags = prodList.flatMap((p: any) => (p.tags as string[]) || []);
     return Array.from(new Set(allTags)).sort();
   }, [products]);
 
@@ -356,7 +358,6 @@ export default function Products() {
     }
   };
 
-  // ✅ Função para adicionar tag vinda da sugestão
   const handleAddTagFromSuggestion = (tagToAdd: string) => {
     if (!canEditTags) return;
     if (!formData.tags.includes(tagToAdd)) {
@@ -385,7 +386,6 @@ export default function Products() {
     setCurrentPage(1); 
   };
 
-  // Carrinho
   const toggleProductInCart = (product: any) => {
     const exists = purchaseCart.find((i) => i.product.id === product.id);
     if (exists) setPurchaseCart(purchaseCart.filter((i) => i.product.id !== product.id));
@@ -431,9 +431,9 @@ export default function Products() {
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
 
-  // ✅ Calcular sugestões de tags (Filtrando as que já estão selecionadas e pelo input)
-  const suggestedTags = useMemo(() => {
-    return availableTags.filter(tag => 
+  // ✅ Calcular sugestões de tags - CORRIGIDO TIPO
+  const suggestedTags = useMemo<string[]>(() => {
+    return availableTags.filter((tag: string) => 
         !formData.tags.includes(tag) && 
         tag.toLowerCase().includes(tagInput.trim().toLowerCase())
     );
@@ -589,7 +589,7 @@ export default function Products() {
                                     <Sparkles className="h-3 w-3 text-amber-500" /> Sugestões:
                                 </p>
                                 <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto pr-1 custom-scrollbar">
-                                    {suggestedTags.map((tag) => {
+                                    {suggestedTags.map((tag: string) => {
                                         const colorStyle = getTagStyle(tag);
                                         return (
                                             <Badge 
