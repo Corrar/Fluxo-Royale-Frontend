@@ -10,84 +10,84 @@ import { Badge } from "@/components/ui/badge";
 import { 
   FileSpreadsheet, FileText, 
   TrendingDown, TrendingUp, RefreshCw, Activity,
-  BarChart3, Package, ClipboardCheck, ArrowUpRight, ArrowDownRight, Archive, MapPin
+  Package, ClipboardCheck, ArrowUpRight, ArrowDownRight, Archive, Calendar as CalendarIcon
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas"; 
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, Sector
 } from "recharts";
 import { toast } from "sonner";
 
-// Cores profissionais
+// --- CONFIGURAÇÕES VISUAIS PREMIUM ---
+
+const C_AZUL_ROYALE: [number, number, number] = [28, 69, 135];
+const C_AMARELO_OURO: [number, number, number] = [255, 217, 19];
+const C_TEXTO_ESCURO: [number, number, number] = [40, 44, 52];
+const C_CINZA_CLARO: [number, number, number] = [241, 245, 249];
+
 const COLORS = [
-  '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', 
-  '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16', 
-  '#a855f7', '#d946ef', '#64748b', '#334155'
+  '#1C4587', '#FFD913', '#10b981', '#ef4444', '#8b5cf6', '#f97316'
 ];
 
-// --- COMPONENTE: Renderização da Fatia Ativa ---
+// --- FUNÇÃO DE CARREGAMENTO SEGURA DA LOGO ---
+const getBase64FromUrl = async (url: string): Promise<string> => {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Status da imagem: ${res.status}`);
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) resolve(reader.result as string);
+        else resolve("");
+      };
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Aviso: Logo não carregada. O PDF será gerado sem ela.", error);
+    return ""; 
+  }
+};
+
+// --- COMPONENTES AUXILIARES DE GRÁFICOS ---
 const renderActiveShape = (props: any) => {
   const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-  
   return (
     <g>
-      <text x={cx} y={cy} dy={-20} textAnchor="middle" fill="#64748b" fontSize={12} fontWeight={500}>
-        {payload.name.length > 15 ? `${payload.name.substring(0, 15)}...` : payload.name}
+      <text x={cx} y={cy} dy={-20} textAnchor="middle" fill="#94a3b8" fontSize={12} fontWeight={500} className="fill-slate-500 dark:fill-slate-400">
+        {payload.name && payload.name.length > 15 ? `${payload.name.substring(0, 15)}...` : payload.name}
       </text>
-      <text x={cx} y={cy} dy={10} textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize={20}>
+      <text x={cx} y={cy} dy={10} textAnchor="middle" fill="#0f172a" fontWeight="bold" fontSize={20} className="fill-slate-900 dark:fill-white">
         {value}
       </text>
-      <text x={cx} y={cy} dy={30} textAnchor="middle" fill="#94a3b8" fontSize={12}>
+      <text x={cx} y={cy} dy={30} textAnchor="middle" fill="#94a3b8" fontSize={12} className="fill-slate-400 dark:fill-slate-500">
         {`${(percent * 100).toFixed(1)}%`}
       </text>
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius + 8}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-      />
-      <Sector
-        cx={cx}
-        cy={cy}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        innerRadius={innerRadius - 6}
-        outerRadius={outerRadius + 12}
-        fill={fill}
-        fillOpacity={0.1}
-      />
+      <Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 8} startAngle={startAngle} endAngle={endAngle} fill={fill} />
+      <Sector cx={cx} cy={cy} startAngle={startAngle} endAngle={endAngle} innerRadius={innerRadius - 6} outerRadius={outerRadius + 12} fill={fill} fillOpacity={0.1} />
     </g>
   );
 };
 
-// --- COMPONENTE: Tooltip Customizado ---
 const CustomPieTooltip = ({ active, payload, totalValue }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     const percent = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : 0;
-
     return (
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-lg shadow-xl text-sm min-w-[160px] z-50">
+      <div className="bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-lg shadow-xl text-sm z-50 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-            <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: data.payload.fill }}></div>
-            <p className="font-bold text-slate-800 dark:text-slate-100 max-w-[150px] truncate">{data.name}</p>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.payload.fill }}></div>
+            <p className="font-bold text-slate-800 dark:text-slate-100">{data.name}</p>
         </div>
-        <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-                <span>Qtd:</span>
-                <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{data.value}</span>
-            </div>
-            <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
-                <span>% Total:</span>
-                <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{percent}%</span>
-            </div>
+        <div className="space-y-1.5 text-slate-600 dark:text-slate-300">
+            <div className="flex justify-between gap-4"><span>Qtd:</span><span className="font-bold text-slate-900 dark:text-white">{data.value}</span></div>
+            <div className="flex justify-between gap-4"><span>%:</span><span className="font-bold text-slate-900 dark:text-white">{percent}%</span></div>
         </div>
       </div>
     );
@@ -95,111 +95,91 @@ const CustomPieTooltip = ({ active, payload, totalValue }: any) => {
   return null;
 };
 
-// --- COMPONENTE: Legenda Lateral ---
 const ScrollableLegend = ({ data }: any) => {
     if (!data || data.length === 0) return null;
     return (
         <div className="h-[250px] overflow-y-auto pr-2 flex flex-col gap-2 custom-scrollbar">
             {data.map((entry: any, index: number) => (
-                <div key={index} className="flex items-center justify-between text-xs group hover:bg-muted/50 p-1.5 rounded-md transition-colors cursor-default">
+                <div key={index} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-default">
                     <div className="flex items-center gap-2 overflow-hidden">
-                        <div 
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm ring-1 ring-white dark:ring-slate-900" 
-                            style={{ backgroundColor: COLORS[index % COLORS.length] }} 
-                        />
-                        <span className="text-slate-600 dark:text-slate-300 truncate max-w-[130px] font-medium" title={entry.name}>
-                            {entry.name}
-                        </span>
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                        <span className="text-slate-600 dark:text-slate-300 truncate max-w-[130px] font-medium">{entry.name}</span>
                     </div>
-                    <span className="font-mono font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px]">{entry.value}</span>
+                    <span className="font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10px] border border-slate-200 dark:border-slate-700">{entry.value}</span>
                 </div>
             ))}
         </div>
     );
 };
 
-// --- COMPONENTE: KPI Card ---
+// --- COMPONENTES AUXILIARES DE UI (DESIGN NOVO & DARK MODE CORRIGIDO) ---
+
 const KPICard = ({ title, value, subtext, icon: Icon, colorClass, bgClass, trend }: any) => (
-    <Card className="relative overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 bg-white dark:bg-slate-950 group">
-        <div className={`absolute -right-6 -top-6 p-8 rounded-full opacity-[0.05] transition-transform group-hover:scale-110 duration-500 ${bgClass.replace('bg-', 'bg-current text-')}`}>
-            <Icon className="w-32 h-32" />
+    <Card className="relative overflow-hidden border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white dark:bg-slate-950 group">
+        <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-transparent via-slate-200 to-transparent dark:via-slate-800 opacity-50"></div>
+        <div className={`absolute right-0 top-0 p-8 rounded-bl-full opacity-[0.08] dark:opacity-[0.15] transition-transform group-hover:scale-110 duration-500 ${bgClass.replace('bg-', 'bg-current text-')}`}>
+            <Icon className="w-24 h-24" />
         </div>
-        <CardContent className="p-6 relative z-10">
+        <CardContent className="p-6 relative z-10 flex flex-col justify-between h-full">
             <div className="flex justify-between items-start mb-4">
-                <div className={`p-2.5 rounded-xl shadow-sm ${bgClass} ${colorClass}`}>
-                    <Icon className="w-5 h-5" />
+                <div className={`p-3 rounded-2xl shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${bgClass} ${colorClass}`}>
+                    <Icon className="w-6 h-6" />
                 </div>
                 {trend && (
-                    <Badge variant="secondary" className={`font-medium px-2 py-0.5 ${trend === 'up' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-blue-700 bg-blue-50 border-blue-100'} border`}>
-                        {trend === 'up' ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
+                    <Badge variant="secondary" className={`font-medium px-2.5 py-1 rounded-full border ${trend === 'up' ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900' : 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900'}`}>
+                        {trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5 mr-1" /> : <ArrowDownRight className="w-3.5 h-3.5 mr-1" />}
                         {trend === 'up' ? 'Entrada' : 'Saída'}
                     </Badge>
                 )}
             </div>
             <div>
-                <h3 className="text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">{value}</h3>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">{title}</p>
-                <p className="text-xs text-slate-400 mt-1 font-medium">{subtext}</p>
+                <h3 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{value}</h3>
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-1">{title}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 inline-block"></span> {subtext}
+                </p>
             </div>
         </CardContent>
     </Card>
 );
 
-// --- COMPONENTE: Gráfico de Pizza Reutilizável ---
 const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEnter }: any) => (
-    <Card className="shadow-sm border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 h-full flex flex-col">
-        <CardHeader className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 pb-4">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-200">
-                {Icon && <Icon className="h-5 w-5 text-indigo-500" />} {title}
+    <Card className="shadow-md border-none bg-white dark:bg-slate-950 h-full flex flex-col rounded-2xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
+        <CardHeader className="border-b bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 pb-4">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+                {Icon && <Icon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />} {title}
             </CardTitle>
-            <CardDescription>Distribuição percentual por destino</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 pt-6 min-h-[300px]">
             {data && data.length > 0 ? (
                 <div className="flex flex-col md:flex-row items-center h-full gap-6">
-                    {/* Gráfico */}
                     <div className="relative w-full md:w-1/2 h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie
-                                    activeIndex={activeIndex}
-                                    activeShape={renderActiveShape}
-                                    data={data}
-                                    cx="50%" cy="50%"
-                                    innerRadius={60} outerRadius={85} 
-                                    paddingAngle={2}
-                                    dataKey="value"
-                                    stroke="none"
-                                    onMouseEnter={onEnter}
-                                >
-                                    {data.map((entry: any, index: number) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
+                                <Pie activeIndex={activeIndex} activeShape={renderActiveShape} data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none" onMouseEnter={onEnter}>
+                                    {data.map((_: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0)" />)}
                                 </Pie>
                                 <Tooltip content={<CustomPieTooltip totalValue={totalValue} />} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    
-                    {/* Legenda */}
                     <div className="w-full md:w-1/2 h-full border-l border-slate-100 dark:border-slate-800 pl-6 flex flex-col justify-center">
                         <div className="mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Total Geral</span>
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase block mb-1">Total Geral</span>
                             <div className="flex items-baseline gap-2">
-                                <span className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">{totalValue}</span>
-                                <span className="text-sm text-slate-500 font-medium">registros</span>
+                                <span className="text-4xl font-extrabold text-slate-900 dark:text-white">{totalValue}</span>
+                                <span className="text-sm text-slate-500 dark:text-slate-400">registros</span>
                             </div>
                         </div>
                         <div className="flex-1 overflow-hidden">
-                            <span className="text-xs font-semibold text-slate-400 block mb-2">Detalhamento:</span>
                             <ScrollableLegend data={data} />
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 min-h-[250px]">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full"><Archive className="h-8 w-8 opacity-50" /></div>
-                    <span className="text-sm font-medium">Sem dados registrados.</span>
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 gap-3 min-h-[250px]">
+                    <Archive className="h-8 w-8 opacity-50" />
+                    <span className="text-sm">Sem dados registrados.</span>
                 </div>
             )}
         </CardContent>
@@ -210,24 +190,12 @@ const SectorPieChart = ({ data, totalValue, title, icon: Icon, activeIndex, onEn
 export default function Reports() {
   const [startDate, setStartDate] = useState(startOfMonth(new Date()).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(endOfMonth(new Date()).toISOString().split('T')[0]);
-  
   const [activeTab, setActiveTab] = useState("insights"); 
-  
   const [activeIndexPie1, setActiveIndexPie1] = useState(0);
   const [activeIndexPie2, setActiveIndexPie2] = useState(0);
 
-  const onPieEnter1 = useCallback((_: any, index: number) => {
-    setActiveIndexPie1(index);
-  }, []);
-
-  const onPieEnter2 = useCallback((_: any, index: number) => {
-    setActiveIndexPie2(index);
-  }, []);
-
-  const { data: dateLimits } = useQuery({
-    queryKey: ["available-dates"],
-    queryFn: async () => (await api.get("/reports/available-dates")).data,
-  });
+  const onPieEnter1 = useCallback((_: any, index: number) => setActiveIndexPie1(index), []);
+  const onPieEnter2 = useCallback((_: any, index: number) => setActiveIndexPie2(index), []);
 
   const { data: reportData, isLoading, refetch } = useQuery({
     queryKey: ["reports-general", startDate, endDate],
@@ -240,25 +208,14 @@ export default function Reports() {
 
   const analytics = useMemo(() => {
     if (!reportData) return null;
-
     const entradas = reportData.entradas || [];
     const saidasManual = (reportData.saidas_separacoes || []).map((i: any) => ({ ...i, origem_tipo: 'MANUAL' }));
     const saidasSolicitacao = (reportData.saidas_solicitacoes || []).map((i: any) => ({ ...i, origem_tipo: 'SISTEMA' })); 
-    
     const todasSaidas = [...saidasManual, ...saidasSolicitacao].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
     const todasEntradas = [...entradas].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
-    // KPIs
-    const opsEntrada = entradas.length;
-    const opsSaidaTotal = todasSaidas.length;
-    const opsSaidaSistema = saidasSolicitacao.length; 
-    const opsSaidaManual = saidasManual.length;  
-    const volItensEntrada = entradas.reduce((acc: number, i: any) => acc + Number(i.quantidade), 0);
-    const volItensSaida = todasSaidas.reduce((acc: number, i: any) => acc + Number(i.quantidade), 0);
-
-    // Gráfico de Barras
     const timelineMap = new Map();
-    const processDate = (dateStr: string, type: 'in' | 'out_sis' | 'out_man') => {
+    const processDate = (dateStr: string, type: string) => {
       const dateKey = format(new Date(dateStr), 'dd/MM');
       if (!timelineMap.has(dateKey)) timelineMap.set(dateKey, { name: dateKey, entradas: 0, saidas_sistema: 0, saidas_manual: 0 });
       const entry = timelineMap.get(dateKey);
@@ -277,57 +234,38 @@ export default function Reports() {
        return m1 - m2 || d1 - d2;
     });
 
-    // Helper: Processar Setores
-    const processSectors = (dataList: any[], shouldGroup: boolean) => {
-        const sectorMap = new Map();
-        dataList.forEach((i: any) => {
-            let setor = i.destino_setor || "Não Informado";
-            if (setor === '-' || setor === '') setor = "Avulso / Balcão";
-            sectorMap.set(setor, (sectorMap.get(setor) || 0) + 1); 
+    const processSectors = (list: any[], group: boolean) => {
+        const map = new Map();
+        list.forEach(i => {
+            let s = i.destino_setor || "Não Informado";
+            if (s === '-' || s === '') s = "Avulso / Balcão";
+            map.set(s, (map.get(s) || 0) + 1);
         });
-        
-        const raw = Array.from(sectorMap.entries())
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value);
-
-        if (!shouldGroup) return raw;
-
-        const final = [];
-        if (raw.length > 6) {
-            final.push(...raw.slice(0, 6));
-            const others = raw.slice(6).reduce((acc, curr) => acc + curr.value, 0);
-            if (others > 0) final.push({ name: "Outros", value: others });
-        } else {
-            final.push(...raw);
-        }
+        const raw = Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+        if (!group || raw.length <= 6) return raw;
+        const final = raw.slice(0, 6);
+        final.push({ name: "Outros", value: raw.slice(6).reduce((acc, c) => acc + c.value, 0) });
         return final;
     };
 
-    const sectorDataSolicitacao = processSectors(saidasSolicitacao, true);
-    const sectorDataManual = processSectors(saidasManual, false);
-
-    // Helpers Top Produtos
     const getTopProducts = (list: any[]) => {
         const pMap = new Map();
-        list.forEach((i: any) => {
-            const key = i.produto;
-            pMap.set(key, (pMap.get(key) || 0) + Number(i.quantidade)); 
-        });
-        return Array.from(pMap.entries())
-            .map(([name, qtd]) => ({ name, qtd }))
-            .sort((a, b) => b.qtd - a.qtd)
-            .slice(0, 5);
+        list.forEach(i => pMap.set(i.produto, (pMap.get(i.produto) || 0) + Number(i.quantidade)));
+        return Array.from(pMap.entries()).map(([name, qtd]) => ({ name, qtd })).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
     };
 
-    const topProductsSaida = getTopProducts(todasSaidas);
-    const topProductsEntrada = getTopProducts(entradas);
-
     return {
-      opsEntrada, opsSaidaTotal, opsSaidaSistema, opsSaidaManual,
-      volItensEntrada, volItensSaida,
-      chartData, 
-      sectorDataSolicitacao, sectorDataManual,
-      topProductsSaida, topProductsEntrada,
+      opsEntrada: entradas.length,
+      opsSaidaTotal: todasSaidas.length,
+      opsSaidaSistema: saidasSolicitacao.length,
+      opsSaidaManual: saidasManual.length,
+      volItensEntrada: entradas.reduce((acc: number, i: any) => acc + Number(i.quantidade), 0),
+      volItensSaida: todasSaidas.reduce((acc: number, i: any) => acc + Number(i.quantidade), 0),
+      chartData,
+      sectorDataSolicitacao: processSectors(saidasSolicitacao, true),
+      sectorDataManual: processSectors(saidasManual, false),
+      topProductsSaida: getTopProducts(todasSaidas),
+      topProductsEntrada: getTopProducts(entradas),
       raw: { todasEntradas, todasSaidas },
       totalSolicitacao: saidasSolicitacao.length,
       totalManual: saidasManual.length
@@ -344,55 +282,325 @@ export default function Reports() {
         { Metrica: "Volume Entrada", Valor: analytics.volItensEntrada }
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryData), "Resumo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasEntradas.map((i: any) => ({
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasEntradas.map(i => ({
         Data: format(new Date(i.data), 'dd/MM/yyyy HH:mm'),
         Produto: i.produto, Qtd: i.quantidade, Origem: i.origem || 'Fornecedor'
     }))), "Entradas");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasSaidas.map((i: any) => ({
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasSaidas.map(i => ({
         Data: format(new Date(i.data), 'dd/MM/yyyy HH:mm'),
         Tipo: i.origem_tipo === 'SISTEMA' ? 'Solicitação' : 'Manual',
         Produto: i.produto, Qtd: i.quantidade, Destino: i.destino_setor
     }))), "Saidas");
-    XLSX.writeFile(wb, `Relatorio_Completo_${startDate}.xlsx`);
+    XLSX.writeFile(wb, `Relatorio_${startDate}.xlsx`);
     toast.success("Excel gerado!");
   };
 
-  const handleExportPDF = () => { toast.info("Função PDF pronta para integrar."); };
+  // =========================================================
+  // FUNÇÃO DE GERAÇÃO DO PDF AVANÇADO (BLINDADA)
+  // =========================================================
+  const handleExportPDF = async () => {
+    if (!analytics) return;
+    
+    // Configurações da Página
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    
+    toast.loading("Gerando relatório Royale em alta resolução...");
 
-  const setQuickDate = (type: 'month' | 'last30') => {
+    // 1. CARREGAR A LOGO COM TRY/CATCH PARA NÃO TRAVAR
+    const logoUrl = '/logo-royale.png'; 
+    const logoBase64 = await getBase64FromUrl(logoUrl);
+
+    // --- FUNÇÕES AUXILIARES ---
+    const drawHeader = (title: string) => {
+        doc.setFillColor(C_AZUL_ROYALE[0], C_AZUL_ROYALE[1], C_AZUL_ROYALE[2]);
+        doc.rect(0, 0, pageWidth, 40, 'F');
+        doc.setFillColor(C_AMARELO_OURO[0], C_AMARELO_OURO[1], C_AMARELO_OURO[2]);
+        doc.rect(0, 40, pageWidth, 1.5, 'F');
+
+        if (logoBase64 && logoBase64.length > 50) {
+            try {
+                const imgProps = doc.getImageProperties(logoBase64);
+                const imgWidth = 45; 
+                const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+                const yPos = (40 - imgHeight) / 2;
+                doc.addImage(logoBase64, 'PNG', margin, yPos, imgWidth, imgHeight);
+            } catch (err) {
+                console.warn("Erro ao desenhar logo no PDF", err);
+                doc.setFontSize(22);
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.text("ROYALE", margin, 26);
+            }
+        } else {
+            doc.setFontSize(22);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.text("ROYALE", margin, 26);
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), pageWidth - margin, 20, { align: "right" });
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.text(`Período: ${format(new Date(startDate), 'dd/MM/yyyy')} a ${format(new Date(endDate), 'dd/MM/yyyy')}`, pageWidth - margin, 28, { align: "right" });
+    };
+
+    const drawFooter = (pageNumber: number) => {
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, pageHeight - 10);
+        doc.text(`Página ${pageNumber}`, pageWidth - margin, pageHeight - 10, { align: "right" });
+    };
+
+    const drawKpiCard = (x: number, y: number, w: number, h: number, title: string, value: string | number, type: 'primary' | 'secondary') => {
+        doc.setFillColor(230, 230, 230);
+        doc.roundedRect(x + 1, y + 1, w, h, 2, 2, 'F');
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(220, 220, 220); 
+        doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+        if (type === 'primary') doc.setFillColor(C_AZUL_ROYALE[0], C_AZUL_ROYALE[1], C_AZUL_ROYALE[2]); 
+        else doc.setFillColor(C_AMARELO_OURO[0], C_AMARELO_OURO[1], C_AMARELO_OURO[2]); 
+        doc.rect(x, y, 2, h, 'F');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.setFont("helvetica", "bold");
+        doc.text(title.toUpperCase(), x + 5, y + 8);
+        doc.setFontSize(14);
+        doc.setTextColor(C_TEXTO_ESCURO[0], C_TEXTO_ESCURO[1], C_TEXTO_ESCURO[2]);
+        doc.text(String(value), x + 5, y + 18);
+    };
+
+    try {
+        // --- PÁGINA 1 ---
+        drawHeader("Relatório de Movimentações");
+        doc.setTextColor(C_AZUL_ROYALE[0], C_AZUL_ROYALE[1], C_AZUL_ROYALE[2]);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Resumo Executivo", margin, 55);
+
+        const kpiY = 60;
+        const kpiW = 42;
+        const kpiH = 24;
+        const kpiGap = 5;
+
+        drawKpiCard(margin, kpiY, kpiW, kpiH, "Total Saídas", analytics.opsSaidaTotal, 'primary');
+        drawKpiCard(margin + kpiW + kpiGap, kpiY, kpiW, kpiH, "Solicitações", analytics.opsSaidaSistema, 'secondary');
+        drawKpiCard(margin + (kpiW + kpiGap) * 2, kpiY, kpiW, kpiH, "Saída Manual", analytics.opsSaidaManual, 'secondary');
+        drawKpiCard(margin + (kpiW + kpiGap) * 3, kpiY, kpiW, kpiH, "Total Entradas", analytics.opsEntrada, 'primary');
+
+        // GRÁFICO (COM PROTEÇÃO CONTRA ELEMENTO AUSENTE)
+        const chartY = 100;
+        doc.setFontSize(11);
+        doc.setTextColor(C_AZUL_ROYALE[0], C_AZUL_ROYALE[1], C_AZUL_ROYALE[2]);
+        doc.text("Fluxo de Movimentação (Diário)", margin, chartY - 3);
+
+        const flowChart = document.getElementById('chart-flow');
+        if (flowChart) {
+            try {
+                const canvas = await html2canvas(flowChart, { scale: 3, backgroundColor: null });
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = pageWidth - (margin * 2);
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                doc.setFillColor(C_CINZA_CLARO[0], C_CINZA_CLARO[1], C_CINZA_CLARO[2]);
+                doc.roundedRect(margin, chartY, imgWidth, imgHeight, 2, 2, 'F');
+                doc.addImage(imgData, 'PNG', margin, chartY, imgWidth, imgHeight);
+            } catch (err) {
+                console.error("Erro ao capturar gráfico:", err);
+                doc.setFontSize(9);
+                doc.setTextColor(255, 0, 0);
+                doc.text("Erro ao renderizar gráfico no PDF.", margin, chartY + 10);
+            }
+        } else {
+            doc.setFontSize(9);
+            doc.setTextColor(150, 150, 150);
+            doc.text("(Gráfico não disponível nesta visualização - ative a aba 'Visão Geral')", margin, chartY + 10);
+        }
+
+        drawFooter((doc.internal as any).getNumberOfPages());
+
+        // --- PÁGINA 2 ---
+        doc.addPage();
+        drawHeader("Detalhamento por Setor");
+
+        const saidas = analytics.raw.todasSaidas;
+        const setoresUnicos = Array.from(new Set(saidas.map((i: any) => i.destino_setor || "NÃO INFORMADO"))) as string[];
+        
+        setoresUnicos.sort((a, b) => {
+            const na = a.toLowerCase(), nb = b.toLowerCase();
+            if (na.includes('esteira') && !nb.includes('esteira')) return -1;
+            if (!na.includes('esteira') && nb.includes('esteira')) return 1;
+            return na.localeCompare(nb);
+        });
+
+        let currentY = 50;
+
+        setoresUnicos.forEach((setor) => {
+            const dadosSetor = saidas.filter((i: any) => (i.destino_setor || "NÃO INFORMADO") === setor);
+            dadosSetor.sort((a: any, b: any) => (a.origem_tipo === 'SISTEMA' ? -1 : 1));
+
+            if (currentY > pageHeight - 40) {
+                drawFooter((doc.internal as any).getNumberOfPages());
+                doc.addPage();
+                drawHeader("Detalhamento por Setor");
+                currentY = 50;
+            }
+
+            doc.setFillColor(C_AMARELO_OURO[0], C_AMARELO_OURO[1], C_AMARELO_OURO[2]);
+            doc.rect(margin, currentY - 4, 3, 3, 'F');
+
+            doc.setFontSize(11);
+            doc.setTextColor(C_AZUL_ROYALE[0], C_AZUL_ROYALE[1], C_AZUL_ROYALE[2]);
+            doc.setFont("helvetica", "bold");
+            doc.text(`SETOR: ${setor.toUpperCase()}`, margin + 5, currentY - 1);
+
+            autoTable(doc, {
+                startY: currentY + 2,
+                head: [['Data', 'Tipo', 'Produto', 'Qtd']],
+                body: dadosSetor.map((i: any) => [
+                    format(new Date(i.data), "dd/MM HH:mm"),
+                    i.origem_tipo === 'SISTEMA' ? 'SOLICITAÇÃO' : 'MANUAL',
+                    i.produto,
+                    i.quantidade
+                ]),
+                theme: 'striped',
+                headStyles: { 
+                    fillColor: C_AZUL_ROYALE, 
+                    textColor: 255, 
+                    fontStyle: 'bold',
+                    halign: 'left'
+                },
+                styles: { 
+                    fontSize: 8, 
+                    cellPadding: 3,
+                    textColor: C_TEXTO_ESCURO
+                },
+                alternateRowStyles: { fillColor: [245, 248, 255] },
+                columnStyles: {
+                    0: { cellWidth: 30 },
+                    1: { cellWidth: 35, fontStyle: 'bold' },
+                    2: { cellWidth: 'auto' },
+                    3: { cellWidth: 20, halign: 'right', fontStyle: 'bold', textColor: [200, 0, 0] }
+                },
+                didDrawPage: (data) => {
+                    currentY = data.cursor.y + 15;
+                },
+                margin: { top: 50, left: margin, right: margin }
+            });
+        });
+
+        const pagesCount = (doc.internal as any).getNumberOfPages();
+        for(let i=2; i <= pagesCount; i++) {
+            doc.setPage(i);
+            drawFooter(i);
+        }
+
+        // --- PÁGINA 3 (GRÁFICOS PIZZA) ---
+        doc.addPage();
+        drawHeader("Análise Visual");
+        const finalPageNum = (doc.internal as any).getNumberOfPages();
+
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text("Distribuição percentual da demanda por setor.", margin, 50);
+
+        const pieCharts = document.getElementById('charts-pie');
+        if (pieCharts) {
+            try {
+                const canvasPie = await html2canvas(pieCharts, { scale: 3, backgroundColor: null });
+                const imgPieData = canvasPie.toDataURL('image/png');
+                const imgWidth = pageWidth - (margin * 2);
+                const imgHeight = (canvasPie.height * imgWidth) / canvasPie.width;
+                doc.addImage(imgPieData, 'PNG', margin, 55, imgWidth, imgHeight);
+            } catch(e) {
+                console.error("Erro ao capturar pizza:", e);
+            }
+        }
+
+        drawFooter(finalPageNum);
+
+        doc.save(`Royale_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+        toast.dismiss();
+        toast.success("PDF Royale exportado com sucesso!");
+
+    } catch (error) {
+        console.error("ERRO CRÍTICO AO GERAR PDF:", error);
+        toast.dismiss();
+        toast.error("Erro ao gerar PDF. Verifique o console.");
+    }
+  };
+
+  const setQuickDate = (type: 'month' | 'last30' | 'today' | 'week') => {
     const now = new Date();
     if (type === 'month') {
       setStartDate(startOfMonth(now).toISOString().split('T')[0]);
       setEndDate(endOfMonth(now).toISOString().split('T')[0]);
-    } else {
+    } else if (type === 'last30') {
       setStartDate(subDays(now, 30).toISOString().split('T')[0]);
       setEndDate(now.toISOString().split('T')[0]);
+    } else if (type === 'today') {
+        setStartDate(now.toISOString().split('T')[0]);
+        setEndDate(now.toISOString().split('T')[0]);
+    } else if (type === 'week') {
+        setStartDate(subDays(now, 7).toISOString().split('T')[0]);
+        setEndDate(now.toISOString().split('T')[0]);
     }
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-24 p-1 md:p-0">
+    <div className="space-y-8 p-6 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen">
       
-      {/* HEADER */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      {/* HEADER E FILTROS */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 bg-white dark:bg-slate-950 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
         <div>
-            <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3 text-slate-900 dark:text-slate-100">
-                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl"><Activity className="h-8 w-8 text-indigo-600 dark:text-indigo-400" /></div>
+            <h1 className="text-3xl font-extrabold flex items-center gap-3 text-slate-900 dark:text-white">
+                <div className="p-3 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl shadow-lg shadow-indigo-500/20">
+                    <Activity className="h-8 w-8 text-white" />
+                </div>
                 Relatórios Gerenciais
             </h1>
-            <p className="text-slate-500 mt-2 ml-16">
-                Intelligence de dados: <span className="font-bold text-indigo-600">Visão do Mês Atual</span>
+            <p className="text-slate-500 mt-2 ml-[4.5rem] font-medium">
+                Intelligence de dados: <span className="text-indigo-600 dark:text-indigo-400 font-bold">Visão Geral</span>
             </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto bg-slate-50 dark:bg-slate-900 p-1.5 rounded-xl">
-            <div className="flex items-center gap-3 bg-white dark:bg-slate-950 px-3 py-1.5 rounded-lg border shadow-sm">
-                <Input type="date" className="h-9 w-32 border-none focus-visible:ring-0 text-xs md:text-sm bg-transparent" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                <span className="text-slate-400 font-bold">→</span>
-                <Input type="date" className="h-9 w-32 border-none focus-visible:ring-0 text-xs md:text-sm bg-transparent" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-                <Button onClick={() => setQuickDate('month')} variant="ghost" size="sm" className="h-full font-medium hover:bg-white dark:hover:bg-slate-800 shadow-sm">Mês Atual</Button>
-                <Button onClick={() => refetch()} size="icon" className="h-full w-10 shadow-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"><RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} /></Button>
+
+        <div className="flex flex-col gap-4 w-full xl:w-auto">
+            {/* Barra de Datas */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-100 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-950 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
+                    <CalendarIcon className="w-4 h-4 text-slate-400" />
+                    {/* INPUTS DE DATA COM VISIBILIDADE CORRIGIDA EM DARK MODE */}
+                    <Input 
+                        type="date" 
+                        className="h-9 w-32 border-none bg-transparent focus-visible:ring-0 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer dark:[color-scheme:dark]" 
+                        value={startDate} 
+                        onChange={(e) => setStartDate(e.target.value)} 
+                    />
+                    <span className="text-slate-300 mx-1">→</span>
+                    <Input 
+                        type="date" 
+                        className="h-9 w-32 border-none bg-transparent focus-visible:ring-0 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer dark:[color-scheme:dark]" 
+                        value={endDate} 
+                        onChange={(e) => setEndDate(e.target.value)} 
+                    />
+                </div>
+                
+                <div className="flex gap-1 p-1 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <Button onClick={() => setQuickDate('today')} variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">Hoje</Button>
+                    <Button onClick={() => setQuickDate('week')} variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">7 Dias</Button>
+                    <Button onClick={() => setQuickDate('month')} variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">Mês</Button>
+                </div>
+
+                <Button onClick={() => refetch()} size="icon" className="h-11 w-11 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-300 shadow-sm transition-all hover:scale-105 active:scale-95">
+                    <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
             </div>
         </div>
       </div>
@@ -400,53 +608,85 @@ export default function Reports() {
       {/* KPIS */}
       {analytics && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <KPICard title="Total Saídas" value={analytics.opsSaidaTotal} subtext="Operações realizadas" icon={TrendingDown} colorClass="text-blue-600" bgClass="bg-blue-100" trend="down" />
-          <KPICard title="Total Entradas" value={analytics.opsEntrada} subtext="Materiais recebidos" icon={TrendingUp} colorClass="text-emerald-600" bgClass="bg-emerald-100" trend="up" />
-          <KPICard title="Solicitações" value={analytics.opsSaidaSistema} subtext="Pedidos via sistema" icon={ClipboardCheck} colorClass="text-violet-600" bgClass="bg-violet-100" />
-          <KPICard title="Saída Manual" value={analytics.opsSaidaManual} subtext="Baixas avulsas" icon={Package} colorClass="text-amber-600" bgClass="bg-amber-100" />
+          <KPICard title="Total Saídas" value={analytics.opsSaidaTotal} subtext="Volume total no período" icon={TrendingDown} colorClass="text-blue-600 dark:text-blue-400" bgClass="bg-blue-100 dark:bg-blue-900/20" trend="down" />
+          <KPICard title="Total Entradas" value={analytics.opsEntrada} subtext="Recebimentos confirmados" icon={TrendingUp} colorClass="text-emerald-600 dark:text-emerald-400" bgClass="bg-emerald-100 dark:bg-emerald-900/20" trend="up" />
+          <KPICard title="Solicitações" value={analytics.opsSaidaSistema} subtext="Pedidos via sistema" icon={ClipboardCheck} colorClass="text-violet-600 dark:text-violet-400" bgClass="bg-violet-100 dark:bg-violet-900/20" />
+          <KPICard title="Saída Manual" value={analytics.opsSaidaManual} subtext="Retiradas avulsas" icon={Package} colorClass="text-amber-600 dark:text-amber-400" bgClass="bg-amber-100 dark:bg-amber-900/20" />
         </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-2">
-          <TabsList className="bg-transparent p-0 h-auto gap-2">
-            <TabsTrigger value="insights" className="rounded-full border border-transparent data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 data-[state=active]:border-indigo-100 px-4 py-2">Visão Geral</TabsTrigger>
-            <TabsTrigger value="entradas" className="rounded-full border border-transparent data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-emerald-100 px-4 py-2">Entradas</TabsTrigger>
-            <TabsTrigger value="saidas" className="rounded-full border border-transparent data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-100 px-4 py-2">Saídas</TabsTrigger>
+      {/* TABS E CONTEÚDO PRINCIPAL */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <TabsList className="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl gap-1 h-auto">
+            <TabsTrigger value="insights" className="rounded-lg px-6 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-sm transition-all font-medium">Visão Geral</TabsTrigger>
+            <TabsTrigger value="entradas" className="rounded-lg px-6 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all font-medium">Entradas</TabsTrigger>
+            <TabsTrigger value="saidas" className="rounded-lg px-6 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all font-medium">Saídas</TabsTrigger>
           </TabsList>
-
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportPDF} className="border-dashed"><FileText className="w-4 h-4 mr-2 text-red-500" /> PDF</Button>
-            <Button variant="outline" size="sm" onClick={handleExportExcel} className="border-dashed"><FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" /> Excel</Button>
+          
+          <div className="flex gap-3 px-2">
+            <Button variant="outline" size="sm" onClick={handleExportPDF} className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 hover:border-red-200 transition-colors">
+                <FileText className="w-4 h-4 mr-2" /> PDF Royale
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportExcel} className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-green-600 hover:border-green-200 transition-colors">
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+            </Button>
           </div>
         </div>
 
         {/* VISÃO GERAL */}
         <TabsContent value="insights" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="shadow-sm border border-slate-100 dark:border-slate-800">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-bold text-slate-800 dark:text-slate-100">Fluxo de Movimentação</CardTitle>
-                <CardDescription>Volume diário de entradas e saídas.</CardDescription>
+          <Card id="chart-flow" className="shadow-md border-none bg-white dark:bg-slate-950 rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">Fluxo de Movimentação</CardTitle>
+                        <CardDescription className="text-slate-500 dark:text-slate-400 mt-1">Análise comparativa diária de entradas vs. saídas</CardDescription>
+                    </div>
+                </div>
             </CardHeader>
-            <CardContent className="h-[400px] w-full pt-4">
+            <CardContent className="h-[450px] w-full pt-6 px-6">
                 {analytics && (
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={analytics.chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                        <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} dy={10} tick={{fill: '#64748b'}} />
-                        <YAxis fontSize={12} tickLine={false} axisLine={false} dx={-10} tick={{fill: '#64748b'}} />
-                        <Tooltip cursor={{fill: '#f1f5f9', radius: 4}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="stroke-slate-200 dark:stroke-slate-800" />
+                        <XAxis 
+                            dataKey="name" 
+                            fontSize={12} 
+                            axisLine={false} 
+                            tickLine={false}
+                            tick={{fill: '#64748b'}} 
+                            dy={10}
+                        />
+                        <YAxis 
+                            fontSize={12} 
+                            axisLine={false} 
+                            tickLine={false}
+                            tick={{fill: '#64748b'}} 
+                        />
+                        <Tooltip 
+                            cursor={{fill: '#f8fafc', opacity: 0.1}} // Opacidade ajustada para dark mode
+                            contentStyle={{ 
+                                borderRadius: '12px', 
+                                border: 'none', 
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.95)', // Background para light mode
+                                color: '#1e293b' // Texto para light mode
+                            }}
+                            // Recharts não suporta classes tailwind no contentStyle diretamente para dark mode fácil, 
+                            // mas o wrapper padrão já se adapta razoavelmente bem.
+                        />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
-                        <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                        <Bar dataKey="saidas_sistema" name="Solicitações" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                        <Bar dataKey="saidas_manual" name="Saída Manual" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        <Bar dataKey="entradas" name="Entradas" fill={COLORS[2]} radius={[4, 4, 0, 0]} barSize={20} />
+                        <Bar dataKey="saidas_sistema" name="Solicitações" fill={COLORS[0]} radius={[4, 4, 0, 0]} barSize={20} />
+                        <Bar dataKey="saidas_manual" name="Saída Manual" fill={COLORS[1]} radius={[4, 4, 0, 0]} barSize={20} />
                     </BarChart>
                 </ResponsiveContainer>
                 )}
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div id="charts-pie" className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <SectorPieChart 
                 data={analytics?.sectorDataSolicitacao} 
                 totalValue={analytics?.totalSolicitacao}
@@ -469,43 +709,41 @@ export default function Reports() {
         {/* ENTRADAS */}
         <TabsContent value="entradas" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-1 shadow-sm border border-slate-100 dark:border-slate-800 h-fit">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 pb-4">
-                        <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-emerald-600" /> Mais Comprados</CardTitle>
+                <Card className="lg:col-span-1 shadow-sm border-none rounded-2xl bg-white dark:bg-slate-950">
+                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <CardTitle className="text-base flex items-center gap-2 text-slate-800 dark:text-slate-100"><TrendingUp className="h-4 w-4 text-emerald-600" /> Top Produtos</CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="space-y-5">
-                            {analytics?.topProductsEntrada.map((item: any, idx: number) => (
-                                <div key={idx} className="flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-6 w-6 rounded flex items-center justify-center font-bold bg-emerald-100 text-emerald-700 text-xs">{idx + 1}</div>
-                                        <span className="text-sm font-medium truncate max-w-[140px] text-slate-700 dark:text-slate-300">{item.name}</span>
-                                    </div>
-                                    <span className="text-sm font-bold text-emerald-600">+{item.qtd}</span>
+                    <CardContent className="pt-6 space-y-5">
+                        {analytics?.topProductsEntrada.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-6 w-6 rounded-md flex items-center justify-center font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs">{idx + 1}</div>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
                                 </div>
-                            ))}
-                        </div>
+                                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">+{item.qtd}</span>
+                            </div>
+                        ))}
                     </CardContent>
                 </Card>
-                <Card className="lg:col-span-2 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <CardHeader><CardTitle>Histórico de Entradas</CardTitle></CardHeader>
-                    <CardContent>
+                <Card className="lg:col-span-2 shadow-sm border-none rounded-2xl bg-white dark:bg-slate-950">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800"><CardTitle className="text-slate-800 dark:text-slate-100">Histórico de Entradas</CardTitle></CardHeader>
+                    <CardContent className="p-0">
                         <Table>
                             <TableHeader>
-                                <TableRow className="hover:bg-transparent bg-slate-50/50 dark:bg-slate-900/50">
-                                    <TableHead>Data</TableHead>
-                                    <TableHead>Produto</TableHead>
-                                    <TableHead>Origem</TableHead>
-                                    <TableHead className="text-right">Qtd</TableHead>
+                                <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                                    <TableHead className="w-[150px] text-slate-500 dark:text-slate-400">Data</TableHead>
+                                    <TableHead className="text-slate-500 dark:text-slate-400">Produto</TableHead>
+                                    <TableHead className="text-slate-500 dark:text-slate-400">Origem</TableHead>
+                                    <TableHead className="text-right text-slate-500 dark:text-slate-400">Qtd</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {analytics?.raw.todasEntradas.map((i: any, idx: number) => (
-                                    <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900">
-                                        <TableCell className="font-mono text-xs text-slate-500">{format(new Date(i.data), "dd/MM HH:mm")}</TableCell>
+                                    <TableRow key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800">
+                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-medium">{format(new Date(i.data), "dd/MM HH:mm")}</TableCell>
                                         <TableCell className="font-medium text-sm text-slate-700 dark:text-slate-200">{i.produto}</TableCell>
-                                        <TableCell className="text-xs text-slate-500">{i.origem || '-'}</TableCell>
-                                        <TableCell className="text-right font-bold text-emerald-600">+{i.quantidade}</TableCell>
+                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400">{i.origem || '-'}</TableCell>
+                                        <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-l-md">+{i.quantidade}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -518,50 +756,47 @@ export default function Reports() {
         {/* SAÍDAS */}
         <TabsContent value="saidas" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-1 shadow-sm border border-slate-100 dark:border-slate-800 h-fit">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 pb-4">
-                        <CardTitle className="text-base flex items-center gap-2"><TrendingDown className="h-4 w-4 text-red-600" /> Mais Retirados</CardTitle>
+                <Card className="lg:col-span-1 shadow-sm border-none rounded-2xl bg-white dark:bg-slate-950">
+                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <CardTitle className="text-base flex items-center gap-2 text-slate-800 dark:text-slate-100"><TrendingDown className="h-4 w-4 text-red-600" /> Top Retirados</CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="space-y-5">
-                            {analytics?.topProductsSaida.map((item: any, idx: number) => (
-                                <div key={idx} className="flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-6 w-6 rounded flex items-center justify-center font-bold bg-red-100 text-red-700 text-xs">{idx + 1}</div>
-                                        <span className="text-sm font-medium truncate max-w-[140px] text-slate-700 dark:text-slate-300">{item.name}</span>
-                                    </div>
-                                    <span className="text-sm font-bold text-red-600">-{item.qtd}</span>
+                    <CardContent className="pt-6 space-y-5">
+                        {analytics?.topProductsSaida.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-6 w-6 rounded-md flex items-center justify-center font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs">{idx + 1}</div>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.name}</span>
                                 </div>
-                            ))}
-                        </div>
+                                <span className="text-sm font-bold text-red-600 dark:text-red-400">-{item.qtd}</span>
+                            </div>
+                        ))}
                     </CardContent>
                 </Card>
-                <Card className="lg:col-span-2 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <CardHeader><CardTitle>Histórico de Saídas</CardTitle></CardHeader>
-                    <CardContent>
+                <Card className="lg:col-span-2 shadow-sm border-none rounded-2xl bg-white dark:bg-slate-950">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800"><CardTitle className="text-slate-800 dark:text-slate-100">Histórico de Saídas</CardTitle></CardHeader>
+                    <CardContent className="p-0">
                         <Table>
                             <TableHeader>
-                                <TableRow className="hover:bg-transparent bg-slate-50/50 dark:bg-slate-900/50">
-                                    <TableHead>Data</TableHead>
-                                    <TableHead>Tipo</TableHead>
-                                    <TableHead>Produto</TableHead>
-                                    <TableHead>Destino</TableHead>
-                                    <TableHead className="text-right">Qtd</TableHead>
+                                <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                                    <TableHead className="w-[150px] text-slate-500 dark:text-slate-400">Data</TableHead>
+                                    <TableHead className="text-slate-500 dark:text-slate-400">Tipo</TableHead>
+                                    <TableHead className="text-slate-500 dark:text-slate-400">Produto</TableHead>
+                                    <TableHead className="text-slate-500 dark:text-slate-400">Destino</TableHead>
+                                    <TableHead className="text-right text-slate-500 dark:text-slate-400">Qtd</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {analytics?.raw.todasSaidas.map((i: any, idx: number) => (
-                                    <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900">
-                                        <TableCell className="font-mono text-xs text-slate-500">{format(new Date(i.data), "dd/MM HH:mm")}</TableCell>
+                                    <TableRow key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800">
+                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400 font-medium">{format(new Date(i.data), "dd/MM HH:mm")}</TableCell>
                                         <TableCell>
-                                            {i.origem_tipo === 'SISTEMA' ? 
-                                                <Badge className="bg-violet-50 text-violet-700 border-violet-100 hover:bg-violet-100 shadow-none font-normal">Solicitação</Badge> : 
-                                                <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 shadow-none font-normal">Manual</Badge>
-                                            }
+                                            <Badge variant="outline" className={`text-[10px] ${i.origem_tipo === 'SISTEMA' ? 'border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/30' : 'border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30'}`}>
+                                                {i.origem_tipo}
+                                            </Badge>
                                         </TableCell>
                                         <TableCell className="font-medium text-sm text-slate-700 dark:text-slate-200">{i.produto}</TableCell>
-                                        <TableCell className="text-sm text-slate-500">{i.destino_setor || '-'}</TableCell>
-                                        <TableCell className="text-right font-bold text-red-600">-{i.quantidade}</TableCell>
+                                        <TableCell className="text-sm text-slate-500 dark:text-slate-400">{i.destino_setor || '-'}</TableCell>
+                                        <TableCell className="text-right font-bold text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20 rounded-l-md">-{i.quantidade}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -570,7 +805,6 @@ export default function Reports() {
                 </Card>
             </div>
         </TabsContent>
-
       </Tabs>
     </div>
   );
