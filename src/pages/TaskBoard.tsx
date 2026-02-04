@@ -9,11 +9,23 @@ import { CardData, Priority, ChecklistItem, Tag } from '@/types/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+// IMPORTANTE: Importar a tela de construção
+import UnderConstruction from '@/pages/UnderConstruction'; 
 
 const TasksBoard = () => {
   const { profile } = useAuth(); 
   
-  // 1. Permissão Restrita: Apenas Gerente e Admin podem editar
+  // --- 1. BLOQUEIO DE SEGURANÇA (EM CONSTRUÇÃO) ---
+  // Apenas Admin e Gerente podem ver a tela enquanto está em desenvolvimento.
+  // Se quiser liberar para você ver, garanta que seu usuario é admin ou gerente.
+  const canViewPage = profile?.role === 'admin' || profile?.role === 'gerente';
+
+  if (!canViewPage) {
+    return <UnderConstruction />;
+  }
+  // ------------------------------------------------
+
+  // 2. Permissão de Edição: Mantemos a mesma lógica (apenas Admin/Gerente editam)
   const isManager = profile?.role === 'gerente' || profile?.role === 'admin'; 
 
   const { cards, isLoading, addCard, updateCard, deleteCard, duplicateCard, toggleChecklistItem, toggleCardCompleted } = useCards();
