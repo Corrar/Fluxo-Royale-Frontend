@@ -12,7 +12,9 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const TasksBoard = () => {
   const { profile } = useAuth(); 
-  const isManager = profile?.role === 'gerente' || profile?.role === 'admin' || profile?.role === 'compras'; 
+  
+  // 1. Permissão Restrita: Apenas Gerente e Admin podem editar
+  const isManager = profile?.role === 'gerente' || profile?.role === 'admin'; 
 
   const { cards, isLoading, addCard, updateCard, deleteCard, duplicateCard, toggleChecklistItem, toggleCardCompleted } = useCards();
   
@@ -43,7 +45,7 @@ const TasksBoard = () => {
       if (priorityFilter !== 'all' && card.priority !== priorityFilter) return false;
 
       // Filtro de Tag
-      if (tagFilter && !card.tags?.some(t => t.name === tagFilter)) return false;
+      if (tagFilter && tagFilter !== 'all_tags_reset_value' && !card.tags?.some(t => t.name === tagFilter)) return false;
 
       return true;
     });
@@ -69,7 +71,7 @@ const TasksBoard = () => {
     imageUrl?: string,
     dueDate?: Date
   ) => {
-    if (!isManager) return;
+    if (!isManager) return; // Bloqueio extra de segurança
     if (editingCard) {
       updateCard(editingCard.id, title, description, priority, checklist, tags, imageUrl, dueDate);
     } else {
@@ -93,11 +95,12 @@ const TasksBoard = () => {
             <div>
               <h1 className="text-2xl font-bold text-foreground tracking-tight">Gestão de Tarefas</h1>
               <p className="text-sm text-muted-foreground">
-                Organize, priorize e acompanhe o fluxo de trabalho.
+                Fluxo de Produção - {activeTab === 'active' ? 'Ativas' : 'Histórico'}
               </p>
             </div>
           </div>
 
+          {/* Botão Nova Tarefa apenas para Gerentes */}
           {isManager && (
             <Button onClick={handleOpenCreate} size="lg" className="gap-2 shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95">
               <Plus className="w-5 h-5" /> Nova Tarefa
@@ -108,12 +111,8 @@ const TasksBoard = () => {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full sm:w-auto">
             <TabsList className="grid w-full grid-cols-2 p-1 bg-muted/50 backdrop-blur-sm border border-border/50">
-              <TabsTrigger value="active" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Ativas
-              </TabsTrigger>
-              <TabsTrigger value="completed" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                Concluídas
-              </TabsTrigger>
+              <TabsTrigger value="active">Ativas</TabsTrigger>
+              <TabsTrigger value="completed">Concluídas</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -147,24 +146,28 @@ const TasksBoard = () => {
                 onDuplicate={duplicateCard}
                 onToggleChecklistItem={toggleChecklistItem}
                 onToggleCompleted={toggleCardCompleted}
+                readOnly={!isManager} // Passa o modo leitura para quem não é gerente
               />
             ))}
           </div>
         ) : (
           <div className="flex justify-center py-10">
              {activeTab === 'active' && priorityFilter === 'all' && tagFilter === '' ? (
-                <EmptyState onCreateClick={handleOpenCreate} />
+                // Se for gerente mostra botão de criar, se não, mensagem simples
+                isManager ? (
+                  <EmptyState onCreateClick={handleOpenCreate} />
+                ) : (
+                  <div className="text-center py-20 w-full text-muted-foreground">
+                    <p>Nenhuma tarefa ativa no momento.</p>
+                  </div>
+                )
              ) : (
                <div className="text-center py-20 bg-muted/20 rounded-3xl border border-dashed border-border w-full">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
                       {activeTab === 'active' ? <CheckCircle className="w-8 h-8 text-muted-foreground/50" /> : <RotateCcw className="w-8 h-8 text-muted-foreground/50" />}
                   </div>
-                  <h3 className="text-lg font-medium text-foreground">
-                    {activeTab === 'active' ? 'Tudo limpo por aqui!' : 'Histórico vazio'}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {activeTab === 'active' ? 'Nenhuma tarefa encontrada com esses filtros.' : 'Nenhuma tarefa concluída encontrada.'}
-                  </p>
+                  <h3 className="text-lg font-medium text-foreground">Lista Vazia</h3>
+                  <p className="text-muted-foreground">Nenhuma tarefa encontrada com esses critérios.</p>
                   {(priorityFilter !== 'all' || tagFilter !== '') && (
                     <Button variant="link" onClick={clearFilters} className="mt-2">
                       Limpar filtros
@@ -181,6 +184,7 @@ const TasksBoard = () => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         editingCard={editingCard}
+        readOnly={!isManager} // Bloqueia edição dentro do modal também
       />
     </div>
   );
