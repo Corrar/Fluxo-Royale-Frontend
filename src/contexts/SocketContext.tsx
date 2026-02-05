@@ -2,11 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { Bell, Lock } from 'lucide-react';
-import { api } from '@/services/api'; // <--- Importante para enviar a inscrição ao backend
+import { Bell } from 'lucide-react';
+import { api } from '@/services/api'; 
 
-// ⚠️ GERE SUAS CHAVES VAPID (npx web-push generate-vapid-keys) E COLE A PÚBLICA AQUI
-// Se não tiver ainda, o push não vai funcionar, mas o resto do sistema sim.
+// Chave Pública VAPID (Mantive a que você enviou)
 const VAPID_PUBLIC_KEY = "BMNY3LkuWRwc81P1xGvWiZ6-hzfu4kbkoh3V0gzJRiOn1ag0hv65VN4dm_ZlTf4TuowjljtzEnwti0d1oV1YHlA"; 
 
 interface SocketContextType {
@@ -27,7 +26,7 @@ const SocketContext = createContext<SocketContextType>({
   requestNotificationPermission: () => {},
 });
 
-// Função utilitária para converter a chave VAPID (Base64 -> Uint8Array)
+// Função utilitária para converter a chave VAPID
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -44,7 +43,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // --- ESTADO DO CONTADOR (COM PERSISTÊNCIA) ---
+  // --- ESTADO DO CONTADOR ---
   const [unreadCount, setUnreadCount] = useState<number>(() => {
     const saved = localStorage.getItem('@fluxo:unreadCount');
     return saved ? parseInt(saved, 10) : 0;
@@ -52,13 +51,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const hasUnreadRequests = unreadCount > 0;
 
-  // --- FUNÇÃO DE LIMPEZA ---
   const markRequestsAsRead = () => {
     setUnreadCount(0);
     localStorage.setItem('@fluxo:unreadCount', '0');
   };
 
-  // --- FUNÇÃO INTERNA PARA INCREMENTAR ---
   const incrementCount = () => {
     if (window.location.pathname !== '/requests') {
       setUnreadCount((prev) => {
@@ -73,16 +70,18 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
-        .catch(err => console.error('Falha no SW:', err));
+        .then(reg => console.log('✅ SW registrado:', reg.scope))
+        .catch(err => console.error('❌ Falha no SW:', err));
     }
   }, []);
 
-  // --- NOTIFICAÇÃO DO SISTEMA ---
+  // --- NOTIFICAÇÃO DO SISTEMA (QUANDO O APP ESTÁ ABERTO) ---
   const sendSystemNotification = async (title: string, body: string) => {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 
     const urgentVibration = [500, 200, 500, 200, 500];
 
+    // Tenta usar o Service Worker para mostrar a notificação (mais estável)
     if ('serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.ready;
@@ -95,25 +94,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             renotify: true,
             requireInteraction: true,
             vibrate: urgentVibration,
-            silent: false,
-            priority: 2,
             data: { url: '/requests' }
-          } as any); 
+          }); 
           return; 
         }
-      } catch (e) { console.warn("SW falhou", e); }
+      } catch (e) { console.warn("SW notificação falhou", e); }
     }
 
-    // Fallback para API nativa se SW falhar
+    // Fallback para API nativa
     try {
       const notification = new Notification(title, {
         body: body,
         icon: "/favicon.png",
         tag: "fluxo-alert-" + Date.now(),
         renotify: true,
-        requireInteraction: true,
         silent: false,
-      } as any);
+      });
       
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(urgentVibration);
@@ -127,22 +123,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error("Erro fallback", e); }
   };
 
-  // --- 🚀 NOVA FUNÇÃO: INSCREVER NO PUSH MANAGER (Web Push) ---
+  // --- 🚀 INSCRIÇÃO NO PUSH MANAGER (CORRIGIDO) ---
   const subscribeUserToPush = async () => {
-    // Verifica se o navegador suporta e se temos a chave pública
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    
     if (VAPID_PUBLIC_KEY.includes("SUA_CHAVE")) {
-        console.warn("⚠️ VAPID KEY não configurada. Push em background não funcionará.");
+        console.warn("⚠️ VAPID KEY não configurada.");
         return;
     }
 
     try {
       const registration = await navigator.serviceWorker.ready;
       
-      // 1. Verifica se já existe inscrição
+      // 1. Tenta pegar inscrição existente ou cria nova
       let subscription = await registration.pushManager.getSubscription();
 
-      // 2. Se não existir, cria uma nova
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -150,10 +145,17 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // 3. Envia a inscrição para o Backend salvar no banco de dados
+      // 2. 🔥 A CORREÇÃO ESTÁ AQUI 🔥
       if (subscription) {
-          console.log("📡 Enviando inscrição Push para o servidor...");
-          await api.post('/notifications/subscribe', subscription);
+          // Precisamos serializar o objeto para garantir que endpoint e keys sejam enviados
+          const subscriptionJSON = JSON.parse(JSON.stringify(subscription));
+
+          console.log("📡 Enviando inscrição Push:", subscriptionJSON);
+          
+          // Envolvemos o objeto numa propriedade 'subscription' para casar com o backend
+          await api.post('/notifications/subscribe', { 
+            subscription: subscriptionJSON 
+          });
       }
 
     } catch (error) {
@@ -164,14 +166,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) return;
     
-    // Solicita permissão
     const permission = await Notification.requestPermission();
     
     if (permission === "granted") {
       toast.success("Notificações ativadas!");
-      sendSystemNotification("Sistema Conectado", "Agora você receberá alertas.");
+      sendSystemNotification("Sistema Conectado", "Configuração concluída.");
       
-      // 🔥 Tenta ativar o Push em Background imediatamente
+      // Ativa o Push
       subscribeUserToPush();
     }
   };
@@ -198,7 +199,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           newSocket.emit('join_room', 'compras');
       }
 
-      // 🔥 Ao conectar, se já tiver permissão, garante que a inscrição Push está atualizada no backend
+      // Se já tiver permissão, garante que a inscrição está atualizada
       if (Notification.permission === 'granted') {
          subscribeUserToPush();
       }
@@ -206,9 +207,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('disconnect', () => setIsConnected(false));
 
-    // --- ESCUTAR NOVAS NOTIFICAÇÕES (Enquanto app aberto) ---
+    // --- RECEBE NOTIFICAÇÃO VIA SOCKET (APP ABERTO) ---
     newSocket.on('new_request_notification', (data: any) => {
-      // --- FILTRO DE SEGURANÇA PARA O ALMOXARIFE ---
       if (profile.role === 'almoxarife') {
         if (data.type === 'entrada' || data.type === 'entry' || data.isPurchase) {
            return; 
@@ -225,7 +225,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       sendSystemNotification("🚨 NOVA SOLICITAÇÃO!", data.message || "Novo pedido pendente.");
     });
 
-    // Evento genérico (também aplica o filtro)
     newSocket.on('new_request', (data: any) => {
        if (profile.role === 'almoxarife') {
           if (data && (data.type === 'entrada' || data.type === 'entry')) return;
