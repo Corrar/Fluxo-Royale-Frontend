@@ -86,7 +86,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       try {
         const registration = await navigator.serviceWorker.ready;
         if (registration) {
-          // CORREÇÃO AQUI: Adicionado 'as any' para evitar erro TS2353 no 'renotify'
           await registration.showNotification(title, {
             body: body,
             icon: "/favicon.png",
@@ -104,7 +103,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // Fallback para API nativa
     try {
-      // CORREÇÃO AQUI: Adicionado 'as any' para evitar erro TS2353 no 'renotify'
       const notification = new Notification(title, {
         body: body,
         icon: "/favicon.png",
@@ -179,6 +177,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || !profile) return;
 
+    // 1. Configuração do Socket
     const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace('/api', '');
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket'], 
@@ -187,6 +186,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     setSocket(newSocket);
 
+    // 2. Handler de Conexão
     newSocket.on('connect', () => {
       console.log("✅ Socket Conectado!");
       setIsConnected(true);
@@ -198,11 +198,36 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           newSocket.emit('join_room', 'compras');
       }
 
-      // Se já tiver permissão, garante que a inscrição está atualizada
+      // Se já tiver permissão (GRANTED), renova a inscrição silenciosamente
       if (Notification.permission === 'granted') {
          subscribeUserToPush();
       }
     });
+
+    // 3. --- GATILHO INVISÍVEL (NOVO) ---
+    // Se a permissão for 'default' (nunca perguntou), espera o PRIMEIRO clique.
+    if (Notification.permission === 'default') {
+      const handleFirstInteraction = () => {
+        // Pede permissão
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            toast.success("Notificações ativadas!");
+            subscribeUserToPush();
+          }
+        });
+
+        // Remove os ouvintes para não pedir de novo na mesma sessão
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('touchstart', handleFirstInteraction);
+      };
+
+      // Adiciona o "espião" de clique
+      window.addEventListener('click', handleFirstInteraction);
+      window.addEventListener('touchstart', handleFirstInteraction);
+
+      // Limpeza se o componente desmontar antes do clique
+      // (Isso é feito no return do useEffect abaixo)
+    }
 
     newSocket.on('disconnect', () => setIsConnected(false));
 
@@ -236,9 +261,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       toast.info("Permissões atualizadas.");
     });
 
+    // Cleanup function
     return () => {
       newSocket.disconnect();
       setIsConnected(false);
+      // Remove os listeners do gatilho invisível para evitar memory leaks
+      window.removeEventListener('click', () => {}); 
+      window.removeEventListener('touchstart', () => {});
     };
   }, [user, profile]);
 
