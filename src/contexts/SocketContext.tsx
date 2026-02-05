@@ -3,6 +3,11 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { Bell, Lock } from 'lucide-react';
+import { api } from '@/services/api'; // <--- Importante para enviar a inscrição ao backend
+
+// ⚠️ GERE SUAS CHAVES VAPID (npx web-push generate-vapid-keys) E COLE A PÚBLICA AQUI
+// Se não tiver ainda, o push não vai funcionar, mas o resto do sistema sim.
+const VAPID_PUBLIC_KEY = "BMNY3LkuWRwc81P1xGvWiZ6-hzfu4kbkoh3V0gzJRiOn1ag0hv65VN4dm_ZlTf4TuowjljtzEnwti0d1oV1YHlA"; 
 
 interface SocketContextType {
   socket: Socket | null;
@@ -21,6 +26,18 @@ const SocketContext = createContext<SocketContextType>({
   markRequestsAsRead: () => {},
   requestNotificationPermission: () => {},
 });
+
+// Função utilitária para converter a chave VAPID (Base64 -> Uint8Array)
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, updatePermissions } = useAuth();
@@ -87,6 +104,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       } catch (e) { console.warn("SW falhou", e); }
     }
 
+    // Fallback para API nativa se SW falhar
     try {
       const notification = new Notification(title, {
         body: body,
@@ -109,14 +127,52 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error("Erro fallback", e); }
   };
 
+  // --- 🚀 NOVA FUNÇÃO: INSCREVER NO PUSH MANAGER (Web Push) ---
+  const subscribeUserToPush = async () => {
+    // Verifica se o navegador suporta e se temos a chave pública
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (VAPID_PUBLIC_KEY.includes("SUA_CHAVE")) {
+        console.warn("⚠️ VAPID KEY não configurada. Push em background não funcionará.");
+        return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      
+      // 1. Verifica se já existe inscrição
+      let subscription = await registration.pushManager.getSubscription();
+
+      // 2. Se não existir, cria uma nova
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+
+      // 3. Envia a inscrição para o Backend salvar no banco de dados
+      if (subscription) {
+          console.log("📡 Enviando inscrição Push para o servidor...");
+          await api.post('/notifications/subscribe', subscription);
+      }
+
+    } catch (error) {
+      console.error("❌ Erro ao inscrever no Push:", error);
+    }
+  };
+
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) return;
-    if (Notification.permission === "default") {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        toast.success("Notificações ativadas!");
-        sendSystemNotification("Sistema Conectado", "Notificações ativadas.");
-      }
+    
+    // Solicita permissão
+    const permission = await Notification.requestPermission();
+    
+    if (permission === "granted") {
+      toast.success("Notificações ativadas!");
+      sendSystemNotification("Sistema Conectado", "Agora você receberá alertas.");
+      
+      // 🔥 Tenta ativar o Push em Background imediatamente
+      subscribeUserToPush();
     }
   };
 
@@ -132,7 +188,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log("✅ Conectado!");
+      console.log("✅ Socket Conectado!");
       setIsConnected(true);
       
       if (profile.role) newSocket.emit('join_room', profile.role);
@@ -141,21 +197,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           newSocket.emit('join_room', 'almoxarife');
           newSocket.emit('join_room', 'compras');
       }
+
+      // 🔥 Ao conectar, se já tiver permissão, garante que a inscrição Push está atualizada no backend
+      if (Notification.permission === 'granted') {
+         subscribeUserToPush();
+      }
     });
 
     newSocket.on('disconnect', () => setIsConnected(false));
 
-    // --- ESCUTAR NOVAS NOTIFICAÇÕES ---
+    // --- ESCUTAR NOVAS NOTIFICAÇÕES (Enquanto app aberto) ---
     newSocket.on('new_request_notification', (data: any) => {
       // --- FILTRO DE SEGURANÇA PARA O ALMOXARIFE ---
       if (profile.role === 'almoxarife') {
-        // Se a notificação for de "Entrada de Material" (compras), IGNORAR.
-        // O backend precisa mandar type: 'entrada' ou isPurchase: true
         if (data.type === 'entrada' || data.type === 'entry' || data.isPurchase) {
-           console.log("🙈 Entrada de material ignorada pelo Almoxarife");
            return; 
         }
-        // Se for "Nova Solicitação" (pedido de usuário), CONTINUA e notifica!
       }
 
       incrementCount(); 
@@ -171,7 +228,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // Evento genérico (também aplica o filtro)
     newSocket.on('new_request', (data: any) => {
        if (profile.role === 'almoxarife') {
-          // Filtra aqui também se o backend enviar dados
           if (data && (data.type === 'entrada' || data.type === 'entry')) return;
        }
        incrementCount(); 
