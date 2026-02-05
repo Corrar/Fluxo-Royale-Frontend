@@ -146,10 +146,9 @@ export default function Products() {
     },
   });
 
-  // Calcular todas as tags disponíveis - CORRIGIDO TIPO
+  // Calcular todas as tags disponíveis
   const availableTags = useMemo<string[]>(() => {
     if (!products) return [];
-    // Força cast para garantir que products é tratado como array
     const prodList = products as any[];
     const allTags = prodList.flatMap((p: any) => (p.tags as string[]) || []);
     return Array.from(new Set(allTags)).sort();
@@ -431,7 +430,7 @@ export default function Products() {
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
 
-  // ✅ Calcular sugestões de tags - CORRIGIDO TIPO
+  // Sugestões de tags
   const suggestedTags = useMemo<string[]>(() => {
     return availableTags.filter((tag: string) => 
         !formData.tags.includes(tag) && 
@@ -582,7 +581,7 @@ export default function Products() {
                             </div>
                         )}
 
-                        {/* ✅ ÁREA DE SUGESTÕES INTELIGENTES */}
+                        {/* ÁREA DE SUGESTÕES INTELIGENTES */}
                         {suggestedTags.length > 0 && (
                             <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
                                 <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
@@ -695,7 +694,7 @@ export default function Products() {
                 </div>
             </div>
 
-            {/* ✅ Filtros de Tags (Com cores e Interatividade) */}
+            {/* Filtros de Tags */}
             {availableTags.length > 0 && (
                 <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-1 text-xs font-semibold text-slate-500 mr-2">
@@ -794,7 +793,7 @@ export default function Products() {
                         {product.name}
                       </h3>
 
-                      {/* ✅ Visualização das Tags Melhorada (Pills com Cores Dinâmicas) */}
+                      {/* Tags */}
                       {product.tags && Array.isArray(product.tags) && product.tags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1 mb-3">
                               {product.tags.map((tag: string) => {
@@ -823,15 +822,22 @@ export default function Products() {
                           </div>
                         </div>
 
+                        {/* --- ALTERAÇÃO AQUI: Preço Editável para Compras --- */}
                         {canEditPrice && !isPurchaseMode && (
                           <div className="text-right">
                             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Valor Unit.</p>
-                            <div className={`font-bold flex items-center justify-end gap-1 ${hasPrice ? "text-emerald-600 dark:text-emerald-400 text-lg" : "text-slate-300 dark:text-slate-600 text-sm"}`}>
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); handleOpenPriceDialog(product); }}
+                                className={`font-bold flex items-center justify-end gap-1 cursor-pointer hover:opacity-80 transition-opacity ${hasPrice ? "text-emerald-600 dark:text-emerald-400 text-lg" : "text-slate-300 dark:text-slate-600 text-sm"}`}
+                                title="Clique para editar o preço"
+                            >
                               {!hasPrice && <AlertCircle className="h-3 w-3" />}
                               {hasPrice ? priceFormatted : "Sem Custo"}
+                              <Pencil className="h-3 w-3 ml-1 text-slate-400" />
                             </div>
                           </div>
                         )}
+                        {/* -------------------------------------------------- */}
                       </div>
                     </div>
                   );
