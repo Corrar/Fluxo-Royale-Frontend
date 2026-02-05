@@ -9,25 +9,18 @@ import { CardData, Priority, ChecklistItem, Tag } from '@/types/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-// IMPORTANTE: Importar a tela de construção
-import UnderConstruction from '@/pages/UnderConstruction'; 
+// A importação de UnderConstruction não é mais necessária para bloqueio, 
+// mas se usar em outro lugar, pode manter. Caso contrário, pode remover.
+// import UnderConstruction from '@/pages/UnderConstruction'; 
 
 const TasksBoard = () => {
   const { profile } = useAuth(); 
   
-  // --- 1. BLOQUEIO DE SEGURANÇA (EM CONSTRUÇÃO) ---
-  // Apenas Admin e Gerente podem ver a tela enquanto está em desenvolvimento.
-  // Se quiser liberar para você ver, garanta que seu usuario é admin ou gerente.
-  const canViewPage = profile?.role === 'admin' || profile?.role === 'gerente';
-
-  if (!canViewPage) {
-    return <UnderConstruction />;
-  }
-  // ------------------------------------------------
-
-  // 2. Permissão de Edição: Mantemos a mesma lógica (apenas Admin/Gerente editam)
+  // Define quem tem permissão de GERÊNCIA (Criar, Editar, Excluir)
+  // Apenas 'gerente' e 'admin' terão isManager = true
   const isManager = profile?.role === 'gerente' || profile?.role === 'admin'; 
 
+  // Hooks e Estados
   const { cards, isLoading, addCard, updateCard, deleteCard, duplicateCard, toggleChecklistItem, toggleCardCompleted } = useCards();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,6 +40,7 @@ const TasksBoard = () => {
     return Array.from(tags);
   }, [cards]);
 
+  // Lógica de filtragem dos cartões
   const filteredCards = useMemo(() => {
     return cards.filter((card: CardData) => {
       // Filtro de Status (Ativo vs Completo)
@@ -63,13 +57,17 @@ const TasksBoard = () => {
     });
   }, [cards, activeTab, priorityFilter, tagFilter]);
 
+  // --- HANDLERS ---
+
   const handleOpenCreate = () => {
+    // Proteção extra: só abre se for gerente/admin
     if (!isManager) return;
     setEditingCard(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (card: CardData) => {
+    // Permite abrir o modal para visualização, mas o modal saberá se é readOnly via prop
     setEditingCard(card);
     setIsModalOpen(true);
   };
@@ -83,7 +81,9 @@ const TasksBoard = () => {
     imageUrl?: string,
     dueDate?: Date
   ) => {
-    if (!isManager) return; // Bloqueio extra de segurança
+    // Bloqueio de segurança na função de salvar
+    if (!isManager) return; 
+
     if (editingCard) {
       updateCard(editingCard.id, title, description, priority, checklist, tags, imageUrl, dueDate);
     } else {
@@ -112,7 +112,7 @@ const TasksBoard = () => {
             </div>
           </div>
 
-          {/* Botão Nova Tarefa apenas para Gerentes */}
+          {/* Botão Nova Tarefa VISÍVEL APENAS PARA GERENTES/ADMIN */}
           {isManager && (
             <Button onClick={handleOpenCreate} size="lg" className="gap-2 shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95">
               <Plus className="w-5 h-5" /> Nova Tarefa
@@ -154,11 +154,20 @@ const TasksBoard = () => {
                 card={card}
                 index={index}
                 onEdit={handleOpenEdit}
+                
+                {/* Ações sensíveis: O InfoCard deve usar a prop 'readOnly' 
+                   para desabilitar visualmente essas ações.
+                   Mas por segurança, podemos passar undefined ou a função 
+                   apenas se for gerente, dependendo de como o InfoCard foi construído.
+                   
+                   Assumindo que o InfoCard respeita 'readOnly':
+                */}
                 onDelete={deleteCard}
                 onDuplicate={duplicateCard}
                 onToggleChecklistItem={toggleChecklistItem}
                 onToggleCompleted={toggleCardCompleted}
-                readOnly={!isManager} // Passa o modo leitura para quem não é gerente
+                
+                readOnly={!isManager} // <--- Isso garante que o card fique em modo leitura para não-gerentes
               />
             ))}
           </div>
