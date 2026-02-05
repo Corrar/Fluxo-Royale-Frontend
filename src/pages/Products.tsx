@@ -222,17 +222,47 @@ export default function Products() {
     onError: (error: any) => toast.error(error.response?.data?.error || "Erro ao excluir"),
   });
 
+  // --- ATUALIZAÇÃO DE PREÇO ROBUSTA (OPTIMISTIC UPDATE) ---
   const updatePriceMutation = useMutation({
     mutationFn: async ({ id, price }: { id: string; price: number }) => {
+      // Envia o PUT. Se o backend suportar partial update no PUT, isso funcionará perfeitamente.
       await api.put(`/products/${id}`, { unit_price: price });
     },
+    // Executado ANTES da mutação para atualizar a UI instantaneamente
+    onMutate: async ({ id, price }) => {
+        // Cancela queries pendentes para não sobrescrever nosso update otimista
+        await queryClient.cancelQueries({ queryKey: ["products"] });
+  
+        // Tira um snapshot do estado anterior
+        const previousProducts = queryClient.getQueryData<any[]>(["products"]);
+  
+        // Atualiza o cache otimistamente
+        queryClient.setQueryData<any[]>(["products"], (old) => {
+          if (!old) return [];
+          return old.map((product) => 
+            product.id === id ? { ...product, unit_price: price } : product
+          );
+        });
+  
+        // Retorna o contexto para caso de erro (rollback)
+        return { previousProducts };
+    },
+    // Se der erro, volta ao estado anterior
+    onError: (_err, _newPrice, context) => {
+        if (context?.previousProducts) {
+            queryClient.setQueryData(["products"], context.previousProducts);
+        }
+        toast.error("Falha ao atualizar o preço. Tente novamente.");
+    },
+    // Sempre revalida após sucesso ou erro para garantir consistência
+    onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+        queryClient.invalidateQueries({ queryKey: ["stocks"] });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["stocks"] });
       toast.success("Valor unitário atualizado!");
       setPriceDialog(false);
-    },
-    onError: () => toast.error("Erro ao atualizar preço"),
+    }
   });
 
   const registerPurchaseMutation = useMutation({
@@ -337,14 +367,28 @@ export default function Products() {
 
   const handleOpenPriceDialog = (product: any) => {
     setSelectedProductForPrice(product);
-    setPriceValue(product.unit_price?.toString() || "0");
+    // Garante que mostramos string vazia se for 0 ou null para facilitar edição
+    setPriceValue(product.unit_price ? product.unit_price.toString() : "");
     setPriceDialog(true);
   };
 
   const handleConfirmPrice = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedProductForPrice) {
-      updatePriceMutation.mutate({ id: selectedProductForPrice.id, price: parseFloat(priceValue) });
+      // --- CORREÇÃO DE INPUT: Tratamento de vírgula ---
+      // Substitui vírgula por ponto para garantir parsing correto (Ex: "10,50" -> "10.50")
+      const normalizedPrice = priceValue.replace(',', '.');
+      const numericPrice = parseFloat(normalizedPrice);
+
+      if (isNaN(numericPrice) || numericPrice < 0) {
+        toast.error("Por favor, insira um valor válido.");
+        return;
+      }
+
+      updatePriceMutation.mutate({ 
+        id: selectedProductForPrice.id, 
+        price: numericPrice 
+      });
     }
   };
 
@@ -822,7 +866,7 @@ export default function Products() {
                           </div>
                         </div>
 
-                        {/* --- ALTERAÇÃO AQUI: Preço Editável para Compras --- */}
+                        {/* --- LINK DE EDIÇÃO DE PREÇO --- */}
                         {canEditPrice && !isPurchaseMode && (
                           <div className="text-right">
                             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">Valor Unit.</p>
@@ -837,7 +881,7 @@ export default function Products() {
                             </div>
                           </div>
                         )}
-                        {/* -------------------------------------------------- */}
+                        {/* ------------------------------- */}
                       </div>
                     </div>
                   );
