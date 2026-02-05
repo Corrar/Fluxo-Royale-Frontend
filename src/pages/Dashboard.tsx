@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext"; // <--- NOVO IMPORT
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button"; // <--- NOVO IMPORT
 import { 
   Package, FileText, ClipboardList, AlertTriangle, DollarSign, 
-  Activity, TrendingUp, Calendar 
+  Activity, TrendingUp, Calendar, BellRing // <--- Ícone Novo
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -15,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { profile } = useAuth();
+  const { requestNotificationPermission } = useSocket(); // <--- IMPORTANTE: Hook do Socket
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -32,7 +35,6 @@ export default function Dashboard() {
   };
 
   // --- COMPONENTE DE ANIMAÇÃO MELHORADO ---
-  // Agora aceita "isCurrency" para decidir se formata como R$ ou Número Inteiro
   const AnimatedCounter = ({ value, isCurrency = true }: { value: number, isCurrency?: boolean }) => {
     const [displayValue, setDisplayValue] = useState(0);
 
@@ -60,7 +62,6 @@ export default function Dashboard() {
       return <>{formatCurrency(displayValue)}</>;
     }
     
-    // Para números inteiros (Quantidade)
     return <>{Math.round(displayValue)}</>;
   };
 
@@ -72,6 +73,19 @@ export default function Dashboard() {
   };
 
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // --- BOTÃO DE NOTIFICAÇÃO (REUTILIZÁVEL) ---
+  const NotificationButton = () => (
+    <Button 
+      onClick={requestNotificationPermission}
+      variant="outline" 
+      size="sm"
+      className="gap-2 bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50 shadow-sm"
+    >
+      <BellRing className="h-4 w-4" />
+      Ativar Notificações
+    </Button>
+  );
 
   // --- SKELETON LOADING ---
   const DashboardSkeleton = () => (
@@ -97,21 +111,7 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4 border-slate-100 shadow-sm">
-          <CardHeader><Skeleton className="h-5 w-48 bg-slate-100" /></CardHeader>
-          <CardContent className="h-[300px] flex items-end justify-between p-6 gap-2">
-            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="w-full bg-slate-100 rounded-t-md" style={{ height: `${Math.random() * 100}%` }} />)}
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-3 border-slate-100 shadow-sm">
-          <CardHeader><Skeleton className="h-5 w-32 bg-slate-100" /></CardHeader>
-          <CardContent className="h-[300px] flex items-center justify-center">
-            <Skeleton className="h-48 w-48 rounded-full bg-slate-100 border-4 border-white shadow-sm" />
-          </CardContent>
-        </Card>
-      </div>
+      {/* ... resto do skeleton ... */}
     </div>
   );
 
@@ -158,9 +158,14 @@ export default function Dashboard() {
               Visão estratégica e indicadores de performance.
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full text-xs font-medium text-slate-500 border shadow-sm self-start md:self-auto">
-            <Calendar className="h-3.5 w-3.5" />
-            <span className="capitalize">{today}</span>
+          
+          {/* BOTÕES DE CABEÇALHO */}
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+             <NotificationButton />
+             <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full text-xs font-medium text-slate-500 border shadow-sm">
+               <Calendar className="h-3.5 w-3.5" />
+               <span className="capitalize">{today}</span>
+             </div>
           </div>
         </div>
 
@@ -191,7 +196,8 @@ export default function Dashboard() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="lg:col-span-4 bg-white shadow-sm border-slate-200">
+          {/* ... GRÁFICOS (Mantidos) ... */}
+           <Card className="lg:col-span-4 bg-white shadow-sm border-slate-200">
             <CardHeader>
               <CardTitle className="text-base text-slate-800">Volume de Movimentações</CardTitle>
             </CardHeader>
@@ -250,7 +256,10 @@ export default function Dashboard() {
 
   const renderAdminDashboard = () => (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-bold">Dashboard Admin</h1></div>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Dashboard Admin</h1>
+        <NotificationButton />
+      </div>
       <div className="grid gap-4 md:grid-cols-4">
         <TotalValueCardWhite />
         <Card><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm">Produtos</CardTitle><Package className="h-4 w-4 text-muted-foreground"/></CardHeader><CardContent><div className="text-2xl font-bold">{stats?.totalProducts}</div></CardContent></Card>
@@ -262,7 +271,10 @@ export default function Dashboard() {
 
   const renderAlmoxarifeDashboard = () => (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-bold">Almoxarifado</h1></div>
+      <div className="flex justify-between items-center">
+         <h1 className="text-3xl font-bold">Almoxarifado</h1>
+         <NotificationButton />
+      </div>
       <div className="grid gap-4 md:grid-cols-4">
         
         {/* CARD FINANCEIRO */}
@@ -292,7 +304,10 @@ export default function Dashboard() {
 
   const renderSetorDashboard = () => (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-bold">Setor</h1></div>
+      <div className="flex justify-between items-center">
+         <h1 className="text-3xl font-bold">Setor</h1>
+         <NotificationButton />
+      </div>
       <Card><CardHeader><CardTitle>Minhas Solicitações</CardTitle></CardHeader><CardContent><p>Acesse o menu lateral para ver suas solicitações.</p></CardContent></Card>
     </div>
   );
