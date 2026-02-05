@@ -14,13 +14,15 @@ self.addEventListener('push', (event) => {
   let data = { 
     title: 'Nova Solicitação', 
     body: 'Há um novo pedido no almoxarifado.',
-    url: '/requests' 
+    url: '/requests',
+    tag: 'fluxo-alert-requests' // Tag padrão caso o backend não mande
   };
 
   // Tenta ler os dados enviados pelo servidor (server.ts)
   if (event.data) {
     try {
-      data = event.data.json();
+      const json = event.data.json();
+      data = { ...data, ...json }; // Mescla os dados padrão com os do servidor
     } catch (e) {
       data.body = event.data.text();
     }
@@ -28,40 +30,58 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/favicon.png', // Ícone da notificação (certifique-se que existe)
-    badge: '/favicon.png', // Ícone pequeno para a barra de status (Android)
-    vibrate: [200, 100, 200], // Padrão de vibração
-    tag: 'request-notification', // Evita empilhar muitas notificações iguais
-    renotify: true, // Vibra novamente mesmo se já houver uma notificação lá
+    icon: '/favicon.png', 
+    badge: '/favicon.png',
+    
+    // Vibração forte para chamar atenção
+    vibrate: [500, 200, 500], 
+    
+    // 🔥 IMPORTANTE: Usa a tag do backend ou a padrão para AGRUPAR
+    tag: data.tag, 
+    
+    // 🔥 IMPORTANTE: Vibra novamente mesmo sendo a mesma tag (substituição)
+    renotify: true, 
+    
+    // Tenta prioridade alta no Android (ajuda a acordar a tela em alguns casos)
+    priority: 'high',
+    
     data: {
-      url: data.url || '/requests'
+      url: data.url
     },
     actions: [
       { action: 'open', title: 'Ver Pedido' }
     ]
   };
 
-  // Mostra a notificação no sistema operativo
+  // Mostra a notificação
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
 });
 
-// Clique na notificação: Abre o app na página certa
+// Clique na notificação: Lógica inteligente de foco
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  // Monta a URL completa
   const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Se o app já estiver aberto (mesmo em segundo plano), foca nele
+      // 1. Procura se o app já está aberto em QUALQUER aba
       for (const client of clientList) {
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        // Se encontrou uma janela e pode focar
+        if ('focus' in client) {
+          return client.focus().then((focusedClient) => {
+            // Depois de focar, navega para a página certa caso não esteja nela
+            if (focusedClient.url !== urlToOpen) {
+              return focusedClient.navigate(urlToOpen);
+            }
+          });
         }
       }
-      // Se estiver FECHADO, abre uma nova janela/aba
+
+      // 2. Se não encontrou nenhuma janela aberta, abre uma nova
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
