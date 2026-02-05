@@ -9,18 +9,13 @@ import { CardData, Priority, ChecklistItem, Tag } from '@/types/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-// A importação de UnderConstruction não é mais necessária para bloqueio, 
-// mas se usar em outro lugar, pode manter. Caso contrário, pode remover.
-// import UnderConstruction from '@/pages/UnderConstruction'; 
 
 const TasksBoard = () => {
   const { profile } = useAuth(); 
   
   // Define quem tem permissão de GERÊNCIA (Criar, Editar, Excluir)
-  // Apenas 'gerente' e 'admin' terão isManager = true
   const isManager = profile?.role === 'gerente' || profile?.role === 'admin'; 
 
-  // Hooks e Estados
   const { cards, isLoading, addCard, updateCard, deleteCard, duplicateCard, toggleChecklistItem, toggleCardCompleted } = useCards();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,7 +26,6 @@ const TasksBoard = () => {
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [tagFilter, setTagFilter] = useState('');
 
-  // Extrair todas as tags disponíveis para o filtro
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
     cards.forEach((card: CardData) => {
@@ -40,34 +34,27 @@ const TasksBoard = () => {
     return Array.from(tags);
   }, [cards]);
 
-  // Lógica de filtragem dos cartões
   const filteredCards = useMemo(() => {
     return cards.filter((card: CardData) => {
-      // Filtro de Status (Ativo vs Completo)
       if (activeTab === 'active' && card.completed) return false;
       if (activeTab === 'completed' && !card.completed) return false;
-
-      // Filtro de Prioridade
       if (priorityFilter !== 'all' && card.priority !== priorityFilter) return false;
-
-      // Filtro de Tag
       if (tagFilter && tagFilter !== 'all_tags_reset_value' && !card.tags?.some(t => t.name === tagFilter)) return false;
-
       return true;
     });
   }, [cards, activeTab, priorityFilter, tagFilter]);
 
-  // --- HANDLERS ---
+  // --- Ações ---
 
   const handleOpenCreate = () => {
-    // Proteção extra: só abre se for gerente/admin
     if (!isManager) return;
     setEditingCard(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (card: CardData) => {
-    // Permite abrir o modal para visualização, mas o modal saberá se é readOnly via prop
+    // Esta função abre o modal.
+    // Se não for gerente, o modal abrirá em modo "readOnly" (ver abaixo no JSX)
     setEditingCard(card);
     setIsModalOpen(true);
   };
@@ -81,9 +68,7 @@ const TasksBoard = () => {
     imageUrl?: string,
     dueDate?: Date
   ) => {
-    // Bloqueio de segurança na função de salvar
-    if (!isManager) return; 
-
+    if (!isManager) return; // Segurança dupla
     if (editingCard) {
       updateCard(editingCard.id, title, description, priority, checklist, tags, imageUrl, dueDate);
     } else {
@@ -112,7 +97,7 @@ const TasksBoard = () => {
             </div>
           </div>
 
-          {/* Botão Nova Tarefa VISÍVEL APENAS PARA GERENTES/ADMIN */}
+          {/* Botão Nova Tarefa apenas para Gerentes */}
           {isManager && (
             <Button onClick={handleOpenCreate} size="lg" className="gap-2 shadow-md hover:shadow-lg transition-all hover:scale-105 active:scale-95">
               <Plus className="w-5 h-5" /> Nova Tarefa
@@ -153,28 +138,26 @@ const TasksBoard = () => {
                 key={card.id}
                 card={card}
                 index={index}
-                onEdit={handleOpenEdit}
+                // --- ALTERAÇÃO IMPORTANTE ---
+                // Se não for gerente, passamos 'undefined' para onEdit, onDelete, etc.
+                // Isso deve forçar o InfoCard a esconder os botões de ação.
+                onEdit={isManager ? handleOpenEdit : undefined}
+                onDelete={isManager ? deleteCard : undefined}
+                onDuplicate={isManager ? duplicateCard : undefined}
+                onToggleChecklistItem={isManager ? toggleChecklistItem : undefined}
+                onToggleCompleted={isManager ? toggleCardCompleted : undefined}
                 
-                {/* Ações sensíveis: O InfoCard deve usar a prop 'readOnly' 
-                   para desabilitar visualmente essas ações.
-                   Mas por segurança, podemos passar undefined ou a função 
-                   apenas se for gerente, dependendo de como o InfoCard foi construído.
-                   
-                   Assumindo que o InfoCard respeita 'readOnly':
-                */}
-                onDelete={deleteCard}
-                onDuplicate={duplicateCard}
-                onToggleChecklistItem={toggleChecklistItem}
-                onToggleCompleted={toggleCardCompleted}
+                readOnly={!isManager}
                 
-                readOnly={!isManager} // <--- Isso garante que o card fique em modo leitura para não-gerentes
+                // Caso os usuários precisem APENAS ver os detalhes (sem editar), 
+                // e o lápis sumiu, podemos tentar passar a função de abrir no onClick (se o componente suportar)
+                // onClick={() => handleOpenEdit(card)} 
               />
             ))}
           </div>
         ) : (
           <div className="flex justify-center py-10">
              {activeTab === 'active' && priorityFilter === 'all' && tagFilter === '' ? (
-                // Se for gerente mostra botão de criar, se não, mensagem simples
                 isManager ? (
                   <EmptyState onCreateClick={handleOpenCreate} />
                 ) : (
@@ -205,7 +188,7 @@ const TasksBoard = () => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
         editingCard={editingCard}
-        readOnly={!isManager} // Bloqueia edição dentro do modal também
+        readOnly={!isManager} // Garante que o modal abra bloqueado para não-gerentes
       />
     </div>
   );
