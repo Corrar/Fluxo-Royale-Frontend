@@ -6,13 +6,15 @@ import { ptBR } from 'date-fns/locale';
 
 interface InfoCardProps {
   card: CardData;
-  onEdit: (card: CardData) => void;
-  onDelete: (id: string) => void;
-  onDuplicate: (id: string) => void;
-  onToggleChecklistItem: (cardId: string, itemId: string) => void;
-  onToggleCompleted: (cardId: string) => void;
+  // Tornamos as funções opcionais para evitar erros quando não forem passadas
+  onEdit?: (card: CardData) => void;
+  onDelete?: (id: string) => void;
+  onDuplicate?: (id: string) => void;
+  onToggleChecklistItem?: (cardId: string, itemId: string) => void;
+  onToggleCompleted?: (cardId: string) => void;
   onArchive?: (id: string) => void;
   index: number;
+  readOnly?: boolean; // <--- NOVA PROPRIEDADE
 }
 
 const priorityConfig: Record<Priority, { label: string; color: string; bgColor: string; glowClass: string; icon: typeof Flag }> = {
@@ -22,7 +24,17 @@ const priorityConfig: Record<Priority, { label: string; color: string; bgColor: 
   urgent: { label: 'Urgente', color: 'text-priority-urgent', bgColor: 'bg-priority-urgent', glowClass: 'priority-glow-urgent', icon: AlertCircle },
 };
 
-export const InfoCard = ({ card, onEdit, onDelete, onDuplicate, onToggleChecklistItem, onToggleCompleted, onArchive, index }: InfoCardProps) => {
+export const InfoCard = ({ 
+  card, 
+  onEdit, 
+  onDelete, 
+  onDuplicate, 
+  onToggleChecklistItem, 
+  onToggleCompleted, 
+  onArchive, 
+  index,
+  readOnly = false // Valor padrão
+}: InfoCardProps) => {
   const priority = priorityConfig[card.priority];
   const PriorityIcon = priority.icon;
   const completedCount = card.checklist.filter(item => item.completed).length;
@@ -107,69 +119,71 @@ export const InfoCard = ({ card, onEdit, onDelete, onDuplicate, onToggleChecklis
             </h3>
           </div>
 
-          {/* Actions with slide-in effect */}
-          <div 
-            className={cn(
-              'flex gap-0.5 transition-all duration-300',
-              'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0',
-              'group-focus-within:opacity-100 group-focus-within:translate-x-0'
-            )}
-            role="group"
-            aria-label="Ações do card"
-          >
-            <button
-              onClick={() => onToggleCompleted(card.id)}
+          {/* Actions with slide-in effect - OCULTO SE READONLY */}
+          {!readOnly && (
+            <div 
               className={cn(
-                'p-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
-                'hover:scale-110 active:scale-95',
-                card.completed 
-                  ? 'hover:bg-secondary bg-secondary/50 text-muted-foreground' 
-                  : 'hover:bg-primary/10 text-primary'
+                'flex gap-0.5 transition-all duration-300',
+                'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0',
+                'group-focus-within:opacity-100 group-focus-within:translate-x-0'
               )}
-              aria-label={card.completed ? `Reabrir ${card.title}` : `Marcar ${card.title} como pronto`}
-              title={card.completed ? 'Reabrir card' : 'Marcar como pronto'}
+              role="group"
+              aria-label="Ações do card"
             >
-              {card.completed ? (
-                <RotateCcw className="w-4 h-4" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-            </button>
-            <button
-              onClick={() => onDuplicate(card.id)}
-              className="p-2 rounded-lg hover:bg-secondary/80 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-              aria-label={`Duplicar ${card.title}`}
-              title="Duplicar card"
-            >
-              <Copy className="w-4 h-4 text-muted-foreground" />
-            </button>
-            <button
-              onClick={() => onEdit(card)}
-              className="p-2 rounded-lg hover:bg-secondary/80 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-              aria-label={`Editar ${card.title}`}
-              title="Editar card"
-            >
-              <Pencil className="w-4 h-4 text-muted-foreground" />
-            </button>
-            {onArchive && (
               <button
-                onClick={() => onArchive(card.id)}
-                className="p-2 rounded-lg hover:bg-amber-500/10 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
-                aria-label={`Arquivar ${card.title}`}
-                title="Arquivar card"
+                onClick={() => onToggleCompleted?.(card.id)}
+                className={cn(
+                  'p-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
+                  'hover:scale-110 active:scale-95',
+                  card.completed 
+                    ? 'hover:bg-secondary bg-secondary/50 text-muted-foreground' 
+                    : 'hover:bg-primary/10 text-primary'
+                )}
+                aria-label={card.completed ? `Reabrir ${card.title}` : `Marcar ${card.title} como pronto`}
+                title={card.completed ? 'Reabrir card' : 'Marcar como pronto'}
               >
-                <Archive className="w-4 h-4 text-muted-foreground hover:text-amber-600" />
+                {card.completed ? (
+                  <RotateCcw className="w-4 h-4" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
               </button>
-            )}
-            <button
-              onClick={() => onDelete(card.id)}
-              className="p-2 rounded-lg hover:bg-destructive/10 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-1"
-              aria-label={`Excluir ${card.title}`}
-              title="Excluir card"
-            >
-              <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-            </button>
-          </div>
+              <button
+                onClick={() => onDuplicate?.(card.id)}
+                className="p-2 rounded-lg hover:bg-secondary/80 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                aria-label={`Duplicar ${card.title}`}
+                title="Duplicar card"
+              >
+                <Copy className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => onEdit?.(card)}
+                className="p-2 rounded-lg hover:bg-secondary/80 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                aria-label={`Editar ${card.title}`}
+                title="Editar card"
+              >
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+              </button>
+              {onArchive && (
+                <button
+                  onClick={() => onArchive(card.id)}
+                  className="p-2 rounded-lg hover:bg-amber-500/10 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                  aria-label={`Arquivar ${card.title}`}
+                  title="Arquivar card"
+                >
+                  <Archive className="w-4 h-4 text-muted-foreground hover:text-amber-600" />
+                </button>
+              )}
+              <button
+                onClick={() => onDelete?.(card.id)}
+                className="p-2 rounded-lg hover:bg-destructive/10 hover:scale-110 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-1"
+                aria-label={`Excluir ${card.title}`}
+                title="Excluir card"
+              >
+                <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+              </button>
+            </div>
+          )}
         </div>
 
         {card.description && (
@@ -226,11 +240,12 @@ export const InfoCard = ({ card, onEdit, onDelete, onDuplicate, onToggleChecklis
               {card.checklist.slice(0, 4).map((item, i) => (
                 <li key={item.id} style={{ animationDelay: `${i * 50}ms` }}>
                   <button
-                    onClick={() => onToggleChecklistItem(card.id, item.id)}
+                    onClick={() => !readOnly && onToggleChecklistItem?.(card.id, item.id)}
+                    disabled={readOnly} // Desabilita interação se for readOnly
                     className={cn(
                       'w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-all duration-300',
-                      'hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
-                      'active:scale-[0.98]',
+                      readOnly ? 'cursor-default' : 'hover:bg-muted/50 active:scale-[0.98]', // Estilo condicional
+                      'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
                       item.completed && 'opacity-50'
                     )}
                     aria-pressed={item.completed}
