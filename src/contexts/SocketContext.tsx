@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Bell } from 'lucide-react';
 import { api } from '@/services/api'; 
 
-// Chave Pública VAPID (Mantive a que você enviou)
+// Chave Pública VAPID
 const VAPID_PUBLIC_KEY = "BMNY3LkuWRwc81P1xGvWiZ6-hzfu4kbkoh3V0gzJRiOn1ag0hv65VN4dm_ZlTf4TuowjljtzEnwti0d1oV1YHlA"; 
 
 interface SocketContextType {
@@ -86,6 +86,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       try {
         const registration = await navigator.serviceWorker.ready;
         if (registration) {
+          // CORREÇÃO AQUI: Adicionado 'as any' para evitar erro TS2353 no 'renotify'
           await registration.showNotification(title, {
             body: body,
             icon: "/favicon.png",
@@ -95,7 +96,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             requireInteraction: true,
             vibrate: urgentVibration,
             data: { url: '/requests' }
-          }); 
+          } as any); 
           return; 
         }
       } catch (e) { console.warn("SW notificação falhou", e); }
@@ -103,13 +104,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // Fallback para API nativa
     try {
+      // CORREÇÃO AQUI: Adicionado 'as any' para evitar erro TS2353 no 'renotify'
       const notification = new Notification(title, {
         body: body,
         icon: "/favicon.png",
         tag: "fluxo-alert-" + Date.now(),
         renotify: true,
         silent: false,
-      });
+      } as any);
       
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(urgentVibration);
@@ -123,7 +125,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { console.error("Erro fallback", e); }
   };
 
-  // --- 🚀 INSCRIÇÃO NO PUSH MANAGER (CORRIGIDO) ---
+  // --- 🚀 INSCRIÇÃO NO PUSH MANAGER ---
   const subscribeUserToPush = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     
@@ -145,14 +147,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // 2. 🔥 A CORREÇÃO ESTÁ AQUI 🔥
+      // 2. Envia para o backend (serializando corretamente)
       if (subscription) {
-          // Precisamos serializar o objeto para garantir que endpoint e keys sejam enviados
           const subscriptionJSON = JSON.parse(JSON.stringify(subscription));
-
           console.log("📡 Enviando inscrição Push:", subscriptionJSON);
           
-          // Envolvemos o objeto numa propriedade 'subscription' para casar com o backend
           await api.post('/notifications/subscribe', { 
             subscription: subscriptionJSON 
           });
