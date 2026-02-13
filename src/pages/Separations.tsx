@@ -11,6 +11,10 @@ import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
 
+// Importações do PDF
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,7 +74,9 @@ import {
   Ban,
   AlertCircle,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  FileText, // Ícone para o PDF
+  Download
 } from "lucide-react";
 
 import { format, differenceInDays, addDays } from "date-fns";
@@ -158,15 +164,11 @@ const ProductSelector = ({
   onChange: (val: string) => void;
 }) => {
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); // Estado para controlar a busca
+  const [searchTerm, setSearchTerm] = useState("");
   const selectedProduct = products?.find((p) => p.id === value);
 
-  // Filtra os produtos na memória antes de renderizar
-  // Isso permite buscar em TODA a lista, mas exibir apenas 50 resultados para não travar
   const filteredProducts = useMemo(() => {
     if (!products) return [];
-    
-    // Se não tiver termo de busca, retorna os primeiros 50
     if (!searchTerm) return products.slice(0, 50);
 
     const lowerTerm = searchTerm.toLowerCase();
@@ -175,7 +177,7 @@ const ProductSelector = ({
         product.name.toLowerCase().includes(lowerTerm) || 
         product.sku.toLowerCase().includes(lowerTerm)
       )
-      .slice(0, 50); // Limita os resultados da busca a 50 itens
+      .slice(0, 50);
   }, [products, searchTerm]);
 
   return (
@@ -200,8 +202,6 @@ const ProductSelector = ({
       </PopoverTrigger>
 
       <PopoverContent className="w-[300px] p-0" align="start">
-        {/* shouldFilter={false} é CRUCIAL: diz ao componente para não filtrar sozinho, 
-            pois já fizemos isso no filteredProducts */}
         <Command shouldFilter={false}>
           <CommandInput 
             placeholder="Buscar SKU ou nome..." 
@@ -212,7 +212,6 @@ const ProductSelector = ({
             {filteredProducts.length === 0 && (
                <CommandEmpty>Produto não encontrado.</CommandEmpty>
             )}
-            
             <CommandGroup>
               {filteredProducts.map((product) => {
                 const stock = product.stock?.quantity_on_hand ?? product.stock_available ?? 0;
@@ -220,11 +219,11 @@ const ProductSelector = ({
                 return (
                   <CommandItem
                     key={product.id}
-                    value={product.id} // Usamos ID para controlar a seleção
+                    value={product.id}
                     onSelect={() => {
                       onChange(product.id);
                       setOpen(false);
-                      setSearchTerm(""); // Limpa a busca ao selecionar
+                      setSearchTerm("");
                     }}
                     className="py-3"
                   >
@@ -246,7 +245,7 @@ const ProductSelector = ({
   );
 };
 
-// ===================== COMPONENT: DETAILED ITEM ROW =====================
+// ===================== DETAILED ITEM ROW =====================
 const SeparationItemDetailedRow = ({
   item,
   inputValue,
@@ -262,37 +261,25 @@ const SeparationItemDetailedRow = ({
   approvedDeduction?: number;
 }) => {
   const dbOnHand = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
-  
-  // Quantidade REALMENTE reservada no momento
   const dbReservedHere = Math.max(0, (item.quantity || 0) - approvedDeduction);
-  
   const requested = item.qty_requested || 0;
   const isComplete = dbReservedHere >= requested;
-
   const remainingRequest = Math.max(0, requested - dbReservedHere);
-  
-  // MÁXIMO para ADICIONAR (Positivo)
   const maxAddable = Math.min(remainingRequest, dbOnHand);
-  
-  // MÁXIMO para ESTORNAR (Negativo - só pode tirar o que já reservou)
   const maxRevertable = dbReservedHere;
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     let val = parseFloat(e.target.value);
     if (isNaN(val)) val = 0;
     
-    // 1. Bloqueio de Estorno Excessivo (Não pode tirar mais do que tem)
     if (val < 0 && Math.abs(val) > maxRevertable) {
         toast.warning(`Máximo para estornar: ${maxRevertable}`);
         val = -maxRevertable;
     }
-
-    // 2. Bloqueio de Adição Excessiva
     if (val > 0 && val > maxAddable) {
         toast.warning(`Máximo para adicionar: ${maxAddable}`);
         val = maxAddable;
     }
-
     onChange(String(val));
   };
 
@@ -305,14 +292,12 @@ const SeparationItemDetailedRow = ({
       isComplete ? "border-emerald-500/40 bg-emerald-50/10" : "border-border hover:border-primary/40",
       hasChange && "ring-1 ring-primary border-primary bg-primary/5"
     )}>
-      
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
            <Badge variant="outline" className="text-[10px] font-mono h-5 px-1">{item.products?.sku}</Badge>
            {isComplete && <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle2 className="h-3 w-3"/> OK</span>}
         </div>
         <div className="font-semibold text-base leading-snug">{item.products?.name}</div>
-        
         {approvedDeduction > 0 && (
             <span className="text-[10px] text-red-500 font-medium mt-1 block flex items-center gap-1">
                 <ArrowLeft className="h-3 w-3" /> {approvedDeduction} devolvido(s).
@@ -338,7 +323,6 @@ const SeparationItemDetailedRow = ({
                    → {projected}
                </span>}
            </div>
-           
            {!isComplete && (
              <div className="flex items-center gap-1 mt-1 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-full animate-in fade-in zoom-in duration-300">
                 <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
@@ -362,7 +346,6 @@ const SeparationItemDetailedRow = ({
             </label>
             <Input 
                 type="number"
-                // Permite negativo até o total reservado
                 min={-maxRevertable} 
                 max={maxAddable}
                 className={cn(
@@ -387,8 +370,7 @@ const SeparationItemDetailedRow = ({
   );
 };
 
-
-// ===================== CARD PRINCIPAL (LISTA) =====================
+// ===================== SEPARATION CARD =====================
 const SeparationCard = ({
   separation: sep,
   onClick,
@@ -420,14 +402,12 @@ const SeparationCard = ({
       };
   }
 
-  // Lógica "Arquivado/Finalizado"
   const isArchived = sep.status === 'finalizada' || (sep.status === 'entregue' && isExpired);
 
   const statusColors = {
       pendente: "border-amber-500/50 hover:border-amber-500",
       em_separacao: "border-amber-500/50 hover:border-amber-500", 
       entregue: "border-emerald-500/50 hover:border-emerald-500",
-      // Arquivado ganha cor neutra (Zinc)
       finalizado: "border-zinc-500/50 hover:border-zinc-500" 
   };
 
@@ -435,11 +415,9 @@ const SeparationCard = ({
       pendente: "bg-amber-500",
       em_separacao: "bg-amber-500",
       entregue: "bg-emerald-500",
-      // Arquivado
       finalizado: "bg-zinc-500"
   };
 
-  // Determina label e estilo
   const displayStatus = isArchived ? 'Finalizado' : (sep.status === 'em_separacao' ? 'Em Separação' : sep.status);
   const statusKey = isArchived ? 'finalizado' : sep.status;
 
@@ -557,6 +535,101 @@ const DetailedView = ({
         }
     }
 
+    // ================= FUNÇÃO GERAR PDF =================
+    const generatePDF = () => {
+        const doc = new jsPDF();
+        
+        // --- Cabeçalho ---
+        doc.setFontSize(22);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Ordem de Separação", 14, 20);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 26);
+
+        // --- Detalhes do Cliente/OP ---
+        doc.setFillColor(240, 240, 240);
+        doc.rect(14, 32, 182, 28, 'F');
+        
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        
+        doc.setFont("helvetica", "bold");
+        doc.text(`Cliente: ${sep.client_name}`, 18, 40);
+        doc.text(`OP: ${sep.production_order}`, 18, 48);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(`Destino: ${sep.destination}`, 120, 40);
+        doc.text(`Status: ${sep.status.toUpperCase()}`, 120, 48);
+        doc.text(`Data Pedido: ${format(new Date(sep.created_at), "dd/MM/yyyy")}`, 18, 56);
+
+        // --- Cálculos de Progresso ---
+        const totalItems = sep.items.length;
+        const completedItems = sep.items.filter(i => i.quantity >= i.qty_requested).length;
+        const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+        doc.setFontSize(10);
+        doc.text(`Progresso: ${progress.toFixed(0)}% Concluído`, 120, 56);
+
+        // --- Tabela de Itens ---
+        const tableRows = sep.items.map(item => {
+            const requested = item.qty_requested;
+            const separated = item.quantity; // O que foi reservado
+            const missing = Math.max(0, requested - separated);
+            const stock = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
+            const status = separated >= requested ? "Completo" : "Pendente";
+
+            return [
+                `${item.products?.sku}\n${item.products?.name}`, // Produto (SKU + Nome)
+                requested,
+                separated,
+                missing > 0 ? missing : "-",
+                stock,
+                status
+            ];
+        });
+
+        // @ts-ignore - autotable types workaround
+        autoTable(doc, {
+            startY: 65,
+            head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Estoque Atual', 'Status']],
+            body: tableRows,
+            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 9, valign: 'middle', cellPadding: 3 },
+            columnStyles: {
+                0: { cellWidth: 70 }, // Produto mais largo
+                1: { halign: 'center' },
+                2: { halign: 'center', fontStyle: 'bold' },
+                3: { halign: 'center', textColor: [220, 53, 69] }, // Vermelho para "Falta"
+                4: { halign: 'center' },
+                5: { halign: 'center' }
+            },
+            // Destaque para linhas incompletas
+            didParseCell: function(data: any) {
+                if (data.section === 'body' && data.column.index === 5) {
+                    if (data.cell.raw === 'Pendente') {
+                        data.cell.styles.textColor = [220, 53, 69]; // Vermelho
+                    } else {
+                        data.cell.styles.textColor = [40, 167, 69]; // Verde
+                    }
+                }
+            }
+        });
+
+        // --- Rodapé ---
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        for(let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(150);
+            doc.text('Fluxo Royale - Sistema de Controle de Estoque', 14, doc.internal.pageSize.height - 10);
+            doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
+        }
+
+        doc.save(`Pedido_${sep.production_order}_${sep.client_name}.pdf`);
+    };
+
     return (
        <m.div 
          initial={{ opacity: 0, x: 20 }} 
@@ -580,9 +653,25 @@ const DetailedView = ({
                           <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight truncate">{sep.client_name}</h1>
                       </div>
                       
+                      {/* BOTÃO EXPORTAR PDF */}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="hidden sm:flex gap-2 mr-2 border-dashed border-2"
+                        onClick={generatePDF}
+                      >
+                          <FileText className="h-4 w-4 text-red-500" />
+                          Exportar PDF
+                      </Button>
+                      
+                      {/* Versão Mobile do Botão PDF */}
+                      <Button variant="ghost" size="icon" className="sm:hidden" onClick={generatePDF}>
+                          <Download className="h-5 w-5 text-muted-foreground" />
+                      </Button>
+
                       {isDelivered && !isArchived && (
                          <div className={cn(
-                             "ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold",
+                             "hidden md:flex ml-auto items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold",
                              returnStatus.expired ? "bg-red-50 border-red-200 text-red-600" : "bg-blue-50 border-blue-200 text-blue-600"
                          )}>
                              {returnStatus.expired ? <Ban className="h-4 w-4"/> : <Clock className="h-4 w-4"/>}
@@ -594,7 +683,7 @@ const DetailedView = ({
                           <Button 
                             variant="destructive" 
                             size="icon" 
-                            className="rounded-full h-10 w-10 shadow-sm" 
+                            className="rounded-full h-10 w-10 shadow-sm ml-2" 
                             onClick={() => onDelete(sep.id)}
                             title="Excluir Solicitação"
                           >
@@ -861,7 +950,6 @@ export default function Separations() {
 
   const updateReturnStatusMutation = useMutation({
     mutationFn: async ({ separationId, returnId, status }: any) => {
-      // CORREÇÃO: Rota singular padrão
       const response = await api.put(`/separations/returns/${returnId}`, { status });
       return response.data;
     },
