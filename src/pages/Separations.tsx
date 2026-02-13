@@ -30,6 +30,15 @@ import {
 } from "@/components/ui/dialog";
 
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet";
+
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -42,22 +51,12 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 import {
   Plus,
+  Minus,
   Trash2,
   Clock,
   Search,
@@ -75,8 +74,10 @@ import {
   AlertCircle,
   AlertTriangle,
   RotateCcw,
-  FileText, // Ícone para o PDF
-  Download
+  FileText,
+  Download,
+  ShoppingCart,
+  Package
 } from "lucide-react";
 
 import { format, differenceInDays, addDays } from "date-fns";
@@ -143,109 +144,79 @@ const EmptyState = ({
   description: string;
   action?: React.ReactNode;
 }) => (
-  <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-xl border-muted bg-muted/5 min-h-[200px]">
-    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-      <Sparkles className="h-6 w-6 text-muted-foreground" />
+  <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-xl border-muted bg-muted/5 min-h-[300px] animate-in fade-in zoom-in duration-300">
+    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+      <Package className="h-8 w-8 text-muted-foreground/50" />
     </div>
-    <h3 className="text-lg font-semibold">{title}</h3>
-    <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-4">{description}</p>
+    <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
+    <p className="text-sm text-muted-foreground max-w-sm mt-2 mb-6">{description}</p>
     {action}
   </div>
 );
 
-// ===================== PRODUCT SELECTOR (CORRIGIDO) =====================
-const ProductSelector = ({
-  products,
-  value,
-  onChange,
+// ===================== COMPONENT: CATALOG ITEM (NOVO ESTILO) =====================
+const CatalogItem = ({
+  product,
+  quantityInCart,
+  onAdd,
+  onRemove
 }: {
-  products: IProduct[];
-  value: string;
-  onChange: (val: string) => void;
+  product: IProduct;
+  quantityInCart: number;
+  onAdd: () => void;
+  onRemove: () => void;
 }) => {
-  const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const selectedProduct = products?.find((p) => p.id === value);
-
-  const filteredProducts = useMemo(() => {
-    if (!products) return [];
-    if (!searchTerm) return products.slice(0, 50);
-
-    const lowerTerm = searchTerm.toLowerCase();
-    return products
-      .filter((product) => 
-        product.name.toLowerCase().includes(lowerTerm) || 
-        product.sku.toLowerCase().includes(lowerTerm)
-      )
-      .slice(0, 50);
-  }, [products, searchTerm]);
+  const stock = product.stock?.quantity_on_hand ?? product.stock_available ?? 0;
+  const hasStock = stock > 0;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "flex-1 justify-between w-full h-11 px-3 text-left font-normal",
-            !selectedProduct && "text-muted-foreground"
-          )}
-        >
-          {selectedProduct ? (
-            <span className="truncate">{selectedProduct.name}</span>
-          ) : (
-            <span>Selecionar produto...</span>
-          )}
-          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+    <div className={cn(
+      "flex items-center justify-between p-3 rounded-lg border bg-card transition-all duration-200",
+      quantityInCart > 0 ? "border-primary ring-1 ring-primary/20 bg-primary/5" : "hover:border-primary/50"
+    )}>
+      <div className="flex-1 min-w-0 pr-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 rounded">{product.sku}</span>
+          {!hasStock && <Badge variant="destructive" className="text-[10px] h-4 px-1">Sem Estoque</Badge>}
+        </div>
+        <h4 className="font-medium text-sm truncate mt-0.5">{product.name}</h4>
+        <p className="text-xs text-muted-foreground mt-0.5">Disponível: <strong>{stock} {product.unit}</strong></p>
+      </div>
 
-      <PopoverContent className="w-[300px] p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Buscar SKU ou nome..." 
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
-          <CommandList>
-            {filteredProducts.length === 0 && (
-               <CommandEmpty>Produto não encontrado.</CommandEmpty>
-            )}
-            <CommandGroup>
-              {filteredProducts.map((product) => {
-                const stock = product.stock?.quantity_on_hand ?? product.stock_available ?? 0;
-                const isSelected = value === product.id;
-                return (
-                  <CommandItem
-                    key={product.id}
-                    value={product.id}
-                    onSelect={() => {
-                      onChange(product.id);
-                      setOpen(false);
-                      setSearchTerm("");
-                    }}
-                    className="py-3"
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                    <div className="flex flex-col gap-0.5 overflow-hidden">
-                      <span className="truncate font-medium">{product.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        SKU: {product.sku} • Estoque: {stock} {product.unit}
-                      </span>
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      <div className="flex items-center gap-3">
+        {quantityInCart > 0 ? (
+          <div className="flex items-center gap-3 bg-background border rounded-full px-2 py-1 shadow-sm">
+            <button 
+              onClick={onRemove}
+              className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Minus className="h-3 w-3" />
+            </button>
+            <span className="text-sm font-bold w-4 text-center">{quantityInCart}</span>
+            <button 
+              onClick={onAdd}
+              className="h-6 w-6 flex items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="h-8 rounded-full border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary"
+            onClick={onAdd}
+            disabled={!hasStock}
+          >
+            Adicionar
+          </Button>
+        )}
+      </div>
+    </div>
   );
 };
 
-// ===================== DETAILED ITEM ROW =====================
+// ===================== COMPONENT: DETAILED ITEM ROW =====================
 const SeparationItemDetailedRow = ({
   item,
   inputValue,
@@ -535,11 +506,9 @@ const DetailedView = ({
         }
     }
 
-    // ================= FUNÇÃO GERAR PDF =================
     const generatePDF = () => {
         const doc = new jsPDF();
         
-        // --- Cabeçalho ---
         doc.setFontSize(22);
         doc.setTextColor(0, 0, 0);
         doc.text("Ordem de Separação", 14, 20);
@@ -548,7 +517,6 @@ const DetailedView = ({
         doc.setTextColor(100);
         doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 26);
 
-        // --- Detalhes do Cliente/OP ---
         doc.setFillColor(240, 240, 240);
         doc.rect(14, 32, 182, 28, 'F');
         
@@ -564,7 +532,6 @@ const DetailedView = ({
         doc.text(`Status: ${sep.status.toUpperCase()}`, 120, 48);
         doc.text(`Data Pedido: ${format(new Date(sep.created_at), "dd/MM/yyyy")}`, 18, 56);
 
-        // --- Cálculos de Progresso ---
         const totalItems = sep.items.length;
         const completedItems = sep.items.filter(i => i.quantity >= i.qty_requested).length;
         const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
@@ -572,16 +539,15 @@ const DetailedView = ({
         doc.setFontSize(10);
         doc.text(`Progresso: ${progress.toFixed(0)}% Concluído`, 120, 56);
 
-        // --- Tabela de Itens ---
         const tableRows = sep.items.map(item => {
             const requested = item.qty_requested;
-            const separated = item.quantity; // O que foi reservado
+            const separated = item.quantity;
             const missing = Math.max(0, requested - separated);
             const stock = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
             const status = separated >= requested ? "Completo" : "Pendente";
 
             return [
-                `${item.products?.sku}\n${item.products?.name}`, // Produto (SKU + Nome)
+                `${item.products?.sku}\n${item.products?.name}`,
                 requested,
                 separated,
                 missing > 0 ? missing : "-",
@@ -590,7 +556,7 @@ const DetailedView = ({
             ];
         });
 
-        // @ts-ignore - autotable types workaround
+        // @ts-ignore
         autoTable(doc, {
             startY: 65,
             head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Estoque Atual', 'Status']],
@@ -598,26 +564,24 @@ const DetailedView = ({
             headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
             styles: { fontSize: 9, valign: 'middle', cellPadding: 3 },
             columnStyles: {
-                0: { cellWidth: 70 }, // Produto mais largo
+                0: { cellWidth: 70 },
                 1: { halign: 'center' },
                 2: { halign: 'center', fontStyle: 'bold' },
-                3: { halign: 'center', textColor: [220, 53, 69] }, // Vermelho para "Falta"
+                3: { halign: 'center', textColor: [220, 53, 69] },
                 4: { halign: 'center' },
                 5: { halign: 'center' }
             },
-            // Destaque para linhas incompletas
             didParseCell: function(data: any) {
                 if (data.section === 'body' && data.column.index === 5) {
                     if (data.cell.raw === 'Pendente') {
-                        data.cell.styles.textColor = [220, 53, 69]; // Vermelho
+                        data.cell.styles.textColor = [220, 53, 69];
                     } else {
-                        data.cell.styles.textColor = [40, 167, 69]; // Verde
+                        data.cell.styles.textColor = [40, 167, 69];
                     }
                 }
             }
         });
 
-        // --- Rodapé ---
         const pageCount = (doc as any).internal.getNumberOfPages();
         for(let i = 1; i <= pageCount; i++) {
             doc.setPage(i);
@@ -653,7 +617,6 @@ const DetailedView = ({
                           <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight truncate">{sep.client_name}</h1>
                       </div>
                       
-                      {/* BOTÃO EXPORTAR PDF */}
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -664,7 +627,6 @@ const DetailedView = ({
                           Exportar PDF
                       </Button>
                       
-                      {/* Versão Mobile do Botão PDF */}
                       <Button variant="ghost" size="icon" className="sm:hidden" onClick={generatePDF}>
                           <Download className="h-5 w-5 text-muted-foreground" />
                       </Button>
@@ -822,15 +784,15 @@ export default function Separations() {
   const [searchTerm, setSearchTerm] = useState("");
   const deferredSearch = useDeferredValue(searchTerm);
   
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isNewSheetOpen, setIsNewSheetOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // States para o NOVO fluxo de criação
   const [clientName, setClientName] = useState("");
   const [productionOrder, setProductionOrder] = useState("");
-  const [items, setItems] = useState<Array<{ product_id: string; quantity: string }>>([
-    { product_id: "", quantity: "" },
-  ]);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({});
 
   const { data: separations = [], isLoading } = useQuery({
     queryKey: ["separations"],
@@ -875,9 +837,15 @@ export default function Separations() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [separations, deferredSearch, activeTab]);
 
-  const filteredProducts = useMemo(() => {
-    return (products as IProduct[]).filter((p) => p.name.toLowerCase().includes("") || p.sku.toLowerCase().includes(""));
-  }, [products]);
+  // Filtro de produtos para o Sheet de Criação
+  const filteredCatalogProducts = useMemo(() => {
+    if (!productSearchTerm) return products.slice(0, 50);
+    const lowerTerm = productSearchTerm.toLowerCase();
+    return products.filter((p: any) => 
+        p.name.toLowerCase().includes(lowerTerm) || 
+        p.sku.toLowerCase().includes(lowerTerm)
+    ).slice(0, 50);
+  }, [products, productSearchTerm]);
 
   useEffect(() => {
     if (!socket) return;
@@ -901,9 +869,12 @@ export default function Separations() {
     mutationFn: async (data: any) => await api.post("/separations", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["separations"] });
-      toast.success("Solicitação salva!");
-      setIsNewModalOpen(false);
-      setClientName(""); setProductionOrder(""); setItems([{ product_id: "", quantity: "" }]);
+      toast.success("Solicitação salva com sucesso!");
+      setIsNewSheetOpen(false);
+      setClientName(""); 
+      setProductionOrder(""); 
+      setSelectedProducts({});
+      setProductSearchTerm("");
     },
     onError: () => toast.error("Erro ao salvar"),
   });
@@ -1011,6 +982,28 @@ export default function Separations() {
     createReturnMutation.mutate({ id: selectedSeparation.id, items: itemsToReturn });
   };
 
+  // Funções do Novo Carrinho
+  const addItemToCart = (productId: string) => {
+    setSelectedProducts(prev => ({
+        ...prev,
+        [productId]: (prev[productId] || 0) + 1
+    }));
+  };
+
+  const removeItemFromCart = (productId: string) => {
+    setSelectedProducts(prev => {
+        const current = prev[productId] || 0;
+        if (current <= 1) {
+            const { [productId]: _, ...rest } = prev;
+            return rest;
+        }
+        return { ...prev, [productId]: current - 1 };
+    });
+  };
+
+  const totalItemsInCart = Object.values(selectedProducts).reduce((a, b) => a + b, 0);
+  const totalUniqueItems = Object.keys(selectedProducts).length;
+
   const hasEdits = Object.values(inputIncrements).some(v => v !== 0);
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -1020,7 +1013,7 @@ export default function Separations() {
       <div className="min-h-screen bg-background text-foreground font-sans">
         
         {!selectedSeparation && (
-            <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+            <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
@@ -1040,7 +1033,7 @@ export default function Separations() {
                             </div>
                         )}
                         {!isWarehouseMode && (
-                            <Button onClick={() => setIsNewModalOpen(true)} className="rounded-full font-bold shadow-sm">
+                            <Button onClick={() => setIsNewSheetOpen(true)} className="rounded-full font-bold shadow-sm bg-primary hover:bg-primary/90">
                                 <Plus className="mr-2 h-4 w-4" /> Novo Pedido
                             </Button>
                         )}
@@ -1075,8 +1068,8 @@ export default function Separations() {
                       className="space-y-6"
                   >
                       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-card p-4 rounded-xl border shadow-sm">
-                         <div className="relative w-full sm:max-w-xs">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                         <div className="relative w-full sm:max-w-xs group">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                             <Input 
                                 placeholder="Filtrar pedidos..." 
                                 className="pl-9 bg-muted/30 border-transparent focus:bg-background focus:border-primary transition-all"
@@ -1111,73 +1104,122 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* Modal Novo Pedido */}
-        <Dialog open={isNewModalOpen} onOpenChange={setIsNewModalOpen}>
-           <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                 <DialogTitle>Novo Pedido</DialogTitle>
-                 <DialogDescription>Preencha os dados abaixo.</DialogDescription>
-              </DialogHeader>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-1">
-                    <Label>Número OP</Label>
-                    <Input value={productionOrder} onChange={e => setProductionOrder(e.target.value)} placeholder="00000" />
-                 </div>
-                 <div className="space-y-1">
-                    <Label>Cliente</Label>
-                    <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Nome do Cliente" />
-                 </div>
-              </div>
-              <ScrollArea className="h-[250px] border rounded-md p-2 bg-muted/10">
-                 <div className="space-y-2">
-                    {items.map((item, idx) => (
-                       <div key={idx} className="flex gap-2 items-end bg-background p-2 rounded border">
-                          <div className="flex-1 space-y-1">
-                             <Label className="text-[10px]">Produto</Label>
-                             <ProductSelector 
-                                products={products} 
-                                value={item.product_id}
-                                onChange={(val) => {
-                                   const n = [...items]; n[idx].product_id = val; setItems(n);
-                                }}
-                             />
-                          </div>
-                          <div className="w-20 space-y-1">
-                             <Label className="text-[10px]">Qtd</Label>
-                             <Input type="number" value={item.quantity} onChange={e => {
-                                const n = [...items]; n[idx].quantity = e.target.value; setItems(n);
-                             }} />
-                          </div>
-                          <Button variant="ghost" size="icon" className="text-red-500" onClick={() => {
-                             if(items.length > 1) setItems(items.filter((_, i) => i !== idx));
-                          }}>
-                             <Trash2 className="h-4 w-4" />
-                          </Button>
-                       </div>
-                    ))}
-                    <Button variant="outline" size="sm" onClick={() => setItems([...items, { product_id: "", quantity: "" }])} className="w-full">
-                       <Plus className="mr-2 h-4 w-4" /> Adicionar Item
-                    </Button>
-                 </div>
-              </ScrollArea>
-              <DialogFooter>
-                 <Button variant="outline" onClick={() => setIsNewModalOpen(false)}>Cancelar</Button>
-                 <Button onClick={() => {
-                    if(!productionOrder || !clientName) return toast.error("Preencha OP e Cliente");
-                    const validItems = items.filter(i => i.product_id && Number(i.quantity) > 0);
-                    if(validItems.length === 0) return toast.error("Adicione itens válidos");
-                    createSeparationMutation.mutate({
-                       production_order: productionOrder,
-                       client_name: clientName,
-                       destination: profile?.sector || "Setor",
-                       items: validItems.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) }))
-                    });
-                 }} disabled={createSeparationMutation.isPending}>
-                    {createSeparationMutation.isPending && <Loader2 className="animate-spin mr-2" />} Criar
-                 </Button>
-              </DialogFooter>
-           </DialogContent>
-        </Dialog>
+        {/* --- NOVO SHEET DE CRIAÇÃO (ESTILO MERCADO LIVRE / CARRINHO) --- */}
+        <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
+            <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
+                <div className="px-6 py-4 border-b bg-muted/5">
+                    <SheetHeader>
+                        <SheetTitle>Nova Solicitação</SheetTitle>
+                        <SheetDescription>Preencha os dados e selecione os itens do pedido.</SheetDescription>
+                    </SheetHeader>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                    {/* Passo 1: Informações Básicas */}
+                    <section className="space-y-4">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Dados do Pedido</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Número da OP</Label>
+                                <Input 
+                                    value={productionOrder} 
+                                    onChange={e => setProductionOrder(e.target.value)} 
+                                    placeholder="Ex: 12345" 
+                                    className="bg-muted/20 focus:bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Nome do Cliente</Label>
+                                <Input 
+                                    value={clientName} 
+                                    onChange={e => setClientName(e.target.value)} 
+                                    placeholder="Ex: Cliente A" 
+                                    className="bg-muted/20 focus:bg-background"
+                                />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Passo 2: Seleção de Produtos (Estilo Catálogo) */}
+                    <section className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Selecionar Itens</h3>
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                {totalUniqueItems} produtos selecionados
+                            </span>
+                        </div>
+                        
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Buscar produto por nome ou SKU..." 
+                                value={productSearchTerm}
+                                onChange={e => setProductSearchTerm(e.target.value)}
+                                className="pl-9 bg-muted/20 focus:bg-background"
+                            />
+                        </div>
+
+                        <div className="space-y-2 min-h-[200px]">
+                            {filteredCatalogProducts.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                                    Nenhum produto encontrado.
+                                </div>
+                            ) : (
+                                filteredCatalogProducts.map((prod: any) => (
+                                    <CatalogItem 
+                                        key={prod.id}
+                                        product={prod}
+                                        quantityInCart={selectedProducts[prod.id] || 0}
+                                        onAdd={() => addItemToCart(prod.id)}
+                                        onRemove={() => removeItemFromCart(prod.id)}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </section>
+                </div>
+
+                {/* Rodapé Fixo do Carrinho */}
+                <div className="border-t bg-background p-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="text-sm text-muted-foreground">
+                            Total de Itens: <strong className="text-foreground">{totalItemsInCart}</strong>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                            Destino: <strong className="text-foreground">{profile?.sector || "Setor"}</strong>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                        <Button variant="outline" className="flex-1" onClick={() => setIsNewSheetOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button 
+                            className="flex-[2] font-bold shadow-lg shadow-primary/20"
+                            disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
+                            onClick={() => {
+                                const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
+                                    product_id: pid,
+                                    quantity: qty
+                                }));
+                                createSeparationMutation.mutate({
+                                    production_order: productionOrder,
+                                    client_name: clientName,
+                                    destination: profile?.sector || "Setor",
+                                    items: itemsPayload
+                                });
+                            }}
+                        >
+                            {createSeparationMutation.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <ShoppingCart className="mr-2 h-4 w-4" />
+                            )}
+                            Confirmar Pedido
+                        </Button>
+                    </div>
+                </div>
+            </SheetContent>
+        </Sheet>
 
         {/* Modal Confirmação de Exclusão */}
         <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
