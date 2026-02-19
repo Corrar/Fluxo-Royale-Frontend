@@ -183,9 +183,9 @@ const EmptyState = ({
 const CustomProgressBar = ({ value, max, className, indicatorColor }: { value: number, max: number, className?: string, indicatorColor?: string }) => {
     const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
     return (
-        <div className={cn("h-2 w-full bg-secondary/60 rounded-full overflow-hidden", className)}>
+        <div className={cn("h-1.5 w-full bg-secondary rounded-full overflow-hidden", className)}>
             <div 
-                className={cn("h-full transition-all duration-700 ease-out rounded-full", indicatorColor || "bg-primary")}
+                className={cn("h-full transition-all duration-500 ease-out", indicatorColor || "bg-primary")}
                 style={{ width: `${pct}%` }}
             />
         </div>
@@ -313,7 +313,7 @@ const CatalogItem = ({
   );
 };
 
-// ===================== SEPARATION CARD =====================
+// ===================== SEPARATION CARD (LAYOUT ANTERIOR MANTIDO) =====================
 const SeparationCard = ({
   separation: sep,
   onClick,
@@ -360,88 +360,105 @@ const SeparationCard = ({
 
   const isArchived = sep.status === 'finalizada' || (sep.status === 'entregue' && isExpired);
 
-  const statusStyles: Record<string, { bg: string, text: string, bar: string, border: string }> = {
-      pendente: { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-700 dark:text-purple-400", bar: "bg-purple-500", border: "hover:border-purple-200 dark:hover:border-purple-800" },
-      em_separacao: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-400", bar: "bg-blue-500", border: "hover:border-blue-200 dark:hover:border-blue-800" }, 
-      entregue: { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", bar: "bg-emerald-500", border: "hover:border-emerald-200 dark:hover:border-emerald-800" },
-      finalizado: { bg: "bg-zinc-100 dark:bg-zinc-800/50", text: "text-zinc-600 dark:text-zinc-400", bar: "bg-zinc-400", border: "hover:border-zinc-300 dark:hover:border-zinc-700" } 
+  const statusColors = {
+      pendente: "border-amber-500/50 hover:border-amber-500",
+      em_separacao: "border-amber-500/50 hover:border-amber-500", 
+      entregue: "border-emerald-500/50 hover:border-emerald-500",
+      finalizado: "border-zinc-500/50 hover:border-zinc-500" 
   };
 
-  const statusKey = isArchived ? 'finalizado' : sep.status;
-  const currentStyle = statusStyles[statusKey] || statusStyles.pendente;
+  const bgStatus: any = {
+      pendente: "bg-amber-500",
+      em_separacao: "bg-amber-500",
+      entregue: "bg-emerald-500",
+      finalizado: "bg-zinc-500"
+  };
+
   const displayStatus = isArchived ? 'Finalizado' : (sep.status === 'em_separacao' ? 'Em Separação' : sep.status);
+  const statusKey = isArchived ? 'finalizado' : sep.status;
 
   return (
     <m.div 
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        whileHover={{ y: -4, scale: 1.01, transition: { duration: 0.2 } }}
+        whileHover={{ y: -4, transition: { duration: 0.2 } }}
         onClick={onClick}
         className={cn(
-            "group relative flex flex-col justify-between rounded-3xl bg-card p-6 cursor-pointer transition-all duration-300 border border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)]",
-            deadlineInfo?.expired && !isArchived ? "border-red-200 dark:border-red-900/50 shadow-red-500/5" : currentStyle.border
+            "group relative flex flex-col justify-between rounded-2xl border-2 bg-card p-5 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-xl",
+            deadlineInfo?.expired && !isArchived ? "border-red-300 dark:border-red-900/50" : (statusColors[statusKey] || "border-border")
         )}
     >
-        <div className="flex justify-between items-start mb-4">
-            <div className={cn("px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider", currentStyle.bg, currentStyle.text)}>
-                {displayStatus}
-            </div>
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest bg-muted/50 px-2 py-1 rounded-md">
+        <div className="flex justify-between items-start mb-3">
+            <Badge variant="outline" className="font-mono bg-background shadow-sm border-muted-foreground/30">
+                OP: {sep.production_order}
+            </Badge>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
                 {format(new Date(sep.created_at), "dd MMM")}
             </span>
         </div>
 
-        <div className="flex-1 mb-6">
-            <h3 className="text-xl font-black leading-tight text-foreground mb-1 line-clamp-2">
+        <div className="flex-1 mb-2">
+            <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-foreground line-clamp-2">
                 {sep.client_name}
             </h3>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                <span className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">OP: {sep.production_order}</span>
-                <span className="w-1 h-1 rounded-full bg-border" />
-                <span className="truncate">{sep.destination}</span>
-            </div>
             
             {deadlineInfo && !isArchived && (
                 <div className={cn(
-                    "mt-3 inline-flex items-center gap-1.5 rounded-lg py-1.5 px-3 text-[11px] font-bold",
-                    deadlineInfo.expired ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                    deadlineInfo.urgent ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                    "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                    "mt-2 inline-flex items-center gap-1.5 rounded-md py-1 px-2 text-[11px] font-bold border animate-in fade-in slide-in-from-left-2",
+                    deadlineInfo.expired ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" :
+                    deadlineInfo.urgent ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400" :
+                    "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
                 )}>
-                    {deadlineInfo.expired ? <Ban className="h-3.5 w-3.5"/> : <Clock className="h-3.5 w-3.5"/>}
-                    {deadlineInfo.expired ? "Prazo Expirado" : `Devolver em ${deadlineInfo.days} dias`}
+                    {deadlineInfo.expired ? <Ban className="h-3 w-3"/> : <Clock className="h-3 w-3"/>}
+                    {deadlineInfo.expired ? "Prazo Expirado" : `${deadlineInfo.days} dias p/ devolver`}
                 </div>
             )}
+
+            <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
+                <User className="h-3 w-3" />
+                <span className="truncate">{sep.destination}</span>
+            </div>
         </div>
 
-        <div className="space-y-3 pt-4 border-t border-border/40">
+        <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
             <div className="flex justify-between items-end gap-3">
                 <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Valor Separado</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Financeiro</span>
                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span className="text-base font-black text-foreground truncate" title={formatCurrency(totalSeparatedValue)}>
+                        <span 
+                            className="text-sm font-black text-emerald-600 truncate" 
+                            title={formatCurrency(totalSeparatedValue)}
+                        >
                             {formatCompactCurrency(totalSeparatedValue)}
                         </span>
-                        <span className="text-xs font-medium text-muted-foreground/70 truncate" title={formatCurrency(totalRequestedValue)}>
+                        <span 
+                            className="text-xs font-semibold text-muted-foreground truncate"
+                            title={formatCurrency(totalRequestedValue)}
+                        >
                             / {formatCompactCurrency(totalRequestedValue)}
                         </span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0">
-                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Itens</span>
-                    <span className="text-sm font-bold text-foreground leading-none">
-                        {done}/{total} <span className="text-muted-foreground/70 text-xs font-medium">({progress.toFixed(0)}%)</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Progresso</span>
+                    <span className="text-xs font-bold text-foreground leading-none">
+                        {done}/{total} <span className="text-muted-foreground font-semibold">({progress.toFixed(0)}%)</span>
                     </span>
                 </div>
             </div>
-            <CustomProgressBar value={progress} max={100} indicatorColor={currentStyle.bar} className="h-1.5" />
-        </div>
-        
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-2 group-hover:translate-x-0">
-            <div className="bg-background shadow-md rounded-full p-2 text-primary">
-               <ChevronRight className="h-5 w-5" />
+            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div 
+                    className={cn("h-full transition-all duration-500", bgStatus[statusKey] || "bg-primary")} 
+                    style={{ width: `${progress}%` }} 
+                />
             </div>
+        </div>
+
+        <div className="absolute -top-3 -right-2">
+             <Badge className={cn("shadow-md uppercase text-[10px] px-2 h-6", bgStatus[statusKey])}>
+                {displayStatus}
+             </Badge>
         </div>
     </m.div>
   );
