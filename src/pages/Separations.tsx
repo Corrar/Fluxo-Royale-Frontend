@@ -98,16 +98,6 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Formatação compacta (Ex: R$ 1,5 mi / R$ 150 mil)
-const formatCompactCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    notation: 'compact',
-    maximumFractionDigits: 1
-  }).format(value);
-};
-
 // ===================== TYPES =====================
 interface IStock {
   quantity_on_hand: number;
@@ -210,10 +200,9 @@ const CatalogItem = ({
     let val = parseInt(e.target.value);
     if (isNaN(val)) val = 0;
     
-    if (val > stock) {
-        toast.warning(`Estoque máximo disponível: ${stock}`);
-        val = stock;
-    }
+    // TRAVA REMOVIDA: Agora o usuário pode pedir mais do que tem em estoque.
+    // Antes havia um bloqueio aqui que impedia a alteração e mostrava um aviso.
+
     onUpdateQuantity(val);
   };
 
@@ -269,7 +258,7 @@ const CatalogItem = ({
                 value={quantityInCart}
                 onChange={handleManualInput}
                 min={0}
-                max={stock}
+                // max={stock} -> TRAVA REMOVIDA: Campo não limita mais visualmente o número
             />
 
             <Button 
@@ -277,7 +266,7 @@ const CatalogItem = ({
               size="icon"
               onClick={onAdd}
               className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
-              disabled={!hasStock || quantityInCart >= stock}
+              // disabled={!hasStock || quantityInCart >= stock} -> TRAVA REMOVIDA
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -287,10 +276,10 @@ const CatalogItem = ({
             size="sm" 
             className={cn(
                 "rounded-full transition-all duration-300 font-medium px-5 h-9",
-                hasStock ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105" : "opacity-50 cursor-not-allowed"
+                "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105" // Classe modificada para não ficar cinza/inativo
             )}
             onClick={onAdd}
-            disabled={!hasStock}
+            // disabled={!hasStock} -> TRAVA REMOVIDA
           >
             Adicionar
           </Button>
@@ -408,31 +397,18 @@ const SeparationCard = ({
             </div>
         </div>
 
-        {/* SEÇÃO CORRIGIDA: Valores com numeração compacta (ex: 150 mil) e quebra de linha inteligente */}
         <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
-            <div className="flex justify-between items-end gap-3">
-                <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Financeiro</span>
-                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span 
-                            className="text-sm font-black text-emerald-600 truncate" 
-                            title={formatCurrency(totalSeparatedValue)}
-                        >
-                            {formatCompactCurrency(totalSeparatedValue)}
-                        </span>
-                        <span 
-                            className="text-xs font-semibold text-muted-foreground truncate"
-                            title={formatCurrency(totalRequestedValue)}
-                        >
-                            / {formatCompactCurrency(totalRequestedValue)}
-                        </span>
+            <div className="flex justify-between items-end">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Financeiro</span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-black text-emerald-600 leading-none">{formatCurrency(totalSeparatedValue)}</span>
+                        <span className="text-xs font-semibold text-muted-foreground leading-none">/ {formatCurrency(totalRequestedValue)}</span>
                     </div>
                 </div>
-                <div className="flex flex-col items-end shrink-0">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Progresso</span>
-                    <span className="text-xs font-bold text-foreground leading-none">
-                        {done}/{total} <span className="text-muted-foreground font-semibold">({progress.toFixed(0)}%)</span>
-                    </span>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Progresso</span>
+                    <span className="text-xs font-bold text-foreground leading-none">{done}/{total} itens ({progress.toFixed(0)}%)</span>
                 </div>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
@@ -932,7 +908,7 @@ const DetailedView = ({
              </Tabs>
           </div>
 
-          {/* RODAPÉ FLUTUANTE ESTILO ILHA - TAMANHO CORRIGIDO */}
+          {/* RODAPÉ FLUTUANTE ESTILO ILHA */}
           {isWarehouseMode && isPending && (
              <div className="fixed bottom-24 left-3 right-3 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-8 lg:w-full lg:max-w-2xl bg-card/95 backdrop-blur-md border rounded-3xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-50">
                 <div className="flex flex-col gap-2">
@@ -1335,9 +1311,10 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* --- SHEET DE CRIAÇÃO --- */}
+        {/* --- SHEET DE CRIAÇÃO (COM TAMANHO ALTERADO) --- */}
         <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
-            <SheetContent className="w-full sm:max-w-xl flex flex-col h-full p-0 border-l shadow-2xl" side="right">
+            {/* O tamanho foi ampliado usando max-w-[95vw] e lg:max-w-[1200px] */}
+            <SheetContent className="w-full sm:max-w-[95vw] lg:max-w-[1200px] flex flex-col h-full p-0 border-l shadow-2xl" side="right">
                 <div className="px-6 py-5 border-b bg-background/95 backdrop-blur z-10 flex-none">
                     <SheetHeader>
                         <SheetTitle className="text-xl font-bold flex items-center gap-2">
