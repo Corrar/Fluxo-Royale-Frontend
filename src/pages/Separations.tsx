@@ -98,6 +98,16 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+// Formatação compacta (Ex: R$ 1,5 mi / R$ 150 mil)
+const formatCompactCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value);
+};
+
 // ===================== TYPES =====================
 interface IStock {
   quantity_on_hand: number;
@@ -194,15 +204,12 @@ const CatalogItem = ({
   const hasStock = stock > 0;
   const minStock = product.min_stock || 10;
   
+  const isExceedingStock = quantityInCart > stock;
   const stockColor = stock === 0 ? "bg-muted" : stock < minStock ? "bg-amber-500" : "bg-emerald-500";
 
   const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = parseInt(e.target.value);
     if (isNaN(val)) val = 0;
-    
-    // TRAVA REMOVIDA: Agora o usuário pode pedir mais do que tem em estoque.
-    // Antes havia um bloqueio aqui que impedia a alteração e mostrava um aviso.
-
     onUpdateQuantity(val);
   };
 
@@ -212,12 +219,14 @@ const CatalogItem = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-card transition-all duration-200 hover:shadow-md",
-        quantityInCart > 0 ? "border-primary ring-1 ring-primary/10 shadow-sm bg-primary/[0.02]" : "hover:border-primary/30"
+        "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:shadow-md",
+        quantityInCart > 0 && !isExceedingStock && "border-primary ring-1 ring-primary/10 shadow-sm bg-primary/[0.02]",
+        isExceedingStock && "border-amber-500 ring-2 ring-amber-500/30 bg-amber-50 shadow-sm",
+        quantityInCart === 0 && "bg-card hover:border-primary/30"
       )}
     >
       <div className={cn("absolute left-0 top-4 bottom-4 w-1 rounded-r-full transition-colors", 
-          hasStock ? "bg-transparent group-hover:bg-primary/50" : "bg-destructive/50"
+          isExceedingStock ? "bg-amber-500" : hasStock ? "bg-transparent group-hover:bg-primary/50" : "bg-destructive/50"
       )} />
 
       <div className="flex-1 min-w-0 pr-4 pl-3 w-full">
@@ -225,7 +234,12 @@ const CatalogItem = ({
           <Badge variant="secondary" className="font-mono text-[10px] tracking-wider text-muted-foreground bg-muted/50 border-0">
             {product.sku}
           </Badge>
-          {!hasStock && <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Esgotado</Badge>}
+          {!hasStock && quantityInCart === 0 && <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Esgotado</Badge>}
+          {isExceedingStock && (
+             <Badge className="bg-amber-500 hover:bg-amber-600 text-[10px] h-5 px-1.5 text-white flex items-center gap-1 shadow-sm">
+                 <AlertTriangle className="h-3 w-3" /> Excede Estoque
+             </Badge>
+          )}
         </div>
         
         <h4 className="font-semibold text-sm leading-snug text-foreground mb-2">{product.name}</h4>
@@ -242,7 +256,10 @@ const CatalogItem = ({
 
       <div className="flex items-center justify-end w-full sm:w-auto mt-3 sm:mt-0 gap-3 pl-3">
         {quantityInCart > 0 ? (
-          <div className="flex items-center bg-background border rounded-lg shadow-sm p-0.5">
+          <div className={cn(
+              "flex items-center bg-background border rounded-lg shadow-sm p-0.5",
+              isExceedingStock && "border-amber-300 ring-1 ring-amber-300"
+          )}>
             <Button
               variant="ghost" 
               size="icon"
@@ -254,11 +271,13 @@ const CatalogItem = ({
             
             <Input 
                 type="number"
-                className="h-8 w-14 border-0 text-center font-bold p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none"
+                className={cn(
+                    "h-8 w-14 border-0 text-center font-bold p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none",
+                    isExceedingStock && "text-amber-600"
+                )}
                 value={quantityInCart}
                 onChange={handleManualInput}
                 min={0}
-                // max={stock} -> TRAVA REMOVIDA: Campo não limita mais visualmente o número
             />
 
             <Button 
@@ -266,7 +285,6 @@ const CatalogItem = ({
               size="icon"
               onClick={onAdd}
               className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
-              // disabled={!hasStock || quantityInCart >= stock} -> TRAVA REMOVIDA
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -276,10 +294,9 @@ const CatalogItem = ({
             size="sm" 
             className={cn(
                 "rounded-full transition-all duration-300 font-medium px-5 h-9",
-                "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105" // Classe modificada para não ficar cinza/inativo
+                "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105"
             )}
             onClick={onAdd}
-            // disabled={!hasStock} -> TRAVA REMOVIDA
           >
             Adicionar
           </Button>
@@ -398,17 +415,29 @@ const SeparationCard = ({
         </div>
 
         <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
-            <div className="flex justify-between items-end">
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Financeiro</span>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-sm font-black text-emerald-600 leading-none">{formatCurrency(totalSeparatedValue)}</span>
-                        <span className="text-xs font-semibold text-muted-foreground leading-none">/ {formatCurrency(totalRequestedValue)}</span>
+            <div className="flex justify-between items-end gap-3">
+                <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Financeiro</span>
+                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                        <span 
+                            className="text-sm font-black text-emerald-600 truncate" 
+                            title={formatCurrency(totalSeparatedValue)}
+                        >
+                            {formatCompactCurrency(totalSeparatedValue)}
+                        </span>
+                        <span 
+                            className="text-xs font-semibold text-muted-foreground truncate"
+                            title={formatCurrency(totalRequestedValue)}
+                        >
+                            / {formatCompactCurrency(totalRequestedValue)}
+                        </span>
                     </div>
                 </div>
-                <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Progresso</span>
-                    <span className="text-xs font-bold text-foreground leading-none">{done}/{total} itens ({progress.toFixed(0)}%)</span>
+                <div className="flex flex-col items-end shrink-0">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Progresso</span>
+                    <span className="text-xs font-bold text-foreground leading-none">
+                        {done}/{total} <span className="text-muted-foreground font-semibold">({progress.toFixed(0)}%)</span>
+                    </span>
                 </div>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
@@ -1211,6 +1240,16 @@ export default function Separations() {
   const totalItemsInCart = Object.values(selectedProducts).reduce((a, b) => a + b, 0);
   const totalUniqueItems = Object.keys(selectedProducts).length;
 
+  // Lógica para verificar se há produtos no carrinho excedendo o estoque
+  const hasExceedingItemsInCart = useMemo(() => {
+    return Object.entries(selectedProducts).some(([pid, qty]) => {
+        const prod = (products as any[]).find(p => p.id === pid);
+        if (!prod) return false;
+        const stock = prod.stock?.quantity_on_hand ?? prod.stock_available ?? 0;
+        return qty > stock;
+    });
+  }, [selectedProducts, products]);
+
   const hasEdits = Object.values(inputIncrements).some(v => v !== 0);
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>;
@@ -1311,9 +1350,8 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* --- SHEET DE CRIAÇÃO (COM TAMANHO ALTERADO) --- */}
+        {/* --- SHEET DE CRIAÇÃO --- */}
         <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
-            {/* O tamanho foi ampliado usando max-w-[95vw] e lg:max-w-[1200px] */}
             <SheetContent className="w-full sm:max-w-[95vw] lg:max-w-[1200px] flex flex-col h-full p-0 border-l shadow-2xl" side="right">
                 <div className="px-6 py-5 border-b bg-background/95 backdrop-blur z-10 flex-none">
                     <SheetHeader>
@@ -1411,6 +1449,17 @@ export default function Separations() {
 
                 <div className="border-t bg-background p-6 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-20 flex-none mt-auto">
                     <div className="space-y-4">
+                        
+                        {/* NOVO: Aviso de itens excedendo estoque no painel principal */}
+                        {hasExceedingItemsInCart && (
+                            <div className="flex items-center gap-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-700 p-3 rounded-lg animate-in fade-in zoom-in-95">
+                                <AlertTriangle className="h-5 w-5 shrink-0" />
+                                <p className="text-sm font-medium">
+                                    Atenção: Alguns itens no seu carrinho excedem o estoque disponível.
+                                </p>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">Itens Totais</span>
