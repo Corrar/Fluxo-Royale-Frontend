@@ -220,8 +220,8 @@ const CatalogItem = ({
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:shadow-md",
-        quantityInCart > 0 && !isExceedingStock && "border-primary ring-1 ring-primary/10 shadow-sm bg-primary/[0.02]",
-        isExceedingStock && "border-amber-500 ring-2 ring-amber-500/30 bg-amber-50 shadow-sm",
+        quantityInCart > 0 && !isExceedingStock && "border-primary ring-1 ring-primary/20 shadow-sm bg-primary/5",
+        isExceedingStock && "border-amber-500 ring-2 ring-amber-500/40 bg-amber-500/10 shadow-sm",
         quantityInCart === 0 && "bg-card hover:border-primary/30"
       )}
     >
@@ -236,7 +236,7 @@ const CatalogItem = ({
           </Badge>
           {!hasStock && quantityInCart === 0 && <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Esgotado</Badge>}
           {isExceedingStock && (
-             <Badge className="bg-amber-500 hover:bg-amber-600 text-[10px] h-5 px-1.5 text-white flex items-center gap-1 shadow-sm">
+             <Badge className="bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-[10px] h-5 px-1.5 text-white flex items-center gap-1 shadow-sm">
                  <AlertTriangle className="h-3 w-3" /> Excede Estoque
              </Badge>
           )}
@@ -258,7 +258,7 @@ const CatalogItem = ({
         {quantityInCart > 0 ? (
           <div className={cn(
               "flex items-center bg-background border rounded-lg shadow-sm p-0.5",
-              isExceedingStock && "border-amber-300 ring-1 ring-amber-300"
+              isExceedingStock && "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400 dark:ring-amber-600"
           )}>
             <Button
               variant="ghost" 
@@ -273,7 +273,7 @@ const CatalogItem = ({
                 type="number"
                 className={cn(
                     "h-8 w-14 border-0 text-center font-bold p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none",
-                    isExceedingStock && "text-amber-600"
+                    isExceedingStock && "text-amber-600 dark:text-amber-500"
                 )}
                 value={quantityInCart}
                 onChange={handleManualInput}
@@ -399,9 +399,9 @@ const SeparationCard = ({
             {deadlineInfo && !isArchived && (
                 <div className={cn(
                     "mt-2 inline-flex items-center gap-1.5 rounded-md py-1 px-2 text-[11px] font-bold border animate-in fade-in slide-in-from-left-2",
-                    deadlineInfo.expired ? "bg-red-100 border-red-200 text-red-700" :
-                    deadlineInfo.urgent ? "bg-amber-100 border-amber-200 text-amber-700" :
-                    "bg-blue-50 border-blue-200 text-blue-700"
+                    deadlineInfo.expired ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" :
+                    deadlineInfo.urgent ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400" :
+                    "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
                 )}>
                     {deadlineInfo.expired ? <Ban className="h-3 w-3"/> : <Clock className="h-3 w-3"/>}
                     {deadlineInfo.expired ? "Prazo Expirado" : `${deadlineInfo.days} dias p/ devolver`}
@@ -520,7 +520,7 @@ const SeparationItemDetailedRow = ({
   return (
     <div className={cn(
       "relative flex flex-col sm:flex-row gap-4 p-4 rounded-xl border bg-card shadow-sm transition-all duration-300",
-      isComplete ? "border-emerald-500/40 bg-emerald-50/10 shadow-emerald-500/10" : "border-border hover:border-primary/40",
+      isComplete ? "border-emerald-500/40 bg-emerald-500/5 shadow-emerald-500/10" : "border-border hover:border-primary/40",
       hasChange && "ring-2 ring-primary border-primary bg-primary/5"
     )}>
       
@@ -529,7 +529,7 @@ const SeparationItemDetailedRow = ({
         <div className="flex items-center gap-2">
            <Badge variant="outline" className="text-[10px] font-mono h-5 px-1.5 bg-background">{item.products?.sku}</Badge>
            {isComplete && (
-               <span className="text-emerald-600 text-xs font-bold flex items-center gap-1 bg-emerald-100 px-2 py-0.5 rounded-full animate-in zoom-in">
+               <span className="text-emerald-600 dark:text-emerald-500 text-xs font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full animate-in zoom-in">
                    <CheckCircle2 className="h-3 w-3"/> OK
                </span>
            )}
@@ -548,11 +548,11 @@ const SeparationItemDetailedRow = ({
         <div className="space-y-1 pt-1">
             <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
                 <span>Progresso: {projectedTotal} / {requested}</span>
-                <span className={cn("font-bold", isComplete ? "text-emerald-600" : "text-primary")}>
+                <span className={cn("font-bold", isComplete ? "text-emerald-600 dark:text-emerald-500" : "text-primary")}>
                     {formatCurrency(totalValueSeparated)} / {formatCurrency(totalValueRequested)}
                 </span>
             </div>
-            <CustomProgressBar value={projectedTotal} max={requested} indicatorColor={isComplete ? "bg-emerald-500" : "bg-primary"} className={isComplete ? "bg-emerald-100" : ""} />
+            <CustomProgressBar value={projectedTotal} max={requested} indicatorColor={isComplete ? "bg-emerald-500" : "bg-primary"} className={isComplete ? "bg-emerald-500/20" : ""} />
         </div>
       </div>
 
@@ -579,7 +579,7 @@ const SeparationItemDetailedRow = ({
                     <Button 
                         variant="outline" 
                         size="icon" 
-                        className="h-10 w-10 text-amber-500 border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                        className="h-10 w-10 text-amber-500 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-600"
                         onClick={quickFill}
                         title="Completar Automaticamente"
                     >
@@ -592,8 +592,8 @@ const SeparationItemDetailedRow = ({
                         type="number"
                         className={cn(
                             "h-10 w-24 text-center font-bold text-lg transition-all",
-                            inputValue < 0 ? "border-red-500 text-red-600 bg-red-50" : 
-                            inputValue > 0 ? "border-emerald-500 text-emerald-600 bg-emerald-50" : 
+                            inputValue < 0 ? "border-red-500 text-red-600 dark:text-red-400 bg-red-500/10" : 
+                            inputValue > 0 ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" : 
                             "bg-background"
                         )}
                         placeholder="0"
@@ -829,7 +829,7 @@ const DetailedView = ({
                       {isDelivered && !isArchived && (
                          <div className={cn(
                              "hidden md:flex ml-auto items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold",
-                             returnStatus.expired ? "bg-red-50 border-red-200 text-red-600" : "bg-blue-50 border-blue-200 text-blue-600"
+                             returnStatus.expired ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" : "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
                          )}>
                              {returnStatus.expired ? <Ban className="h-4 w-4"/> : <Clock className="h-4 w-4"/>}
                              {returnStatus.label}
@@ -1350,157 +1350,247 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* --- SHEET DE CRIAÇÃO --- */}
+        {/* --- SHEET DE CRIAÇÃO (TELA CHEIA) --- */}
         <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
-            <SheetContent className="w-full sm:max-w-[95vw] lg:max-w-[1200px] flex flex-col h-full p-0 border-l shadow-2xl" side="right">
+            {/* Adicionado w-screen e max-w-none para forçar tela cheia em qualquer monitor desktop */}
+            <SheetContent className="w-full sm:w-screen sm:max-w-none flex flex-col h-full p-0 border-none shadow-2xl" side="right">
+                
+                {/* Header fixo da Sheet */}
                 <div className="px-6 py-5 border-b bg-background/95 backdrop-blur z-10 flex-none">
                     <SheetHeader>
                         <SheetTitle className="text-xl font-bold flex items-center gap-2">
                             <ShoppingCart className="h-5 w-5 text-primary" />
                             Nova Solicitação
                         </SheetTitle>
-                        <SheetDescription>Preencha os dados e monte o pedido.</SheetDescription>
+                        <SheetDescription>Preencha os dados e selecione os itens do pedido.</SheetDescription>
                     </SheetHeader>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 bg-muted/5">
-                    <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">1</div>
-                            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Dados do Pedido</h3>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-xs font-medium text-muted-foreground">Número da OP</Label>
-                                <Input 
-                                    value={productionOrder} 
-                                    onChange={e => setProductionOrder(e.target.value)} 
-                                    placeholder="Ex: 12345" 
-                                    className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all"
-                                />
+                {/* Estrutura dividida para Desktop (Esquerda: Catálogo | Direita: Carrinho Fixo) */}
+                <div className="flex-1 flex flex-col lg:flex-row min-h-0 bg-muted/5">
+                    
+                    {/* ESQUERDA: Formulário e Catálogo */}
+                    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 lg:border-r border-border bg-background/50">
+                        <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">1</div>
+                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Dados do Pedido</h3>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-medium text-muted-foreground">Cliente</Label>
-                                <Input 
-                                    value={clientName} 
-                                    onChange={e => setClientName(e.target.value)} 
-                                    placeholder="Ex: Cliente A" 
-                                    className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all"
-                                />
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-card p-5 rounded-2xl border shadow-sm">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Número da OP</Label>
+                                    <Input 
+                                        value={productionOrder} 
+                                        onChange={e => setProductionOrder(e.target.value)} 
+                                        placeholder="Ex: 12345" 
+                                        className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all text-base"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Cliente / Destino</Label>
+                                    <Input 
+                                        value={clientName} 
+                                        onChange={e => setClientName(e.target.value)} 
+                                        placeholder="Ex: Cliente A" 
+                                        className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all text-base"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    </section>
+                        </section>
 
-                    <Separator className="my-6" />
+                        <Separator className="my-6 max-w-4xl" />
 
-                    <section className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-                        <div className="flex items-center justify-between sticky top-0 bg-muted/5 pt-2 pb-2 z-10">
-                            <div className="flex items-center gap-2">
+                        <section className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 pb-10">
+                            <div className="flex items-center gap-2 mb-4">
                                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</div>
-                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Catálogo</h3>
+                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Catálogo de Produtos</h3>
                             </div>
-                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                                {totalUniqueItems} selecionado(s)
+                            
+                            <div className="flex flex-col sm:flex-row gap-3 sticky top-0 z-10 bg-background/80 pb-4 pt-2 backdrop-blur-md">
+                                <div className="relative shadow-sm max-w-md w-full">
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                    <Input 
+                                        placeholder="Buscar por nome ou SKU..." 
+                                        value={productSearchTerm}
+                                        onChange={e => setProductSearchTerm(e.target.value)}
+                                        className="pl-10 h-11 bg-background border-muted-foreground/20 focus:ring-2 focus:ring-primary/20"
+                                    />
+                                </div>
+                                <div className="flex items-center space-x-2 bg-card border rounded-md px-4 h-11 shrink-0 shadow-sm">
+                                    <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
+                                    <Label htmlFor="stock-filter" className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                                        <Filter className="h-4 w-4" /> Com estoque
+                                    </Label>
+                                </div>
+                            </div>
+
+                            {/* O Catálogo agora usa um GRID no desktop para ocupar a tela toda */}
+                            <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 min-h-[300px]">
+                                {filteredCatalogProducts.length === 0 ? (
+                                    <div className="col-span-full flex flex-col items-center justify-center py-16 text-muted-foreground border-2 border-dashed rounded-xl bg-card/50">
+                                        <Search className="h-10 w-10 mb-3 opacity-20" />
+                                        <p className="text-base font-medium">Nenhum produto encontrado</p>
+                                    </div>
+                                ) : (
+                                    <AnimatePresence>
+                                        {filteredCatalogProducts.map((prod: any) => (
+                                            <CatalogItem 
+                                                key={prod.id}
+                                                product={prod}
+                                                quantityInCart={selectedProducts[prod.id] || 0}
+                                                onAdd={() => addItemToCart(prod.id)}
+                                                onRemove={() => removeItemFromCart(prod.id)}
+                                                onUpdateQuantity={(val) => updateCartQuantity(prod.id, val)}
+                                            />
+                                        ))}
+                                    </AnimatePresence>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+
+                    {/* DIREITA: Carrinho / Resumo (Ocupa a lateral no desktop e empilha no mobile) */}
+                    <div className="w-full lg:w-[450px] 2xl:w-[500px] flex flex-col bg-muted/20 lg:border-l border-border shadow-inner lg:shadow-none z-10 lg:z-auto">
+                        <div className="p-5 border-b border-border/50 bg-background/50 backdrop-blur sticky top-0 flex justify-between items-center z-10">
+                            <h3 className="font-bold flex items-center gap-2 text-lg">
+                                <Package className="h-5 w-5 text-primary" />
+                                Resumo do Pedido
+                            </h3>
+                            <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 text-sm px-3 py-1">
+                                {totalUniqueItems} {totalUniqueItems === 1 ? 'item' : 'itens'}
                             </Badge>
                         </div>
                         
-                        <div className="flex flex-col gap-3 sticky top-0 z-10 bg-muted/5 pb-2 pt-2 backdrop-blur-sm">
-                            <div className="relative shadow-sm">
-                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input 
-                                    placeholder="Buscar por nome ou SKU..." 
-                                    value={productSearchTerm}
-                                    onChange={e => setProductSearchTerm(e.target.value)}
-                                    className="pl-10 h-10 bg-background border-muted-foreground/20 focus:ring-2 focus:ring-primary/20"
-                                />
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
-                                <Label htmlFor="stock-filter" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
-                                    <Filter className="h-3 w-3" /> Apenas com estoque
-                                </Label>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3 min-h-[300px]">
-                            {filteredCatalogProducts.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border-2 border-dashed rounded-xl bg-background/50">
-                                    <Search className="h-8 w-8 mb-2 opacity-20" />
-                                    <p className="text-sm font-medium">Nenhum produto encontrado</p>
+                        <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-[250px] lg:min-h-0">
+                            {totalUniqueItems === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-center opacity-50 py-10">
+                                    <ShoppingCart className="h-12 w-12 mb-4" />
+                                    <p className="text-base font-medium">Seu carrinho está vazio.</p>
+                                    <p className="text-sm mt-1">Adicione itens pelo catálogo ao lado.</p>
                                 </div>
                             ) : (
-                                <AnimatePresence>
-                                    {filteredCatalogProducts.map((prod: any) => (
-                                        <CatalogItem 
-                                            key={prod.id}
-                                            product={prod}
-                                            quantityInCart={selectedProducts[prod.id] || 0}
-                                            onAdd={() => addItemToCart(prod.id)}
-                                            onRemove={() => removeItemFromCart(prod.id)}
-                                            onUpdateQuantity={(val) => updateCartQuantity(prod.id, val)}
-                                        />
-                                    ))}
-                                </AnimatePresence>
+                                Object.entries(selectedProducts).map(([pid, qty]) => {
+                                    const prod = (products as any[]).find((p) => p.id === pid);
+                                    if (!prod) return null;
+                                    
+                                    const stock = prod.stock?.quantity_on_hand ?? prod.stock_available ?? 0;
+                                    const isExceeding = qty > stock;
+
+                                    return (
+                                        <div key={pid} className={cn(
+                                            "flex flex-col p-4 rounded-xl border bg-card shadow-sm transition-all animate-in fade-in slide-in-from-right-4",
+                                            isExceeding ? "border-amber-500/50 bg-amber-500/5" : "hover:border-primary/30"
+                                        )}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex-1 min-w-0 pr-3">
+                                                    <p className="text-base font-bold truncate leading-tight text-foreground">{prod.name}</p>
+                                                    <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{prod.sku}</span>
+                                                </div>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-full" 
+                                                    onClick={() => updateCartQuantity(pid, 0)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between mt-auto">
+                                                {isExceeding ? (
+                                                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 flex items-center bg-amber-500/10 px-2 py-1 rounded-md">
+                                                        <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Disponível: {stock}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs font-medium text-muted-foreground">Estoque: {stock}</span>
+                                                )}
+
+                                                <div className="flex items-center bg-background border rounded-lg shadow-sm h-9">
+                                                    <Button variant="ghost" size="icon" className="h-full w-9 rounded-l-lg hover:bg-destructive/10 hover:text-destructive" onClick={() => removeItemFromCart(pid)}>
+                                                        <Minus className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Input 
+                                                        type="number" 
+                                                        value={qty} 
+                                                        onChange={(e) => {
+                                                            let val = parseInt(e.target.value);
+                                                            if (isNaN(val)) val = 0;
+                                                            updateCartQuantity(pid, val);
+                                                        }}
+                                                        className={cn(
+                                                            "h-full w-14 border-0 p-0 text-center text-sm font-bold shadow-none focus-visible:ring-0 rounded-none bg-transparent",
+                                                            isExceeding && "text-amber-600 dark:text-amber-500"
+                                                        )}
+                                                    />
+                                                    <Button variant="ghost" size="icon" className="h-full w-9 rounded-r-lg hover:bg-primary/10 hover:text-primary" onClick={() => addItemToCart(pid)}>
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
-                    </section>
-                </div>
 
-                <div className="border-t bg-background p-6 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-20 flex-none mt-auto">
-                    <div className="space-y-4">
-                        
-                        {/* NOVO: Aviso de itens excedendo estoque no painel principal */}
-                        {hasExceedingItemsInCart && (
-                            <div className="flex items-center gap-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-700 p-3 rounded-lg animate-in fade-in zoom-in-95">
-                                <AlertTriangle className="h-5 w-5 shrink-0" />
-                                <p className="text-sm font-medium">
-                                    Atenção: Alguns itens no seu carrinho excedem o estoque disponível.
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">Itens Totais</span>
-                                <strong className="text-lg text-foreground">{totalItemsInCart}</strong>
-                            </div>
-                            {totalItemsInCart > 0 && (
-                                <Button variant="ghost" size="sm" onClick={clearCart} className="text-xs text-destructive hover:bg-destructive/10 h-6">
-                                    <XCircle className="h-3 w-3 mr-1" /> Limpar
-                                </Button>
-                            )}
-                        </div>
-                        
-                        <div className="flex gap-3 pt-2">
-                            <Button variant="outline" size="lg" className="flex-1 h-12" onClick={() => setIsNewSheetOpen(false)}>
-                                Cancelar
-                            </Button>
-                            <Button 
-                                size="lg"
-                                className="flex-[2] h-12 font-bold text-base shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
-                                disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
-                                onClick={() => {
-                                    const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
-                                        product_id: pid,
-                                        quantity: qty
-                                    }));
-                                    createSeparationMutation.mutate({
-                                        production_order: productionOrder,
-                                        client_name: clientName,
-                                        destination: profile?.sector || "Setor",
-                                        items: itemsPayload
-                                    });
-                                }}
-                            >
-                                {createSeparationMutation.isPending ? (
-                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                ) : (
-                                    <Check className="mr-2 h-5 w-5" />
+                        {/* Footer Fixo do Carrinho */}
+                        <div className="border-t border-border/50 bg-background p-5 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-20 flex-none">
+                            <div className="space-y-4">
+                                {hasExceedingItemsInCart && (
+                                    <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 p-3 rounded-xl animate-in fade-in zoom-in-95">
+                                        <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                                        <p className="text-xs sm:text-sm font-medium leading-snug">
+                                            Atenção: Alguns itens excedem o estoque atual. A solicitação registrará os itens faltantes como pendentes.
+                                        </p>
+                                    </div>
                                 )}
-                                Confirmar Pedido
-                            </Button>
+
+                                <div className="flex items-center justify-between text-sm pb-2 border-b border-border/50">
+                                    <span className="text-muted-foreground font-semibold">Volume Total:</span>
+                                    <strong className="text-xl text-foreground font-black">{totalItemsInCart} un.</strong>
+                                </div>
+                                
+                                <div className="flex flex-col gap-3 pt-1">
+                                    <Button 
+                                        size="lg"
+                                        className="w-full h-14 font-bold text-base rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5"
+                                        disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
+                                        onClick={() => {
+                                            const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
+                                                product_id: pid,
+                                                quantity: qty
+                                            }));
+                                            createSeparationMutation.mutate({
+                                                production_order: productionOrder,
+                                                client_name: clientName,
+                                                destination: profile?.sector || "Setor",
+                                                items: itemsPayload
+                                            });
+                                        }}
+                                    >
+                                        {createSeparationMutation.isPending ? (
+                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        ) : (
+                                            <Check className="mr-2 h-5 w-5" />
+                                        )}
+                                        Confirmar Pedido
+                                    </Button>
+
+                                    <div className="flex gap-3">
+                                        <Button variant="outline" size="lg" className="flex-1 h-12 rounded-xl text-muted-foreground hover:text-foreground" onClick={() => setIsNewSheetOpen(false)}>
+                                            Cancelar
+                                        </Button>
+                                        {totalItemsInCart > 0 && (
+                                            <Button variant="ghost" size="lg" onClick={clearCart} className="flex-1 h-12 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive">
+                                                <Trash2 className="h-4 w-4 mr-2" /> Limpar
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             </SheetContent>
