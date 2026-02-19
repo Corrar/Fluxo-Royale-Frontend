@@ -98,6 +98,16 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+// Formatação compacta (Ex: R$ 1,5 mi / R$ 150 mil)
+const formatCompactCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value);
+};
+
 // ===================== TYPES =====================
 interface IStock {
   quantity_on_hand: number;
@@ -298,7 +308,6 @@ const SeparationCard = ({
   separation: ISeparation;
   onClick: () => void;
 }) => {
-  // Lógica original de itens
   const total = sep.items.length;
   const done = sep.items.filter(i => {
       const approvedReturns = sep.returns?.filter(r => r.product_id === i.product_id && r.status === 'aprovado').reduce((a, b) => a + b.quantity, 0) || 0;
@@ -307,7 +316,6 @@ const SeparationCard = ({
   }).length;
   const progress = total > 0 ? (done / total) * 100 : 0;
   
-  // NOVA LÓGICA: Cálculo financeiro do card
   let totalRequestedValue = 0;
   let totalSeparatedValue = 0;
 
@@ -316,7 +324,6 @@ const SeparationCard = ({
       const requestedQty = Number(item.qty_requested) || 0;
       const approvedDeduction = sep.returns?.filter(r => r.product_id === item.product_id && r.status === 'aprovado').reduce((a, b) => a + b.quantity, 0) || 0;
       
-      // Quantidade salva no banco (menos as devoluções)
       const separatedQty = Math.max(0, (item.quantity || 0) - approvedDeduction);
 
       totalRequestedValue += requestedQty * price;
@@ -401,19 +408,31 @@ const SeparationCard = ({
             </div>
         </div>
 
-        {/* NOVA SEÇÃO: Resumo Financeiro e Progresso */}
+        {/* SEÇÃO CORRIGIDA: Valores com numeração compacta (ex: 150 mil) e quebra de linha inteligente */}
         <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
-            <div className="flex justify-between items-end">
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Financeiro</span>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-sm font-black text-emerald-600 leading-none">{formatCurrency(totalSeparatedValue)}</span>
-                        <span className="text-xs font-semibold text-muted-foreground leading-none">/ {formatCurrency(totalRequestedValue)}</span>
+            <div className="flex justify-between items-end gap-3">
+                <div className="flex flex-col min-w-0">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Financeiro</span>
+                    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                        <span 
+                            className="text-sm font-black text-emerald-600 truncate" 
+                            title={formatCurrency(totalSeparatedValue)}
+                        >
+                            {formatCompactCurrency(totalSeparatedValue)}
+                        </span>
+                        <span 
+                            className="text-xs font-semibold text-muted-foreground truncate"
+                            title={formatCurrency(totalRequestedValue)}
+                        >
+                            / {formatCompactCurrency(totalRequestedValue)}
+                        </span>
                     </div>
                 </div>
-                <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Progresso</span>
-                    <span className="text-xs font-bold text-foreground leading-none">{done}/{total} itens ({progress.toFixed(0)}%)</span>
+                <div className="flex flex-col items-end shrink-0">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Progresso</span>
+                    <span className="text-xs font-bold text-foreground leading-none">
+                        {done}/{total} <span className="text-muted-foreground font-semibold">({progress.toFixed(0)}%)</span>
+                    </span>
                 </div>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
