@@ -19,13 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 
@@ -35,7 +35,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetFooter,
 } from "@/components/ui/sheet";
 
 import {
@@ -51,7 +50,6 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 import {
@@ -65,19 +63,21 @@ import {
   Truck,
   Check,
   Loader2,
-  Sparkles,
   X,
   ArrowLeft,
   CheckCircle2,
   Box,
   Ban,
-  AlertCircle,
   AlertTriangle,
   RotateCcw,
   FileText,
   Download,
   ShoppingCart,
-  Package
+  Package,
+  Filter,
+  XCircle,
+  Zap,
+  DollarSign
 } from "lucide-react";
 
 import { format, differenceInDays, addDays } from "date-fns";
@@ -89,6 +89,14 @@ import {
   m,
   AnimatePresence,
 } from "framer-motion";
+
+// ===================== HELPERS =====================
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value);
+};
 
 // ===================== TYPES =====================
 interface IStock {
@@ -103,6 +111,8 @@ interface IProduct {
   unit: string;
   stock?: IStock;
   stock_available?: number;
+  min_stock?: number;
+  unit_price?: number; 
 }
 
 interface ISeparationItem {
@@ -154,57 +164,121 @@ const EmptyState = ({
   </div>
 );
 
-// ===================== COMPONENT: CATALOG ITEM (NOVO ESTILO) =====================
-const CatalogItem = ({
+const CustomProgressBar = ({ value, max, className, indicatorColor }: { value: number, max: number, className?: string, indicatorColor?: string }) => {
+    const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+    return (
+        <div className={cn("h-1.5 w-full bg-secondary rounded-full overflow-hidden", className)}>
+            <div 
+                className={cn("h-full transition-all duration-500 ease-out", indicatorColor || "bg-primary")}
+                style={{ width: `${pct}%` }}
+            />
+        </div>
+    )
+}
+
+// ===================== CATALOG ITEM =====================
+const CatalogItem = ({ 
   product,
   quantityInCart,
   onAdd,
-  onRemove
+  onRemove,
+  onUpdateQuantity
 }: {
   product: IProduct;
   quantityInCart: number;
   onAdd: () => void;
   onRemove: () => void;
+  onUpdateQuantity: (val: number) => void;
 }) => {
   const stock = product.stock?.quantity_on_hand ?? product.stock_available ?? 0;
   const hasStock = stock > 0;
+  const minStock = product.min_stock || 10;
+  
+  const stockColor = stock === 0 ? "bg-muted" : stock < minStock ? "bg-amber-500" : "bg-emerald-500";
+
+  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = parseInt(e.target.value);
+    if (isNaN(val)) val = 0;
+    
+    if (val > stock) {
+        toast.warning(`Estoque máximo disponível: ${stock}`);
+        val = stock;
+    }
+    onUpdateQuantity(val);
+  };
 
   return (
-    <div className={cn(
-      "flex items-center justify-between p-3 rounded-lg border bg-card transition-all duration-200",
-      quantityInCart > 0 ? "border-primary ring-1 ring-primary/20 bg-primary/5" : "hover:border-primary/50"
-    )}>
-      <div className="flex-1 min-w-0 pr-4">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 rounded">{product.sku}</span>
-          {!hasStock && <Badge variant="destructive" className="text-[10px] h-4 px-1">Sem Estoque</Badge>}
+    <m.div 
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={cn(
+        "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border bg-card transition-all duration-200 hover:shadow-md",
+        quantityInCart > 0 ? "border-primary ring-1 ring-primary/10 shadow-sm bg-primary/[0.02]" : "hover:border-primary/30"
+      )}
+    >
+      <div className={cn("absolute left-0 top-4 bottom-4 w-1 rounded-r-full transition-colors", 
+          hasStock ? "bg-transparent group-hover:bg-primary/50" : "bg-destructive/50"
+      )} />
+
+      <div className="flex-1 min-w-0 pr-4 pl-3 w-full">
+        <div className="flex items-center justify-between sm:justify-start gap-2 mb-1.5">
+          <Badge variant="secondary" className="font-mono text-[10px] tracking-wider text-muted-foreground bg-muted/50 border-0">
+            {product.sku}
+          </Badge>
+          {!hasStock && <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Esgotado</Badge>}
         </div>
-        <h4 className="font-medium text-sm truncate mt-0.5">{product.name}</h4>
-        <p className="text-xs text-muted-foreground mt-0.5">Disponível: <strong>{stock} {product.unit}</strong></p>
+        
+        <h4 className="font-semibold text-sm leading-snug text-foreground mb-2">{product.name}</h4>
+        
+        <div className="flex items-center gap-3">
+            <div className="flex-1 max-w-[120px]">
+                <CustomProgressBar value={stock} max={minStock * 2} indicatorColor={stockColor} />
+            </div>
+            <span className={cn("text-xs font-medium", !hasStock ? "text-destructive" : "text-muted-foreground")}>
+                {stock} {product.unit} disp.
+            </span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end w-full sm:w-auto mt-3 sm:mt-0 gap-3 pl-3">
         {quantityInCart > 0 ? (
-          <div className="flex items-center gap-3 bg-background border rounded-full px-2 py-1 shadow-sm">
-            <button 
+          <div className="flex items-center bg-background border rounded-lg shadow-sm p-0.5">
+            <Button
+              variant="ghost" 
+              size="icon"
               onClick={onRemove}
-              className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+              className="h-8 w-8 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
             >
-              <Minus className="h-3 w-3" />
-            </button>
-            <span className="text-sm font-bold w-4 text-center">{quantityInCart}</span>
-            <button 
+              <Minus className="h-4 w-4" />
+            </Button>
+            
+            <Input 
+                type="number"
+                className="h-8 w-14 border-0 text-center font-bold p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none"
+                value={quantityInCart}
+                onChange={handleManualInput}
+                min={0}
+                max={stock}
+            />
+
+            <Button 
+              variant="ghost"
+              size="icon"
               onClick={onAdd}
-              className="h-6 w-6 flex items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
+              disabled={!hasStock || quantityInCart >= stock}
             >
-              <Plus className="h-3 w-3" />
-            </button>
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
         ) : (
           <Button 
             size="sm" 
-            variant="outline" 
-            className="h-8 rounded-full border-dashed border-muted-foreground/30 hover:border-primary hover:text-primary"
+            className={cn(
+                "rounded-full transition-all duration-300 font-medium px-5 h-9",
+                hasStock ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105" : "opacity-50 cursor-not-allowed"
+            )}
             onClick={onAdd}
             disabled={!hasStock}
           >
@@ -212,132 +286,7 @@ const CatalogItem = ({
           </Button>
         )}
       </div>
-    </div>
-  );
-};
-
-// ===================== COMPONENT: DETAILED ITEM ROW =====================
-const SeparationItemDetailedRow = ({
-  item,
-  inputValue,
-  onChange,
-  canEdit,
-  approvedDeduction = 0
-}: {
-  item: ISeparationItem;
-  inputValue: number;
-  onChange: (val: string) => void;
-  isWarehouse: boolean;
-  canEdit: boolean;
-  approvedDeduction?: number;
-}) => {
-  const dbOnHand = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
-  const dbReservedHere = Math.max(0, (item.quantity || 0) - approvedDeduction);
-  const requested = item.qty_requested || 0;
-  const isComplete = dbReservedHere >= requested;
-  const remainingRequest = Math.max(0, requested - dbReservedHere);
-  const maxAddable = Math.min(remainingRequest, dbOnHand);
-  const maxRevertable = dbReservedHere;
-
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    let val = parseFloat(e.target.value);
-    if (isNaN(val)) val = 0;
-    
-    if (val < 0 && Math.abs(val) > maxRevertable) {
-        toast.warning(`Máximo para estornar: ${maxRevertable}`);
-        val = -maxRevertable;
-    }
-    if (val > 0 && val > maxAddable) {
-        toast.warning(`Máximo para adicionar: ${maxAddable}`);
-        val = maxAddable;
-    }
-    onChange(String(val));
-  };
-
-  const hasChange = inputValue !== 0;
-  const projected = dbReservedHere + inputValue;
-
-  return (
-    <div className={cn(
-      "relative flex flex-col sm:flex-row gap-4 p-4 rounded-xl border bg-card shadow-sm transition-all duration-200",
-      isComplete ? "border-emerald-500/40 bg-emerald-50/10" : "border-border hover:border-primary/40",
-      hasChange && "ring-1 ring-primary border-primary bg-primary/5"
-    )}>
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-           <Badge variant="outline" className="text-[10px] font-mono h-5 px-1">{item.products?.sku}</Badge>
-           {isComplete && <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle2 className="h-3 w-3"/> OK</span>}
-        </div>
-        <div className="font-semibold text-base leading-snug">{item.products?.name}</div>
-        {approvedDeduction > 0 && (
-            <span className="text-[10px] text-red-500 font-medium mt-1 block flex items-center gap-1">
-                <ArrowLeft className="h-3 w-3" /> {approvedDeduction} devolvido(s).
-            </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 min-w-[300px]">
-        <div className="bg-muted/30 rounded-lg p-2 flex flex-col items-center justify-center border border-border/50">
-           <span className="text-[10px] uppercase font-bold text-muted-foreground">Solicitado</span>
-           <span className="text-lg font-bold text-foreground">{requested}</span>
-        </div>
-
-        <div className={cn(
-            "rounded-lg p-2 flex flex-col items-center justify-center border transition-colors",
-            isComplete ? "bg-emerald-100/20 border-emerald-200 text-emerald-700 dark:text-emerald-400" : 
-            "bg-amber-100/10 border-amber-200 text-amber-700 dark:text-amber-400"
-        )}>
-           <span className="text-[10px] uppercase font-bold opacity-80">Reservado</span>
-           <div className="flex items-center gap-1">
-               <span className="text-lg font-bold">{dbReservedHere}</span>
-               {hasChange && <span className={cn("text-xs animate-pulse font-bold", inputValue < 0 ? "text-red-500" : "text-emerald-600")}>
-                   → {projected}
-               </span>}
-           </div>
-           {!isComplete && (
-             <div className="flex items-center gap-1 mt-1 bg-red-100 dark:bg-red-900/40 px-2 py-0.5 rounded-full animate-in fade-in zoom-in duration-300">
-                <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
-                <span className="text-[10px] font-bold text-red-600 dark:text-red-400">
-                    Falta {remainingRequest}
-                </span>
-             </div>
-           )}
-        </div>
-
-        <div className="bg-blue-50/20 rounded-lg p-2 flex flex-col items-center justify-center border border-blue-100/20 text-blue-600 dark:text-blue-300">
-           <span className="text-[10px] uppercase font-bold opacity-80">Estoque</span>
-           <span className="text-lg font-bold">{dbOnHand}</span>
-        </div>
-      </div>
-
-      {canEdit && (
-        <div className="flex flex-col justify-center sm:border-l pl-0 sm:pl-4 pt-2 sm:pt-0 border-border/50">
-            <label className="text-[10px] text-muted-foreground mb-1 text-center sm:text-left">
-                {inputValue < 0 ? "Estornar (-)" : "Adicionar (+)"}
-            </label>
-            <Input 
-                type="number"
-                min={-maxRevertable} 
-                max={maxAddable}
-                className={cn(
-                    "h-12 w-full sm:w-24 text-center font-bold text-lg rounded-lg transition-colors",
-                    inputValue < 0 ? "bg-red-50 border-red-200 text-red-600" : 
-                    hasChange ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-muted/50 border-transparent"
-                )}
-                placeholder="0"
-                value={inputValue === 0 ? "" : inputValue}
-                onChange={handleInputChange}
-            />
-            {inputValue < 0 ? (
-                <span className="text-[10px] text-center text-red-500 mt-1 flex justify-center items-center gap-1">
-                    <RotateCcw className="h-3 w-3"/> Devolvendo
-                </span>
-            ) : (
-                <span className="text-[10px] text-center text-muted-foreground mt-1">Máx: {maxAddable}</span>
-            )}
-        </div>
-      )}
-    </div>
+    </m.div>
   );
 };
 
@@ -349,15 +298,31 @@ const SeparationCard = ({
   separation: ISeparation;
   onClick: () => void;
 }) => {
+  // Lógica original de itens
   const total = sep.items.length;
   const done = sep.items.filter(i => {
       const approvedReturns = sep.returns?.filter(r => r.product_id === i.product_id && r.status === 'aprovado').reduce((a, b) => a + b.quantity, 0) || 0;
       const netQty = Math.max(0, i.quantity - approvedReturns);
       return netQty >= i.qty_requested;
   }).length;
-  
   const progress = total > 0 ? (done / total) * 100 : 0;
   
+  // NOVA LÓGICA: Cálculo financeiro do card
+  let totalRequestedValue = 0;
+  let totalSeparatedValue = 0;
+
+  sep.items.forEach(item => {
+      const price = Number(item.products?.unit_price) || 0;
+      const requestedQty = Number(item.qty_requested) || 0;
+      const approvedDeduction = sep.returns?.filter(r => r.product_id === item.product_id && r.status === 'aprovado').reduce((a, b) => a + b.quantity, 0) || 0;
+      
+      // Quantidade salva no banco (menos as devoluções)
+      const separatedQty = Math.max(0, (item.quantity || 0) - approvedDeduction);
+
+      totalRequestedValue += requestedQty * price;
+      totalSeparatedValue += separatedQty * price;
+  });
+
   let deadlineInfo = null;
   let isExpired = false;
   
@@ -382,7 +347,7 @@ const SeparationCard = ({
       finalizado: "border-zinc-500/50 hover:border-zinc-500" 
   };
 
-  const bgStatus = {
+  const bgStatus: any = {
       pendente: "bg-amber-500",
       em_separacao: "bg-amber-500",
       entregue: "bg-emerald-500",
@@ -393,11 +358,15 @@ const SeparationCard = ({
   const statusKey = isArchived ? 'finalizado' : sep.status;
 
   return (
-    <div 
+    <m.div 
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ y: -4, transition: { duration: 0.2 } }}
         onClick={onClick}
         className={cn(
-            "group relative flex flex-col justify-between rounded-2xl border-2 bg-card p-5 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
-            deadlineInfo?.expired && !isArchived ? "border-red-300 dark:border-red-900/50" : (statusColors[statusKey as keyof typeof statusColors] || "border-border")
+            "group relative flex flex-col justify-between rounded-2xl border-2 bg-card p-5 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-xl",
+            deadlineInfo?.expired && !isArchived ? "border-red-300 dark:border-red-900/50" : (statusColors[statusKey] || "border-border")
         )}
     >
         <div className="flex justify-between items-start mb-3">
@@ -409,7 +378,7 @@ const SeparationCard = ({
             </span>
         </div>
 
-        <div className="flex-1 mb-4">
+        <div className="flex-1 mb-2">
             <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-foreground line-clamp-2">
                 {sep.client_name}
             </h3>
@@ -417,9 +386,9 @@ const SeparationCard = ({
             {deadlineInfo && !isArchived && (
                 <div className={cn(
                     "mt-2 inline-flex items-center gap-1.5 rounded-md py-1 px-2 text-[11px] font-bold border animate-in fade-in slide-in-from-left-2",
-                    deadlineInfo.expired ? "bg-red-100 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400" :
-                    deadlineInfo.urgent ? "bg-amber-100 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400" :
-                    "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300"
+                    deadlineInfo.expired ? "bg-red-100 border-red-200 text-red-700" :
+                    deadlineInfo.urgent ? "bg-amber-100 border-amber-200 text-amber-700" :
+                    "bg-blue-50 border-blue-200 text-blue-700"
                 )}>
                     {deadlineInfo.expired ? <Ban className="h-3 w-3"/> : <Clock className="h-3 w-3"/>}
                     {deadlineInfo.expired ? "Prazo Expirado" : `${deadlineInfo.days} dias p/ devolver`}
@@ -432,30 +401,193 @@ const SeparationCard = ({
             </div>
         </div>
 
-        <div className="space-y-1.5">
-            <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                <span>{done}/{total} itens</span>
-                <span>{progress.toFixed(0)}%</span>
+        {/* NOVA SEÇÃO: Resumo Financeiro e Progresso */}
+        <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
+            <div className="flex justify-between items-end">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Financeiro</span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-black text-emerald-600 leading-none">{formatCurrency(totalSeparatedValue)}</span>
+                        <span className="text-xs font-semibold text-muted-foreground leading-none">/ {formatCurrency(totalRequestedValue)}</span>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5">Progresso</span>
+                    <span className="text-xs font-bold text-foreground leading-none">{done}/{total} itens ({progress.toFixed(0)}%)</span>
+                </div>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                 <div 
-                    className={cn("h-full transition-all duration-500", bgStatus[statusKey as keyof typeof bgStatus] || "bg-primary")} 
+                    className={cn("h-full transition-all duration-500", bgStatus[statusKey] || "bg-primary")} 
                     style={{ width: `${progress}%` }} 
                 />
             </div>
         </div>
 
         <div className="absolute -top-3 -right-2">
-             <Badge className={cn("shadow-md uppercase text-[10px] px-2 h-6", bgStatus[statusKey as keyof typeof bgStatus])}>
+             <Badge className={cn("shadow-md uppercase text-[10px] px-2 h-6", bgStatus[statusKey])}>
                 {displayStatus}
              </Badge>
         </div>
+    </m.div>
+  );
+};
+
+// ===================== DETAILED ITEM ROW =====================
+const SeparationItemDetailedRow = ({
+  item,
+  inputValue,
+  onChange,
+  canEdit,
+  approvedDeduction = 0
+}: {
+  item: ISeparationItem;
+  inputValue: number;
+  onChange: (val: string) => void;
+  isWarehouse: boolean;
+  canEdit: boolean;
+  approvedDeduction?: number;
+}) => {
+  const dbOnHand = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
+  const unitPrice = Number(item.products?.unit_price) || 0; 
+  
+  const dbReservedHere = Math.max(0, (item.quantity || 0) - approvedDeduction);
+  const projectedTotal = dbReservedHere + inputValue;
+
+  const requested = item.qty_requested || 0;
+  const isComplete = projectedTotal >= requested;
+  
+  const remainingRequest = Math.max(0, requested - dbReservedHere);
+  
+  const maxAddable = Math.min(remainingRequest, dbOnHand);
+  const maxRevertable = dbReservedHere;
+
+  const totalValueRequested = requested * unitPrice;
+  const totalValueSeparated = projectedTotal * unitPrice;
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value;
+    if (rawVal === '-' || rawVal === '') {
+        onChange(rawVal); 
+        return;
+    }
+
+    let val = parseFloat(rawVal);
+    if (isNaN(val)) val = 0;
+    
+    if (val < 0 && Math.abs(val) > maxRevertable) {
+        toast.warning(`Máximo para estornar: ${maxRevertable}`);
+        val = -maxRevertable;
+    }
+    if (val > 0 && val > maxAddable) {
+        toast.warning(`Máximo para adicionar: ${maxAddable}`);
+        val = maxAddable;
+    }
+    onChange(String(val));
+  };
+
+  const hasChange = inputValue !== 0;
+
+  const quickFill = () => {
+      if (maxAddable > 0) onChange(String(maxAddable));
+      else toast.info("Estoque insuficiente ou pedido já completo.");
+  };
+
+  return (
+    <div className={cn(
+      "relative flex flex-col sm:flex-row gap-4 p-4 rounded-xl border bg-card shadow-sm transition-all duration-300",
+      isComplete ? "border-emerald-500/40 bg-emerald-50/10 shadow-emerald-500/10" : "border-border hover:border-primary/40",
+      hasChange && "ring-2 ring-primary border-primary bg-primary/5"
+    )}>
+      
+      {/* Coluna do Produto */}
+      <div className="flex-1 space-y-2">
+        <div className="flex items-center gap-2">
+           <Badge variant="outline" className="text-[10px] font-mono h-5 px-1.5 bg-background">{item.products?.sku}</Badge>
+           {isComplete && (
+               <span className="text-emerald-600 text-xs font-bold flex items-center gap-1 bg-emerald-100 px-2 py-0.5 rounded-full animate-in zoom-in">
+                   <CheckCircle2 className="h-3 w-3"/> OK
+               </span>
+           )}
+        </div>
+        
+        <div>
+            <div className="font-semibold text-base leading-snug">{item.products?.name}</div>
+            {approvedDeduction > 0 && (
+                <span className="text-[10px] text-red-500 font-medium mt-1 flex items-center gap-1">
+                    <RotateCcw className="h-3 w-3" /> {approvedDeduction} devolvido(s).
+                </span>
+            )}
+        </div>
+
+        {/* Barra de Progresso Visual e Financeira */}
+        <div className="space-y-1 pt-1">
+            <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                <span>Progresso: {projectedTotal} / {requested}</span>
+                <span className={cn("font-bold", isComplete ? "text-emerald-600" : "text-primary")}>
+                    {formatCurrency(totalValueSeparated)} / {formatCurrency(totalValueRequested)}
+                </span>
+            </div>
+            <CustomProgressBar value={projectedTotal} max={requested} indicatorColor={isComplete ? "bg-emerald-500" : "bg-primary"} className={isComplete ? "bg-emerald-100" : ""} />
+        </div>
+      </div>
+
+      {/* Coluna de Ações e Infos */}
+      <div className="flex flex-col sm:items-end justify-between gap-3 min-w-[140px]">
+         
+         <div className="flex gap-4 text-sm text-right">
+             <div className="flex flex-col">
+                 <span className="text-[10px] text-muted-foreground font-bold uppercase">Estoque</span>
+                 <span className="font-bold">{dbOnHand}</span>
+             </div>
+             <div className="flex flex-col">
+                 <span className="text-[10px] text-muted-foreground font-bold uppercase">Reservado</span>
+                 <span className={cn("font-bold", hasChange && "text-primary")}>
+                    {dbReservedHere}
+                    {hasChange && <span className="text-xs ml-1 opacity-80">({inputValue > 0 ? '+' : ''}{inputValue})</span>}
+                 </span>
+             </div>
+         </div>
+
+         {canEdit && (
+            <div className="flex items-center gap-2">
+                {!isComplete && maxAddable > 0 && (
+                    <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-10 w-10 text-amber-500 border-amber-200 hover:bg-amber-50 hover:text-amber-600"
+                        onClick={quickFill}
+                        title="Completar Automaticamente"
+                    >
+                        <Zap className="h-4 w-4 fill-amber-500" />
+                    </Button>
+                )}
+                
+                <div className="relative group">
+                    <Input 
+                        type="number"
+                        className={cn(
+                            "h-10 w-24 text-center font-bold text-lg transition-all",
+                            inputValue < 0 ? "border-red-500 text-red-600 bg-red-50" : 
+                            inputValue > 0 ? "border-emerald-500 text-emerald-600 bg-emerald-50" : 
+                            "bg-background"
+                        )}
+                        placeholder="0"
+                        value={inputValue === 0 ? "" : inputValue}
+                        onChange={handleInputChange}
+                    />
+                    <span className="absolute -top-2.5 left-2 bg-background px-1 text-[9px] text-muted-foreground group-hover:text-primary transition-colors">
+                        {inputValue < 0 ? "Estorno" : "Adicionar"}
+                    </span>
+                </div>
+            </div>
+         )}
+      </div>
     </div>
   );
 };
 
-
-// ===================== DETAILED VIEW =====================
+// ===================== DETAILED VIEW (COM TOTALIZADORES GERAIS) =====================
 const DetailedView = ({
     sep,
     isWarehouseMode,
@@ -505,6 +637,32 @@ const DetailedView = ({
             returnStatus = { expired: false, daysLeft: daysDiff, label: `${daysDiff} dias restantes` };
         }
     }
+
+    const { grandTotalRequested, grandTotalSeparated, progressPercent } = useMemo(() => {
+        let req = 0;
+        let sepTotal = 0;
+
+        sep.items.forEach(item => {
+            const price = Number(item.products?.unit_price) || 0;
+            const requestedQty = Number(item.qty_requested) || 0;
+            
+            const approvedDeduction = sep.returns?.filter(r => r.product_id === item.product_id && r.status === 'aprovado').reduce((a, b) => a + b.quantity, 0) || 0;
+            const dbQuantity = Math.max(0, (item.quantity || 0) - approvedDeduction);
+            const currentIncrement = inputIncrements[item.id] || 0;
+            const currentQuantity = Math.max(0, dbQuantity + currentIncrement);
+
+            req += requestedQty * price;
+            sepTotal += currentQuantity * price;
+        });
+
+        const pct = req > 0 ? (sepTotal / req) * 100 : 0;
+
+        return {
+            grandTotalRequested: req,
+            grandTotalSeparated: sepTotal,
+            progressPercent: Math.min(100, pct)
+        };
+    }, [sep, inputIncrements]); 
 
     const generatePDF = () => {
         const doc = new jsPDF();
@@ -596,13 +754,13 @@ const DetailedView = ({
 
     return (
        <m.div 
-         initial={{ opacity: 0, x: 20 }} 
-         animate={{ opacity: 1, x: 0 }} 
-         exit={{ opacity: 0, x: 20 }}
-         className="bg-background min-h-screen flex flex-col"
+         initial={{ opacity: 0, y: 15 }} 
+         animate={{ opacity: 1, y: 0 }} 
+         exit={{ opacity: 0, y: -15 }}
+         className="bg-background min-h-screen flex flex-col w-full"
        >
           <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b shadow-sm">
-              <div className="container py-4">
+              <div className="w-full px-3 sm:container sm:px-8 py-4">
                   <div className="flex items-center gap-4 mb-2">
                       <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-muted/50 rounded-full h-10 w-10">
                           <ArrowLeft className="h-5 w-5" />
@@ -617,6 +775,19 @@ const DetailedView = ({
                           <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight truncate">{sep.client_name}</h1>
                       </div>
                       
+                      <div className="hidden lg:flex flex-col items-end mr-4 px-4 border-r">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Separado</span>
+                          <span className="text-lg font-bold text-emerald-600">
+                              {formatCurrency(grandTotalSeparated)}
+                          </span>
+                      </div>
+                      <div className="hidden lg:flex flex-col items-end mr-4">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Pedido</span>
+                          <span className="text-base font-medium">
+                              {formatCurrency(grandTotalRequested)}
+                          </span>
+                      </div>
+
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -627,7 +798,7 @@ const DetailedView = ({
                           Exportar PDF
                       </Button>
                       
-                      <Button variant="ghost" size="icon" className="sm:hidden" onClick={generatePDF}>
+                      <Button variant="ghost" size="icon" className="sm:hidden shrink-0" onClick={generatePDF}>
                           <Download className="h-5 w-5 text-muted-foreground" />
                       </Button>
 
@@ -645,7 +816,7 @@ const DetailedView = ({
                           <Button 
                             variant="destructive" 
                             size="icon" 
-                            className="rounded-full h-10 w-10 shadow-sm ml-2" 
+                            className="rounded-full h-10 w-10 shadow-sm ml-2 shrink-0" 
                             onClick={() => onDelete(sep.id)}
                             title="Excluir Solicitação"
                           >
@@ -653,10 +824,21 @@ const DetailedView = ({
                           </Button>
                       )}
                   </div>
+
+                  <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
+                      <div 
+                          className="h-full bg-emerald-500 transition-all duration-500 ease-out" 
+                          style={{ width: `${progressPercent}%` }} 
+                      />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-1">
+                      <span>Progresso Financeiro</span>
+                      <span>{progressPercent.toFixed(1)}%</span>
+                  </div>
               </div>
           </div>
 
-          <div className="flex-1 container py-6 pb-32">
+          <div className="flex-1 w-full px-2 sm:container sm:px-8 py-6 pb-40">
              <Tabs defaultValue="items">
                 <TabsList className="grid w-full grid-cols-2 mb-6 max-w-md">
                    <TabsTrigger value="items">Itens do Pedido ({sep.items.length})</TabsTrigger>
@@ -731,28 +913,34 @@ const DetailedView = ({
              </Tabs>
           </div>
 
+          {/* RODAPÉ FLUTUANTE ESTILO ILHA - TAMANHO CORRIGIDO */}
           {isWarehouseMode && isPending && (
-             <div className="fixed bottom-0 w-full bg-background border-t p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-40">
-                <div className="container max-w-4xl flex gap-3">
-                    <Button 
-                        variant="secondary" 
-                        size="lg"
-                        className="flex-1 font-bold border-2 border-transparent hover:border-primary/20"
-                        disabled={!hasEdits || authorizeMutation.isPending}
-                        onClick={onSave}
-                    >
-                        {authorizeMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />}
-                        Salvar Alterações
-                    </Button>
-                    <Button 
-                        size="lg"
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
-                        onClick={onDeliver}
-                        disabled={authorizeMutation.isPending}
-                    >
-                        <Truck className="mr-2 h-5 w-5" />
-                        Finalizar / Entregar
-                    </Button>
+             <div className="fixed bottom-24 left-3 right-3 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-8 lg:w-full lg:max-w-2xl bg-card/95 backdrop-blur-md border rounded-3xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-50">
+                <div className="flex flex-col gap-2">
+                    <div className="flex lg:hidden justify-between items-center text-sm px-2 pb-1 border-b border-border/50">
+                        <span className="text-muted-foreground font-medium">Total Separado:</span>
+                        <span className="font-bold text-emerald-600">{formatCurrency(grandTotalSeparated)}</span>
+                    </div>
+
+                    <div className="flex gap-2 w-full">
+                        <Button 
+                            variant="secondary" 
+                            className="flex-1 h-12 sm:h-14 px-2 sm:px-4 rounded-2xl font-bold border-2 border-transparent hover:border-primary/20 min-w-0"
+                            disabled={!hasEdits || authorizeMutation.isPending}
+                            onClick={onSave}
+                        >
+                            {authorizeMutation.isPending ? <Loader2 className="animate-spin mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" /> : <Save className="mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
+                            <span className="truncate text-sm sm:text-base">Salvar<span className="hidden sm:inline"> Alterações</span></span>
+                        </Button>
+                        <Button 
+                            className="flex-1 h-12 sm:h-14 px-2 sm:px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 min-w-0"
+                            onClick={onDeliver}
+                            disabled={authorizeMutation.isPending}
+                        >
+                            <Truck className="mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                            <span className="truncate text-sm sm:text-base">Entregar</span>
+                        </Button>
+                    </div>
                 </div>
              </div>
           )}
@@ -788,11 +976,11 @@ export default function Separations() {
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // States para o NOVO fluxo de criação
   const [clientName, setClientName] = useState("");
   const [productionOrder, setProductionOrder] = useState("");
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({});
+  const [showStockOnly, setShowStockOnly] = useState(false); 
 
   const { data: separations = [], isLoading } = useQuery({
     queryKey: ["separations"],
@@ -837,15 +1025,26 @@ export default function Separations() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [separations, deferredSearch, activeTab]);
 
-  // Filtro de produtos para o Sheet de Criação
   const filteredCatalogProducts = useMemo(() => {
-    if (!productSearchTerm) return products.slice(0, 50);
-    const lowerTerm = productSearchTerm.toLowerCase();
-    return products.filter((p: any) => 
-        p.name.toLowerCase().includes(lowerTerm) || 
-        p.sku.toLowerCase().includes(lowerTerm)
-    ).slice(0, 50);
-  }, [products, productSearchTerm]);
+    let result = products;
+
+    if (showStockOnly) {
+        result = result.filter((p: any) => {
+            const stock = p.stock?.quantity_on_hand ?? p.stock_available ?? 0;
+            return stock > 0;
+        });
+    }
+
+    if (productSearchTerm) {
+        const lowerTerm = productSearchTerm.toLowerCase();
+        result = result.filter((p: any) => 
+            p.name.toLowerCase().includes(lowerTerm) || 
+            p.sku.toLowerCase().includes(lowerTerm)
+        );
+    }
+
+    return result.slice(0, 50);
+  }, [products, productSearchTerm, showStockOnly]);
 
   useEffect(() => {
     if (!socket) return;
@@ -982,12 +1181,20 @@ export default function Separations() {
     createReturnMutation.mutate({ id: selectedSeparation.id, items: itemsToReturn });
   };
 
-  // Funções do Novo Carrinho
   const addItemToCart = (productId: string) => {
     setSelectedProducts(prev => ({
         ...prev,
         [productId]: (prev[productId] || 0) + 1
     }));
+  };
+
+  const updateCartQuantity = (productId: string, newQty: number) => {
+    if (newQty <= 0) {
+        const { [productId]: _, ...rest } = selectedProducts;
+        setSelectedProducts(rest);
+    } else {
+        setSelectedProducts(prev => ({ ...prev, [productId]: newQty }));
+    }
   };
 
   const removeItemFromCart = (productId: string) => {
@@ -1001,6 +1208,11 @@ export default function Separations() {
     });
   };
 
+  const clearCart = () => {
+      setSelectedProducts({});
+      toast.info("Carrinho limpo");
+  };
+
   const totalItemsInCart = Object.values(selectedProducts).reduce((a, b) => a + b, 0);
   const totalUniqueItems = Object.keys(selectedProducts).length;
 
@@ -1010,11 +1222,11 @@ export default function Separations() {
 
   return (
     <LazyMotion features={domAnimation}>
-      <div className="min-h-screen bg-background text-foreground font-sans">
+      <div className="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
         
         {!selectedSeparation && (
             <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container py-4 flex items-center justify-between gap-4">
+                <div className="container px-3 sm:px-8 py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
                             <Box className="h-6 w-6" />
@@ -1042,7 +1254,7 @@ export default function Separations() {
             </header>
         )}
 
-        <main className="container py-6">
+        <main className="container px-3 sm:px-8 py-6">
            <AnimatePresence mode="wait">
               {selectedSeparation ? (
                   <DetailedView 
@@ -1104,124 +1316,151 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* --- NOVO SHEET DE CRIAÇÃO (ESTILO MERCADO LIVRE / CARRINHO) --- */}
+        {/* --- SHEET DE CRIAÇÃO --- */}
         <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
-            <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
-                <div className="px-6 py-4 border-b bg-muted/5">
+            <SheetContent className="w-full sm:max-w-xl flex flex-col h-full p-0 border-l shadow-2xl" side="right">
+                <div className="px-6 py-5 border-b bg-background/95 backdrop-blur z-10 flex-none">
                     <SheetHeader>
-                        <SheetTitle>Nova Solicitação</SheetTitle>
-                        <SheetDescription>Preencha os dados e selecione os itens do pedido.</SheetDescription>
+                        <SheetTitle className="text-xl font-bold flex items-center gap-2">
+                            <ShoppingCart className="h-5 w-5 text-primary" />
+                            Nova Solicitação
+                        </SheetTitle>
+                        <SheetDescription>Preencha os dados e monte o pedido.</SheetDescription>
                     </SheetHeader>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-                    {/* Passo 1: Informações Básicas */}
-                    <section className="space-y-4">
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">1. Dados do Pedido</h3>
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 bg-muted/5">
+                    <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">1</div>
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Dados do Pedido</h3>
+                        </div>
+                        
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Número da OP</Label>
+                                <Label className="text-xs font-medium text-muted-foreground">Número da OP</Label>
                                 <Input 
                                     value={productionOrder} 
                                     onChange={e => setProductionOrder(e.target.value)} 
                                     placeholder="Ex: 12345" 
-                                    className="bg-muted/20 focus:bg-background"
+                                    className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Nome do Cliente</Label>
+                                <Label className="text-xs font-medium text-muted-foreground">Cliente</Label>
                                 <Input 
                                     value={clientName} 
                                     onChange={e => setClientName(e.target.value)} 
                                     placeholder="Ex: Cliente A" 
-                                    className="bg-muted/20 focus:bg-background"
+                                    className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all"
                                 />
                             </div>
                         </div>
                     </section>
 
-                    {/* Passo 2: Seleção de Produtos (Estilo Catálogo) */}
-                    <section className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">2. Selecionar Itens</h3>
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                                {totalUniqueItems} produtos selecionados
-                            </span>
+                    <Separator className="my-6" />
+
+                    <section className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+                        <div className="flex items-center justify-between sticky top-0 bg-muted/5 pt-2 pb-2 z-10">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</div>
+                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Catálogo</h3>
+                            </div>
+                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                                {totalUniqueItems} selecionado(s)
+                            </Badge>
                         </div>
                         
-                        <div className="relative">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Buscar produto por nome ou SKU..." 
-                                value={productSearchTerm}
-                                onChange={e => setProductSearchTerm(e.target.value)}
-                                className="pl-9 bg-muted/20 focus:bg-background"
-                            />
+                        <div className="flex flex-col gap-3 sticky top-0 z-10 bg-muted/5 pb-2 pt-2 backdrop-blur-sm">
+                            <div className="relative shadow-sm">
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="Buscar por nome ou SKU..." 
+                                    value={productSearchTerm}
+                                    onChange={e => setProductSearchTerm(e.target.value)}
+                                    className="pl-10 h-10 bg-background border-muted-foreground/20 focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
+                                <Label htmlFor="stock-filter" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
+                                    <Filter className="h-3 w-3" /> Apenas com estoque
+                                </Label>
+                            </div>
                         </div>
 
-                        <div className="space-y-2 min-h-[200px]">
+                        <div className="space-y-3 min-h-[300px]">
                             {filteredCatalogProducts.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-                                    Nenhum produto encontrado.
+                                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border-2 border-dashed rounded-xl bg-background/50">
+                                    <Search className="h-8 w-8 mb-2 opacity-20" />
+                                    <p className="text-sm font-medium">Nenhum produto encontrado</p>
                                 </div>
                             ) : (
-                                filteredCatalogProducts.map((prod: any) => (
-                                    <CatalogItem 
-                                        key={prod.id}
-                                        product={prod}
-                                        quantityInCart={selectedProducts[prod.id] || 0}
-                                        onAdd={() => addItemToCart(prod.id)}
-                                        onRemove={() => removeItemFromCart(prod.id)}
-                                    />
-                                ))
+                                <AnimatePresence>
+                                    {filteredCatalogProducts.map((prod: any) => (
+                                        <CatalogItem 
+                                            key={prod.id}
+                                            product={prod}
+                                            quantityInCart={selectedProducts[prod.id] || 0}
+                                            onAdd={() => addItemToCart(prod.id)}
+                                            onRemove={() => removeItemFromCart(prod.id)}
+                                            onUpdateQuantity={(val) => updateCartQuantity(prod.id, val)}
+                                        />
+                                    ))}
+                                </AnimatePresence>
                             )}
                         </div>
                     </section>
                 </div>
 
-                {/* Rodapé Fixo do Carrinho */}
-                <div className="border-t bg-background p-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="text-sm text-muted-foreground">
-                            Total de Itens: <strong className="text-foreground">{totalItemsInCart}</strong>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                            Destino: <strong className="text-foreground">{profile?.sector || "Setor"}</strong>
-                        </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="outline" className="flex-1" onClick={() => setIsNewSheetOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button 
-                            className="flex-[2] font-bold shadow-lg shadow-primary/20"
-                            disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
-                            onClick={() => {
-                                const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
-                                    product_id: pid,
-                                    quantity: qty
-                                }));
-                                createSeparationMutation.mutate({
-                                    production_order: productionOrder,
-                                    client_name: clientName,
-                                    destination: profile?.sector || "Setor",
-                                    items: itemsPayload
-                                });
-                            }}
-                        >
-                            {createSeparationMutation.isPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <ShoppingCart className="mr-2 h-4 w-4" />
+                <div className="border-t bg-background p-6 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-20 flex-none mt-auto">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Itens Totais</span>
+                                <strong className="text-lg text-foreground">{totalItemsInCart}</strong>
+                            </div>
+                            {totalItemsInCart > 0 && (
+                                <Button variant="ghost" size="sm" onClick={clearCart} className="text-xs text-destructive hover:bg-destructive/10 h-6">
+                                    <XCircle className="h-3 w-3 mr-1" /> Limpar
+                                </Button>
                             )}
-                            Confirmar Pedido
-                        </Button>
+                        </div>
+                        
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" size="lg" className="flex-1 h-12" onClick={() => setIsNewSheetOpen(false)}>
+                                Cancelar
+                            </Button>
+                            <Button 
+                                size="lg"
+                                className="flex-[2] h-12 font-bold text-base shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
+                                disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
+                                onClick={() => {
+                                    const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
+                                        product_id: pid,
+                                        quantity: qty
+                                    }));
+                                    createSeparationMutation.mutate({
+                                        production_order: productionOrder,
+                                        client_name: clientName,
+                                        destination: profile?.sector || "Setor",
+                                        items: itemsPayload
+                                    });
+                                }}
+                            >
+                                {createSeparationMutation.isPending ? (
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                ) : (
+                                    <Check className="mr-2 h-5 w-5" />
+                                )}
+                                Confirmar Pedido
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </SheetContent>
         </Sheet>
 
-        {/* Modal Confirmação de Exclusão */}
         <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
            <AlertDialogContent>
               <AlertDialogHeader>
@@ -1244,7 +1483,6 @@ export default function Separations() {
            </AlertDialogContent>
         </AlertDialog>
 
-        {/* Novo Modal de Confirmação de Entrega Parcial */}
         <AlertDialog open={isPartialDeliveryModalOpen} onOpenChange={setIsPartialDeliveryModalOpen}>
            <AlertDialogContent>
                <AlertDialogHeader>
@@ -1270,7 +1508,6 @@ export default function Separations() {
            </AlertDialogContent>
         </AlertDialog>
         
-        {/* Modal de Devolução */}
         <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
             <DialogContent>
                 <DialogHeader>
