@@ -77,7 +77,7 @@ import {
   Filter,
   XCircle,
   Zap,
-  DollarSign
+  ChevronRight
 } from "lucide-react";
 
 import { format, differenceInDays, addDays } from "date-fns";
@@ -98,7 +98,6 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Formatação compacta (Ex: R$ 1,5 mi / R$ 150 mil)
 const formatCompactCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -106,6 +105,13 @@ const formatCompactCurrency = (value: number) => {
     notation: 'compact',
     maximumFractionDigits: 1
   }).format(value);
+};
+
+// Verifica se a unidade aceita números decimais
+const isDecimalUnit = (unit?: string) => {
+  if (!unit) return false;
+  const u = unit.toUpperCase().trim();
+  return ["M", "MT", "METRO", "METROS", "KG", "QUILO", "KILO", "KILOS", "L", "LT", "LITRO", "LITROS"].includes(u);
 };
 
 // ===================== TYPES =====================
@@ -164,12 +170,12 @@ const EmptyState = ({
   description: string;
   action?: React.ReactNode;
 }) => (
-  <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-xl border-muted bg-muted/5 min-h-[300px] animate-in fade-in zoom-in duration-300">
-    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-      <Package className="h-8 w-8 text-muted-foreground/50" />
+  <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl bg-muted/30 min-h-[350px] animate-in fade-in zoom-in duration-500">
+    <div className="h-20 w-20 rounded-full bg-background shadow-sm flex items-center justify-center mb-6">
+      <Package className="h-10 w-10 text-muted-foreground/40" />
     </div>
-    <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
-    <p className="text-sm text-muted-foreground max-w-sm mt-2 mb-6">{description}</p>
+    <h3 className="text-2xl font-bold tracking-tight text-foreground mb-2">{title}</h3>
+    <p className="text-base text-muted-foreground max-w-sm mb-8">{description}</p>
     {action}
   </div>
 );
@@ -177,9 +183,9 @@ const EmptyState = ({
 const CustomProgressBar = ({ value, max, className, indicatorColor }: { value: number, max: number, className?: string, indicatorColor?: string }) => {
     const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
     return (
-        <div className={cn("h-1.5 w-full bg-secondary rounded-full overflow-hidden", className)}>
+        <div className={cn("h-2 w-full bg-secondary/60 rounded-full overflow-hidden", className)}>
             <div 
-                className={cn("h-full transition-all duration-500 ease-out", indicatorColor || "bg-primary")}
+                className={cn("h-full transition-all duration-700 ease-out rounded-full", indicatorColor || "bg-primary")}
                 style={{ width: `${pct}%` }}
             />
         </div>
@@ -205,10 +211,11 @@ const CatalogItem = ({
   const minStock = product.min_stock || 10;
   
   const isExceedingStock = quantityInCart > stock;
-  const stockColor = stock === 0 ? "bg-muted" : stock < minStock ? "bg-amber-500" : "bg-emerald-500";
+  const stockColor = stock === 0 ? "bg-muted-foreground/20" : stock < minStock ? "bg-amber-400" : "bg-emerald-500";
+  const allowDecimal = isDecimalUnit(product.unit);
 
   const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = parseInt(e.target.value);
+    let val = allowDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
     if (isNaN(val)) val = 0;
     onUpdateQuantity(val);
   };
@@ -216,91 +223,91 @@ const CatalogItem = ({
   return (
     <m.div 
       layout
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:shadow-md",
-        quantityInCart > 0 && !isExceedingStock && "border-primary ring-1 ring-primary/20 shadow-sm bg-primary/5",
-        isExceedingStock && "border-amber-500 ring-2 ring-amber-500/40 bg-amber-500/10 shadow-sm",
-        quantityInCart === 0 && "bg-card hover:border-primary/30"
+        "group flex flex-col p-5 rounded-3xl transition-all duration-300",
+        quantityInCart > 0 && !isExceedingStock ? "bg-primary/[0.03] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-primary/10" : 
+        isExceedingStock ? "bg-amber-500/5 shadow-[0_4px_20px_-4px_rgba(245,158,11,0.1)] border border-amber-500/20" : 
+        "bg-card shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-transparent hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.08)]"
       )}
     >
-      <div className={cn("absolute left-0 top-4 bottom-4 w-1 rounded-r-full transition-colors", 
-          isExceedingStock ? "bg-amber-500" : hasStock ? "bg-transparent group-hover:bg-primary/50" : "bg-destructive/50"
-      )} />
-
-      <div className="flex-1 min-w-0 pr-4 pl-3 w-full">
-        <div className="flex items-center justify-between sm:justify-start gap-2 mb-1.5">
-          <Badge variant="secondary" className="font-mono text-[10px] tracking-wider text-muted-foreground bg-muted/50 border-0">
-            {product.sku}
-          </Badge>
-          {!hasStock && quantityInCart === 0 && <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Esgotado</Badge>}
-          {isExceedingStock && (
-             <Badge className="bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-[10px] h-5 px-1.5 text-white flex items-center gap-1 shadow-sm">
-                 <AlertTriangle className="h-3 w-3" /> Excede Estoque
+      <div className="flex items-start justify-between gap-3 mb-3">
+         <div className="flex-1 min-w-0">
+             <Badge variant="secondary" className="font-mono text-[10px] font-medium tracking-wider text-muted-foreground bg-muted/50 border-0 mb-2 px-2 py-0.5 rounded-md">
+                {product.sku}
              </Badge>
-          )}
-        </div>
-        
-        <h4 className="font-semibold text-sm leading-snug text-foreground mb-2">{product.name}</h4>
-        
-        <div className="flex items-center gap-3">
-            <div className="flex-1 max-w-[120px]">
-                <CustomProgressBar value={stock} max={minStock * 2} indicatorColor={stockColor} />
-            </div>
-            <span className={cn("text-xs font-medium", !hasStock ? "text-destructive" : "text-muted-foreground")}>
-                {stock} {product.unit} disp.
-            </span>
-        </div>
+             <h4 className="font-bold text-base leading-tight text-foreground line-clamp-2">{product.name}</h4>
+         </div>
+         <div className="flex flex-col items-end shrink-0 gap-1">
+             {!hasStock && quantityInCart === 0 && (
+                <Badge variant="outline" className="text-[10px] font-semibold text-destructive border-destructive/30 bg-destructive/5 rounded-full px-2">Esgotado</Badge>
+             )}
+             {isExceedingStock && (
+                <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-0 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Excede Estoque
+                </Badge>
+             )}
+         </div>
       </div>
+      
+      <div className="mt-auto pt-2 flex items-end justify-between gap-4">
+         <div className="flex-1 max-w-[140px] space-y-1.5">
+            <span className={cn("text-xs font-semibold block", !hasStock ? "text-destructive" : "text-muted-foreground")}>
+                {stock} {product.unit} disponíveis
+            </span>
+            <CustomProgressBar value={stock} max={minStock * 2} indicatorColor={stockColor} className="h-1.5" />
+         </div>
 
-      <div className="flex items-center justify-end w-full sm:w-auto mt-3 sm:mt-0 gap-3 pl-3">
-        {quantityInCart > 0 ? (
-          <div className={cn(
-              "flex items-center bg-background border rounded-lg shadow-sm p-0.5",
-              isExceedingStock && "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400 dark:ring-amber-600"
-          )}>
-            <Button
-              variant="ghost" 
-              size="icon"
-              onClick={onRemove}
-              className="h-8 w-8 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            
-            <Input 
-                type="number"
+         <div>
+            {quantityInCart > 0 ? (
+              <div className={cn(
+                  "flex items-center bg-background rounded-2xl shadow-sm border p-1 transition-all",
+                  isExceedingStock ? "border-amber-300 ring-2 ring-amber-500/20" : "border-primary/20 ring-2 ring-primary/5"
+              )}>
+                <Button
+                  variant="ghost" 
+                  size="icon"
+                  onClick={onRemove}
+                  className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                
+                <Input 
+                    type="number"
+                    step={allowDecimal ? "any" : "1"}
+                    className={cn(
+                        "h-8 w-14 border-0 text-center font-black text-base p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none",
+                        isExceedingStock ? "text-amber-600 dark:text-amber-400" : "text-primary"
+                    )}
+                    value={quantityInCart === 0 ? "" : quantityInCart}
+                    onChange={handleManualInput}
+                    min={0}
+                />
+
+                <Button 
+                  variant="ghost"
+                  size="icon"
+                  onClick={onAdd}
+                  className="h-8 w-8 rounded-xl text-primary hover:bg-primary/10"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                size="sm" 
                 className={cn(
-                    "h-8 w-14 border-0 text-center font-bold p-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent shadow-none",
-                    isExceedingStock && "text-amber-600 dark:text-amber-500"
+                    "rounded-2xl font-bold px-6 h-10 transition-all duration-300",
+                    hasStock ? "bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground shadow-none" : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
                 )}
-                value={quantityInCart}
-                onChange={handleManualInput}
-                min={0}
-            />
-
-            <Button 
-              variant="ghost"
-              size="icon"
-              onClick={onAdd}
-              className="h-8 w-8 rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
-          <Button 
-            size="sm" 
-            className={cn(
-                "rounded-full transition-all duration-300 font-medium px-5 h-9",
-                "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:scale-105"
+                onClick={onAdd}
+              >
+                Adicionar
+              </Button>
             )}
-            onClick={onAdd}
-          >
-            Adicionar
-          </Button>
-        )}
+         </div>
       </div>
     </m.div>
   );
@@ -353,105 +360,88 @@ const SeparationCard = ({
 
   const isArchived = sep.status === 'finalizada' || (sep.status === 'entregue' && isExpired);
 
-  const statusColors = {
-      pendente: "border-amber-500/50 hover:border-amber-500",
-      em_separacao: "border-amber-500/50 hover:border-amber-500", 
-      entregue: "border-emerald-500/50 hover:border-emerald-500",
-      finalizado: "border-zinc-500/50 hover:border-zinc-500" 
+  const statusStyles: Record<string, { bg: string, text: string, bar: string, border: string }> = {
+      pendente: { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-700 dark:text-purple-400", bar: "bg-purple-500", border: "hover:border-purple-200 dark:hover:border-purple-800" },
+      em_separacao: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-400", bar: "bg-blue-500", border: "hover:border-blue-200 dark:hover:border-blue-800" }, 
+      entregue: { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", bar: "bg-emerald-500", border: "hover:border-emerald-200 dark:hover:border-emerald-800" },
+      finalizado: { bg: "bg-zinc-100 dark:bg-zinc-800/50", text: "text-zinc-600 dark:text-zinc-400", bar: "bg-zinc-400", border: "hover:border-zinc-300 dark:hover:border-zinc-700" } 
   };
 
-  const bgStatus: any = {
-      pendente: "bg-amber-500",
-      em_separacao: "bg-amber-500",
-      entregue: "bg-emerald-500",
-      finalizado: "bg-zinc-500"
-  };
-
-  const displayStatus = isArchived ? 'Finalizado' : (sep.status === 'em_separacao' ? 'Em Separação' : sep.status);
   const statusKey = isArchived ? 'finalizado' : sep.status;
+  const currentStyle = statusStyles[statusKey] || statusStyles.pendente;
+  const displayStatus = isArchived ? 'Finalizado' : (sep.status === 'em_separacao' ? 'Em Separação' : sep.status);
 
   return (
     <m.div 
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        whileHover={{ y: -4, scale: 1.01, transition: { duration: 0.2 } }}
         onClick={onClick}
         className={cn(
-            "group relative flex flex-col justify-between rounded-2xl border-2 bg-card p-5 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-xl",
-            deadlineInfo?.expired && !isArchived ? "border-red-300 dark:border-red-900/50" : (statusColors[statusKey] || "border-border")
+            "group relative flex flex-col justify-between rounded-3xl bg-card p-6 cursor-pointer transition-all duration-300 border border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)]",
+            deadlineInfo?.expired && !isArchived ? "border-red-200 dark:border-red-900/50 shadow-red-500/5" : currentStyle.border
         )}
     >
-        <div className="flex justify-between items-start mb-3">
-            <Badge variant="outline" className="font-mono bg-background shadow-sm border-muted-foreground/30">
-                OP: {sep.production_order}
-            </Badge>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+        <div className="flex justify-between items-start mb-4">
+            <div className={cn("px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider", currentStyle.bg, currentStyle.text)}>
+                {displayStatus}
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest bg-muted/50 px-2 py-1 rounded-md">
                 {format(new Date(sep.created_at), "dd MMM")}
             </span>
         </div>
 
-        <div className="flex-1 mb-2">
-            <h3 className="text-xl font-black uppercase leading-tight tracking-tight text-foreground line-clamp-2">
+        <div className="flex-1 mb-6">
+            <h3 className="text-xl font-black leading-tight text-foreground mb-1 line-clamp-2">
                 {sep.client_name}
             </h3>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
+                <span className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">OP: {sep.production_order}</span>
+                <span className="w-1 h-1 rounded-full bg-border" />
+                <span className="truncate">{sep.destination}</span>
+            </div>
             
             {deadlineInfo && !isArchived && (
                 <div className={cn(
-                    "mt-2 inline-flex items-center gap-1.5 rounded-md py-1 px-2 text-[11px] font-bold border animate-in fade-in slide-in-from-left-2",
-                    deadlineInfo.expired ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" :
-                    deadlineInfo.urgent ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400" :
-                    "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+                    "mt-3 inline-flex items-center gap-1.5 rounded-lg py-1.5 px-3 text-[11px] font-bold",
+                    deadlineInfo.expired ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                    deadlineInfo.urgent ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                    "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                 )}>
-                    {deadlineInfo.expired ? <Ban className="h-3 w-3"/> : <Clock className="h-3 w-3"/>}
-                    {deadlineInfo.expired ? "Prazo Expirado" : `${deadlineInfo.days} dias p/ devolver`}
+                    {deadlineInfo.expired ? <Ban className="h-3.5 w-3.5"/> : <Clock className="h-3.5 w-3.5"/>}
+                    {deadlineInfo.expired ? "Prazo Expirado" : `Devolver em ${deadlineInfo.days} dias`}
                 </div>
             )}
-
-            <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
-                <User className="h-3 w-3" />
-                <span className="truncate">{sep.destination}</span>
-            </div>
         </div>
 
-        <div className="space-y-3 pt-4 mt-4 border-t border-border/50">
+        <div className="space-y-3 pt-4 border-t border-border/40">
             <div className="flex justify-between items-end gap-3">
                 <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Financeiro</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Valor Separado</span>
                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span 
-                            className="text-sm font-black text-emerald-600 truncate" 
-                            title={formatCurrency(totalSeparatedValue)}
-                        >
+                        <span className="text-base font-black text-foreground truncate" title={formatCurrency(totalSeparatedValue)}>
                             {formatCompactCurrency(totalSeparatedValue)}
                         </span>
-                        <span 
-                            className="text-xs font-semibold text-muted-foreground truncate"
-                            title={formatCurrency(totalRequestedValue)}
-                        >
+                        <span className="text-xs font-medium text-muted-foreground/70 truncate" title={formatCurrency(totalRequestedValue)}>
                             / {formatCompactCurrency(totalRequestedValue)}
                         </span>
                     </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Progresso</span>
-                    <span className="text-xs font-bold text-foreground leading-none">
-                        {done}/{total} <span className="text-muted-foreground font-semibold">({progress.toFixed(0)}%)</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Itens</span>
+                    <span className="text-sm font-bold text-foreground leading-none">
+                        {done}/{total} <span className="text-muted-foreground/70 text-xs font-medium">({progress.toFixed(0)}%)</span>
                     </span>
                 </div>
             </div>
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                <div 
-                    className={cn("h-full transition-all duration-500", bgStatus[statusKey] || "bg-primary")} 
-                    style={{ width: `${progress}%` }} 
-                />
-            </div>
+            <CustomProgressBar value={progress} max={100} indicatorColor={currentStyle.bar} className="h-1.5" />
         </div>
-
-        <div className="absolute -top-3 -right-2">
-             <Badge className={cn("shadow-md uppercase text-[10px] px-2 h-6", bgStatus[statusKey])}>
-                {displayStatus}
-             </Badge>
+        
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-2 group-hover:translate-x-0">
+            <div className="bg-background shadow-md rounded-full p-2 text-primary">
+               <ChevronRight className="h-5 w-5" />
+            </div>
         </div>
     </m.div>
   );
@@ -474,6 +464,7 @@ const SeparationItemDetailedRow = ({
 }) => {
   const dbOnHand = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
   const unitPrice = Number(item.products?.unit_price) || 0; 
+  const allowDecimal = isDecimalUnit(item.products?.unit);
   
   const dbReservedHere = Math.max(0, (item.quantity || 0) - approvedDeduction);
   const projectedTotal = dbReservedHere + inputValue;
@@ -482,7 +473,6 @@ const SeparationItemDetailedRow = ({
   const isComplete = projectedTotal >= requested;
   
   const remainingRequest = Math.max(0, requested - dbReservedHere);
-  
   const maxAddable = Math.min(remainingRequest, dbOnHand);
   const maxRevertable = dbReservedHere;
 
@@ -495,8 +485,7 @@ const SeparationItemDetailedRow = ({
         onChange(rawVal); 
         return;
     }
-
-    let val = parseFloat(rawVal);
+    let val = allowDecimal ? parseFloat(rawVal) : parseInt(rawVal, 10);
     if (isNaN(val)) val = 0;
     
     if (val < 0 && Math.abs(val) > maxRevertable) {
@@ -504,7 +493,7 @@ const SeparationItemDetailedRow = ({
         val = -maxRevertable;
     }
     if (val > 0 && val > maxAddable) {
-        toast.warning(`Máximo para adicionar: ${maxAddable}`);
+        toast.warning(`Estoque disponível insuficiente.`);
         val = maxAddable;
     }
     onChange(String(val));
@@ -519,90 +508,84 @@ const SeparationItemDetailedRow = ({
 
   return (
     <div className={cn(
-      "relative flex flex-col sm:flex-row gap-4 p-4 rounded-xl border bg-card shadow-sm transition-all duration-300",
-      isComplete ? "border-emerald-500/40 bg-emerald-500/5 shadow-emerald-500/10" : "border-border hover:border-primary/40",
-      hasChange && "ring-2 ring-primary border-primary bg-primary/5"
+      "relative flex flex-col sm:flex-row gap-5 p-5 rounded-3xl transition-all duration-300",
+      isComplete ? "bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/30" : "bg-card border border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md",
+      hasChange && "ring-2 ring-primary/30 border-primary/20 bg-primary/[0.02]"
     )}>
       
-      {/* Coluna do Produto */}
-      <div className="flex-1 space-y-2">
-        <div className="flex items-center gap-2">
-           <Badge variant="outline" className="text-[10px] font-mono h-5 px-1.5 bg-background">{item.products?.sku}</Badge>
+      <div className="flex-1 space-y-3">
+        <div className="flex items-center gap-3">
+           <Badge variant="secondary" className="text-[10px] font-mono font-medium px-2 py-0.5 bg-muted/50 border-0">{item.products?.sku}</Badge>
            {isComplete && (
-               <span className="text-emerald-600 dark:text-emerald-500 text-xs font-bold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full animate-in zoom-in">
-                   <CheckCircle2 className="h-3 w-3"/> OK
+               <span className="text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 rounded-full animate-in zoom-in">
+                   <CheckCircle2 className="h-3.5 w-3.5"/> Completo
                </span>
            )}
         </div>
         
         <div>
-            <div className="font-semibold text-base leading-snug">{item.products?.name}</div>
+            <div className="font-bold text-lg leading-snug">{item.products?.name}</div>
             {approvedDeduction > 0 && (
-                <span className="text-[10px] text-red-500 font-medium mt-1 flex items-center gap-1">
-                    <RotateCcw className="h-3 w-3" /> {approvedDeduction} devolvido(s).
+                <span className="text-[11px] text-red-600 dark:text-red-400 font-semibold mt-1.5 flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 inline-flex px-2 py-0.5 rounded-md">
+                    <RotateCcw className="h-3 w-3" /> {approvedDeduction} un. devolvida(s)
                 </span>
             )}
         </div>
 
-        {/* Barra de Progresso Visual e Financeira */}
-        <div className="space-y-1 pt-1">
-            <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                <span>Progresso: {projectedTotal} / {requested}</span>
-                <span className={cn("font-bold", isComplete ? "text-emerald-600 dark:text-emerald-500" : "text-primary")}>
-                    {formatCurrency(totalValueSeparated)} / {formatCurrency(totalValueRequested)}
-                </span>
+        <div className="space-y-1.5 pt-2">
+            <div className="flex justify-between text-xs font-semibold text-muted-foreground">
+                <span>Separado: <span className={cn("font-bold text-foreground", isComplete && "text-emerald-600 dark:text-emerald-400")}>{projectedTotal} / {requested}</span></span>
+                <span>{formatCurrency(totalValueSeparated)}</span>
             </div>
-            <CustomProgressBar value={projectedTotal} max={requested} indicatorColor={isComplete ? "bg-emerald-500" : "bg-primary"} className={isComplete ? "bg-emerald-500/20" : ""} />
+            <CustomProgressBar value={projectedTotal} max={requested} indicatorColor={isComplete ? "bg-emerald-500" : "bg-primary"} className="h-1.5" />
         </div>
       </div>
 
-      {/* Coluna de Ações e Infos */}
-      <div className="flex flex-col sm:items-end justify-between gap-3 min-w-[140px]">
+      <div className="flex flex-col sm:items-end justify-between gap-4 min-w-[160px] pl-4 sm:border-l border-border/50">
          
-         <div className="flex gap-4 text-sm text-right">
+         <div className="flex gap-6 text-sm sm:text-right w-full sm:w-auto justify-between sm:justify-end">
              <div className="flex flex-col">
-                 <span className="text-[10px] text-muted-foreground font-bold uppercase">Estoque</span>
-                 <span className="font-bold">{dbOnHand}</span>
+                 <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Estoque</span>
+                 <span className="font-bold text-base">{dbOnHand}</span>
              </div>
-             <div className="flex flex-col">
-                 <span className="text-[10px] text-muted-foreground font-bold uppercase">Reservado</span>
-                 <span className={cn("font-bold", hasChange && "text-primary")}>
+             <div className="flex flex-col text-right">
+                 <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-0.5">Reservado</span>
+                 <span className={cn("font-bold text-base", hasChange && "text-primary")}>
                     {dbReservedHere}
-                    {hasChange && <span className="text-xs ml-1 opacity-80">({inputValue > 0 ? '+' : ''}{inputValue})</span>}
+                    {hasChange && <span className="text-xs ml-1 font-black bg-primary/10 px-1.5 py-0.5 rounded-md">({inputValue > 0 ? '+' : ''}{inputValue})</span>}
                  </span>
              </div>
          </div>
 
          {canEdit && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 {!isComplete && maxAddable > 0 && (
                     <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="icon" 
-                        className="h-10 w-10 text-amber-500 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-600"
+                        className="h-12 w-12 rounded-2xl bg-muted/30 text-primary hover:bg-primary/10 hover:text-primary transition-colors"
                         onClick={quickFill}
                         title="Completar Automaticamente"
                     >
-                        <Zap className="h-4 w-4 fill-amber-500" />
+                        <Zap className="h-5 w-5 fill-current opacity-80" />
                     </Button>
                 )}
                 
-                <div className="relative group">
+                <div className="relative group flex items-center bg-background border shadow-sm rounded-2xl p-1 h-12">
+                    <span className="absolute -top-3 left-3 bg-background px-1.5 text-[10px] font-bold text-muted-foreground transition-colors group-focus-within:text-primary rounded-full">
+                        {inputValue < 0 ? "Estornar" : "Adicionar"}
+                    </span>
                     <Input 
                         type="number"
+                        step={allowDecimal ? "any" : "1"}
                         className={cn(
-                            "h-10 w-24 text-center font-bold text-lg transition-all",
-                            inputValue < 0 ? "border-red-500 text-red-600 dark:text-red-400 bg-red-500/10" : 
-                            inputValue > 0 ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" : 
-                            "bg-background"
+                            "h-full w-20 border-0 text-center font-black text-xl shadow-none focus-visible:ring-0 rounded-xl bg-transparent",
+                            inputValue < 0 ? "text-red-500" : inputValue > 0 ? "text-emerald-500" : "text-foreground"
                         )}
                         placeholder="0"
                         value={inputValue === 0 ? "" : inputValue}
                         onChange={handleInputChange}
                     />
-                    <span className="absolute -top-2.5 left-2 bg-background px-1 text-[9px] text-muted-foreground group-hover:text-primary transition-colors">
-                        {inputValue < 0 ? "Estorno" : "Adicionar"}
-                    </span>
                 </div>
             </div>
          )}
@@ -689,147 +672,118 @@ const DetailedView = ({
     }, [sep, inputIncrements]); 
 
     const generatePDF = () => {
-        const doc = new jsPDF();
-        
-        doc.setFontSize(22);
-        doc.setTextColor(0, 0, 0);
-        doc.text("Ordem de Separação", 14, 20);
-        
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 26);
-
-        doc.setFillColor(240, 240, 240);
-        doc.rect(14, 32, 182, 28, 'F');
-        
-        doc.setFontSize(12);
-        doc.setTextColor(0);
-        
-        doc.setFont("helvetica", "bold");
-        doc.text(`Cliente: ${sep.client_name}`, 18, 40);
-        doc.text(`OP: ${sep.production_order}`, 18, 48);
-        
-        doc.setFont("helvetica", "normal");
-        doc.text(`Destino: ${sep.destination}`, 120, 40);
-        doc.text(`Status: ${sep.status.toUpperCase()}`, 120, 48);
-        doc.text(`Data Pedido: ${format(new Date(sep.created_at), "dd/MM/yyyy")}`, 18, 56);
-
-        const totalItems = sep.items.length;
-        const completedItems = sep.items.filter(i => i.quantity >= i.qty_requested).length;
-        const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-        doc.setFontSize(10);
-        doc.text(`Progresso: ${progress.toFixed(0)}% Concluído`, 120, 56);
-
-        const tableRows = sep.items.map(item => {
-            const requested = item.qty_requested;
-            const separated = item.quantity;
-            const missing = Math.max(0, requested - separated);
-            const stock = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
-            const status = separated >= requested ? "Completo" : "Pendente";
-
-            return [
-                `${item.products?.sku}\n${item.products?.name}`,
-                requested,
-                separated,
-                missing > 0 ? missing : "-",
-                stock,
-                status
-            ];
-        });
-
-        // @ts-ignore
-        autoTable(doc, {
-            startY: 65,
-            head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Estoque Atual', 'Status']],
-            body: tableRows,
-            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-            styles: { fontSize: 9, valign: 'middle', cellPadding: 3 },
-            columnStyles: {
-                0: { cellWidth: 70 },
-                1: { halign: 'center' },
-                2: { halign: 'center', fontStyle: 'bold' },
-                3: { halign: 'center', textColor: [220, 53, 69] },
-                4: { halign: 'center' },
-                5: { halign: 'center' }
-            },
-            didParseCell: function(data: any) {
-                if (data.section === 'body' && data.column.index === 5) {
-                    if (data.cell.raw === 'Pendente') {
-                        data.cell.styles.textColor = [220, 53, 69];
-                    } else {
-                        data.cell.styles.textColor = [40, 167, 69];
-                    }
-                }
-            }
-        });
-
-        const pageCount = (doc as any).internal.getNumberOfPages();
-        for(let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8);
-            doc.setTextColor(150);
-            doc.text('Fluxo Royale - Sistema de Controle de Estoque', 14, doc.internal.pageSize.height - 10);
-            doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
-        }
-
-        doc.save(`Pedido_${sep.production_order}_${sep.client_name}.pdf`);
+       const doc = new jsPDF();
+       doc.setFontSize(22);
+       doc.setTextColor(0, 0, 0);
+       doc.text("Ordem de Separação", 14, 20);
+       doc.setFontSize(10);
+       doc.setTextColor(100);
+       doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 26);
+       doc.setFillColor(240, 240, 240);
+       doc.rect(14, 32, 182, 28, 'F');
+       doc.setFontSize(12);
+       doc.setTextColor(0);
+       doc.setFont("helvetica", "bold");
+       doc.text(`Cliente: ${sep.client_name}`, 18, 40);
+       doc.text(`OP: ${sep.production_order}`, 18, 48);
+       doc.setFont("helvetica", "normal");
+       doc.text(`Destino: ${sep.destination}`, 120, 40);
+       doc.text(`Status: ${sep.status.toUpperCase()}`, 120, 48);
+       doc.text(`Data Pedido: ${format(new Date(sep.created_at), "dd/MM/yyyy")}`, 18, 56);
+       const totalItems = sep.items.length;
+       const completedItems = sep.items.filter(i => i.quantity >= i.qty_requested).length;
+       const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+       doc.setFontSize(10);
+       doc.text(`Progresso: ${progress.toFixed(0)}% Concluído`, 120, 56);
+       const tableRows = sep.items.map(item => {
+           const requested = item.qty_requested;
+           const separated = item.quantity;
+           const missing = Math.max(0, requested - separated);
+           const stock = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
+           const status = separated >= requested ? "Completo" : "Pendente";
+           return [`${item.products?.sku}\n${item.products?.name}`, requested, separated, missing > 0 ? missing : "-", stock, status];
+       });
+       // @ts-ignore
+       autoTable(doc, {
+           startY: 65,
+           head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Estoque Atual', 'Status']],
+           body: tableRows,
+           headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+           styles: { fontSize: 9, valign: 'middle', cellPadding: 3 },
+           columnStyles: {
+               0: { cellWidth: 70 }, 1: { halign: 'center' }, 2: { halign: 'center', fontStyle: 'bold' },
+               3: { halign: 'center', textColor: [220, 53, 69] }, 4: { halign: 'center' }, 5: { halign: 'center' }
+           },
+           didParseCell: function(data: any) {
+               if (data.section === 'body' && data.column.index === 5) {
+                   if (data.cell.raw === 'Pendente') { data.cell.styles.textColor = [220, 53, 69]; } 
+                   else { data.cell.styles.textColor = [40, 167, 69]; }
+               }
+           }
+       });
+       const pageCount = (doc as any).internal.getNumberOfPages();
+       for(let i = 1; i <= pageCount; i++) {
+           doc.setPage(i);
+           doc.setFontSize(8);
+           doc.setTextColor(150);
+           doc.text('Fluxo Royale - Sistema de Controle de Estoque', 14, doc.internal.pageSize.height - 10);
+           doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
+       }
+       doc.save(`Pedido_${sep.production_order}_${sep.client_name}.pdf`);
     };
 
     return (
        <m.div 
-         initial={{ opacity: 0, y: 15 }} 
+         initial={{ opacity: 0, y: 20 }} 
          animate={{ opacity: 1, y: 0 }} 
-         exit={{ opacity: 0, y: -15 }}
-         className="bg-background min-h-screen flex flex-col w-full"
+         exit={{ opacity: 0, scale: 0.95 }}
+         transition={{ duration: 0.3 }}
+         className="bg-background min-h-screen flex flex-col w-full pb-32"
        >
-          <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b shadow-sm">
-              <div className="w-full px-3 sm:container sm:px-8 py-4">
-                  <div className="flex items-center gap-4 mb-2">
-                      <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-muted/50 rounded-full h-10 w-10">
-                          <ArrowLeft className="h-5 w-5" />
+          <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b shadow-sm">
+              <div className="w-full px-4 sm:container py-5">
+                  <div className="flex items-center gap-4 mb-4">
+                      <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-muted/80 rounded-full h-12 w-12 shrink-0">
+                          <ArrowLeft className="h-6 w-6" />
                       </Button>
                       <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-muted-foreground">OP: {sep.production_order}</span>
-                              <Badge variant={isArchived ? "secondary" : (isPending ? "default" : "secondary")} className={isArchived ? "bg-zinc-500 text-white hover:bg-zinc-600" : ""}>
+                          <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-[10px] font-mono bg-muted/30 border-0">OP: {sep.production_order}</Badge>
+                              <Badge className={cn("text-[10px] border-0 shadow-none", 
+                                  isArchived ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" : 
+                                  isPending ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" : 
+                                  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                              )}>
                                   {isArchived ? "Finalizado" : (sep.status === 'em_separacao' ? 'Em Separação' : sep.status)}
                               </Badge>
                           </div>
-                          <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight truncate">{sep.client_name}</h1>
+                          <h1 className="text-2xl md:text-3xl font-black tracking-tight truncate text-foreground">{sep.client_name}</h1>
                       </div>
                       
-                      <div className="hidden lg:flex flex-col items-end mr-4 px-4 border-r">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Separado</span>
-                          <span className="text-lg font-bold text-emerald-600">
+                      <div className="hidden lg:flex flex-col items-end mr-6 px-6 border-r border-border/50">
+                          <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-1">Valor Separado</span>
+                          <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">
                               {formatCurrency(grandTotalSeparated)}
-                          </span>
-                      </div>
-                      <div className="hidden lg:flex flex-col items-end mr-4">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Pedido</span>
-                          <span className="text-base font-medium">
-                              {formatCurrency(grandTotalRequested)}
                           </span>
                       </div>
 
                       <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="hidden sm:flex gap-2 mr-2 border-dashed border-2"
+                        variant="secondary" 
+                        className="hidden sm:flex gap-2 rounded-xl font-bold bg-muted/50 hover:bg-muted"
                         onClick={generatePDF}
                       >
-                          <FileText className="h-4 w-4 text-red-500" />
-                          Exportar PDF
+                          <FileText className="h-4 w-4" />
+                          Gerar PDF
                       </Button>
                       
-                      <Button variant="ghost" size="icon" className="sm:hidden shrink-0" onClick={generatePDF}>
-                          <Download className="h-5 w-5 text-muted-foreground" />
+                      <Button variant="ghost" size="icon" className="sm:hidden shrink-0 rounded-full bg-muted/50" onClick={generatePDF}>
+                          <Download className="h-5 w-5" />
                       </Button>
 
                       {isDelivered && !isArchived && (
                          <div className={cn(
-                             "hidden md:flex ml-auto items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold",
-                             returnStatus.expired ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" : "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+                             "hidden md:flex ml-4 items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold",
+                             returnStatus.expired ? "bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" : "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
                          )}>
                              {returnStatus.expired ? <Ban className="h-4 w-4"/> : <Clock className="h-4 w-4"/>}
                              {returnStatus.label}
@@ -838,35 +792,33 @@ const DetailedView = ({
 
                       {isWarehouseMode && isPending && (
                           <Button 
-                            variant="destructive" 
+                            variant="ghost" 
                             size="icon" 
-                            className="rounded-full h-10 w-10 shadow-sm ml-2 shrink-0" 
+                            className="rounded-full h-12 w-12 text-muted-foreground hover:bg-destructive/10 hover:text-destructive ml-2 shrink-0" 
                             onClick={() => onDelete(sep.id)}
-                            title="Excluir Solicitação"
                           >
                               <Trash2 className="h-5 w-5" />
                           </Button>
                       )}
                   </div>
 
-                  <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
-                      <div 
-                          className="h-full bg-emerald-500 transition-all duration-500 ease-out" 
-                          style={{ width: `${progressPercent}%` }} 
-                      />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-1">
-                      <span>Progresso Financeiro</span>
-                      <span>{progressPercent.toFixed(1)}%</span>
+                  <div className="bg-muted/30 rounded-full p-1 mt-2 flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-secondary/50 rounded-full overflow-hidden ml-2">
+                          <div 
+                              className="h-full bg-primary transition-all duration-700 ease-out rounded-full" 
+                              style={{ width: `${progressPercent}%` }} 
+                          />
+                      </div>
+                      <span className="text-xs font-bold text-foreground mr-3">{progressPercent.toFixed(0)}%</span>
                   </div>
               </div>
           </div>
 
-          <div className="flex-1 w-full px-2 sm:container sm:px-8 py-6 pb-40">
+          <div className="flex-1 w-full px-4 sm:container py-8">
              <Tabs defaultValue="items">
-                <TabsList className="grid w-full grid-cols-2 mb-6 max-w-md">
-                   <TabsTrigger value="items">Itens do Pedido ({sep.items.length})</TabsTrigger>
-                   <TabsTrigger value="returns">Devoluções ({sep.returns?.length || 0})</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 mb-8 max-w-sm rounded-xl h-12 p-1 bg-muted/50">
+                   <TabsTrigger value="items" className="rounded-lg font-bold">Itens do Pedido</TabsTrigger>
+                   <TabsTrigger value="returns" className="rounded-lg font-bold">Devoluções</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="items" className="space-y-4">
@@ -892,44 +844,53 @@ const DetailedView = ({
                 <TabsContent value="returns">
                    {(!sep.returns || sep.returns.length === 0) ? (
                       <EmptyState 
-                          title="Sem devoluções" 
-                          description="Nenhum item devolvido."
+                          title="Tudo certo por aqui!" 
+                          description="Nenhum item deste pedido foi devolvido até o momento."
                           action={
                             (isDelivered || sep.status === 'finalizada') && !returnStatus.expired && !isWarehouseMode ? (
-                                <Button onClick={onOpenReturnModal} className="mt-4">Nova Devolução</Button>
+                                <Button onClick={onOpenReturnModal} size="lg" className="rounded-xl font-bold px-8">Registrar Devolução</Button>
                             ) : null
                           }
                       />
                    ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                           {sep.returns.map(ret => (
-                             <div key={ret.id} className="flex items-center justify-between p-4 border rounded-xl bg-card">
+                             <div key={ret.id} className="flex items-center justify-between p-5 rounded-3xl bg-card border border-transparent shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
                                <div>
-                                  <p className="font-bold uppercase text-sm">{ret.product_name}</p>
-                                  <Badge variant={ret.status === 'aprovado' ? 'default' : ret.status === 'rejeitado' ? 'destructive' : 'secondary'} className="mt-1 text-[10px]">
-                                     {ret.status}
+                                  <p className="font-bold text-base mb-1">{ret.product_name}</p>
+                                  <Badge variant="outline" className={cn(
+                                      "border-0 px-2 py-0.5 text-[10px]",
+                                      ret.status === 'aprovado' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30" : 
+                                      ret.status === 'rejeitado' ? "bg-red-100 text-red-700 dark:bg-red-900/30" : 
+                                      "bg-amber-100 text-amber-700 dark:bg-amber-900/30"
+                                  )}>
+                                     {ret.status.toUpperCase()}
                                   </Badge>
                                </div>
-                               <div className="text-right">
-                                  <span className="block text-[10px] text-muted-foreground uppercase font-bold">Qtd</span>
-                                  <span className="text-xl font-bold">{ret.quantity}</span>
-                               </div>
-                               {isWarehouseMode && ret.status === 'pendente' && (
-                                  <div className="flex gap-2 ml-4">
-                                     <Button size="icon" className="h-8 w-8 bg-emerald-500" onClick={() => updateReturnStatusMutation.mutate({ separationId: sep.id, returnId: ret.id, status: 'aprovado' })}>
-                                        <Check className="h-4 w-4" />
-                                     </Button>
-                                     <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => updateReturnStatusMutation.mutate({ separationId: sep.id, returnId: ret.id, status: 'rejeitado' })}>
-                                        <X className="h-4 w-4" />
-                                     </Button>
+                               <div className="text-right flex items-center gap-6">
+                                  <div className="flex flex-col items-end">
+                                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">Qtd Devolvida</span>
+                                      <span className="text-2xl font-black">{ret.quantity}</span>
                                   </div>
-                               )}
+                                  {isWarehouseMode && ret.status === 'pendente' && (
+                                      <div className="flex gap-2 pl-4 border-l border-border/50">
+                                         <Button size="icon" className="h-10 w-10 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" onClick={() => updateReturnStatusMutation.mutate({ separationId: sep.id, returnId: ret.id, status: 'aprovado' })}>
+                                            <Check className="h-5 w-5" />
+                                         </Button>
+                                         <Button size="icon" className="h-10 w-10 rounded-xl bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:text-red-400" onClick={() => updateReturnStatusMutation.mutate({ separationId: sep.id, returnId: ret.id, status: 'rejeitado' })}>
+                                            <X className="h-5 w-5" />
+                                         </Button>
+                                      </div>
+                                  )}
+                               </div>
                              </div>
                           ))}
                           {(isDelivered || sep.status === 'finalizada') && !returnStatus.expired && !isWarehouseMode && (
-                             <Button onClick={onOpenReturnModal} className="w-full mt-4" variant="outline">
-                                <Plus className="mr-2 h-4 w-4" /> Nova Devolução
-                             </Button>
+                             <div className="pt-4 flex justify-center">
+                                 <Button onClick={onOpenReturnModal} size="lg" variant="secondary" className="rounded-xl font-bold">
+                                    <Plus className="mr-2 h-5 w-5" /> Nova Devolução
+                                 </Button>
+                             </div>
                           )}
                       </div>
                    )}
@@ -937,32 +898,34 @@ const DetailedView = ({
              </Tabs>
           </div>
 
-          {/* RODAPÉ FLUTUANTE ESTILO ILHA */}
+          {/* RODAPÉ FLUTUANTE ESTILO NUBANK (Flutuante, Arredondado, Sombras Suaves) */}
           {isWarehouseMode && isPending && (
-             <div className="fixed bottom-24 left-3 right-3 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-8 lg:w-full lg:max-w-2xl bg-card/95 backdrop-blur-md border rounded-3xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-50">
-                <div className="flex flex-col gap-2">
-                    <div className="flex lg:hidden justify-between items-center text-sm px-2 pb-1 border-b border-border/50">
-                        <span className="text-muted-foreground font-medium">Total Separado:</span>
-                        <span className="font-bold text-emerald-600">{formatCurrency(grandTotalSeparated)}</span>
+             <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-3xl bg-background/90 backdrop-blur-xl border border-border/50 rounded-[2rem] p-3 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] z-50 transition-all">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="hidden sm:flex flex-1 items-center px-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Valor Separado</span>
+                            <span className="font-black text-lg text-emerald-600 dark:text-emerald-400">{formatCurrency(grandTotalSeparated)}</span>
+                        </div>
                     </div>
 
-                    <div className="flex gap-2 w-full">
+                    <div className="flex gap-2 w-full sm:w-auto">
                         <Button 
                             variant="secondary" 
-                            className="flex-1 h-12 sm:h-14 px-2 sm:px-4 rounded-2xl font-bold border-2 border-transparent hover:border-primary/20 min-w-0"
+                            className="flex-1 sm:flex-none h-14 px-6 rounded-2xl font-bold bg-muted hover:bg-muted/80 text-foreground transition-all"
                             disabled={!hasEdits || authorizeMutation.isPending}
                             onClick={onSave}
                         >
-                            {authorizeMutation.isPending ? <Loader2 className="animate-spin mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" /> : <Save className="mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
-                            <span className="truncate text-sm sm:text-base">Salvar<span className="hidden sm:inline"> Alterações</span></span>
+                            {authorizeMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : <Save className="mr-2 h-5 w-5" />}
+                            Salvar Alterações
                         </Button>
                         <Button 
-                            className="flex-1 h-12 sm:h-14 px-2 sm:px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20 min-w-0"
+                            className="flex-1 sm:flex-none h-14 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/25 transition-all hover:-translate-y-0.5"
                             onClick={onDeliver}
                             disabled={authorizeMutation.isPending}
                         >
-                            <Truck className="mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-                            <span className="truncate text-sm sm:text-base">Entregar</span>
+                            <Truck className="mr-2 h-5 w-5" />
+                            Confirmar Entrega
                         </Button>
                     </div>
                 </div>
@@ -982,6 +945,9 @@ export default function Separations() {
   const isRealAlmoxarife = profile?.role === "almoxarife" || profile?.role === "admin";
   const [isWarehouseMode, setIsWarehouseMode] = useState(false);
   
+  // Estado para controlar a aba do carrinho no celular
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
   useEffect(() => {
     if (isRealAlmoxarife) setIsWarehouseMode(true);
   }, [isRealAlmoxarife]);
@@ -1094,6 +1060,7 @@ export default function Separations() {
       queryClient.invalidateQueries({ queryKey: ["separations"] });
       toast.success("Solicitação salva com sucesso!");
       setIsNewSheetOpen(false);
+      setIsMobileCartOpen(false);
       setClientName(""); 
       setProductionOrder(""); 
       setSelectedProducts({});
@@ -1237,10 +1204,10 @@ export default function Separations() {
       toast.info("Carrinho limpo");
   };
 
-  const totalItemsInCart = Object.values(selectedProducts).reduce((a, b) => a + b, 0);
+  // Somatório considerando decimais
+  const totalItemsInCart = Number(Object.values(selectedProducts).reduce((a, b) => a + b, 0).toFixed(2));
   const totalUniqueItems = Object.keys(selectedProducts).length;
 
-  // Lógica para verificar se há produtos no carrinho excedendo o estoque
   const hasExceedingItemsInCart = useMemo(() => {
     return Object.entries(selectedProducts).some(([pid, qty]) => {
         const prod = (products as any[]).find(p => p.id === pid);
@@ -1259,28 +1226,31 @@ export default function Separations() {
       <div className="min-h-screen bg-background text-foreground font-sans overflow-x-hidden">
         
         {!selectedSeparation && (
-            <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container px-3 sm:px-8 py-4 flex items-center justify-between gap-4">
+            <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
+                <div className="container px-4 py-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                             <Box className="h-6 w-6" />
                         </div>
-                        <div className="hidden sm:block">
-                            <h1 className="text-xl font-bold leading-none">Separação</h1>
-                            <p className="text-xs text-muted-foreground">Controle de Estoque</p>
+                        <div>
+                            <h1 className="text-2xl font-black leading-none tracking-tight">Separação</h1>
+                            <p className="text-sm font-medium text-muted-foreground mt-0.5">Controle de Solicitações</p>
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         {isRealAlmoxarife && (
-                            <div className="flex items-center gap-2 mr-2 bg-muted/50 p-1 rounded-lg px-2 border">
-                                <Label htmlFor="wh-mode" className="text-xs font-semibold cursor-pointer">Almoxarifado</Label>
+                            <div className="hidden sm:flex items-center gap-3 bg-muted/40 p-1.5 rounded-2xl px-4 border border-border/50">
+                                <Label htmlFor="wh-mode" className="text-sm font-bold cursor-pointer">Visão Almoxarifado</Label>
                                 <Switch id="wh-mode" checked={isWarehouseMode} onCheckedChange={setIsWarehouseMode} />
                             </div>
                         )}
                         {!isWarehouseMode && (
-                            <Button onClick={() => setIsNewSheetOpen(true)} className="rounded-full font-bold shadow-sm bg-primary hover:bg-primary/90">
-                                <Plus className="mr-2 h-4 w-4" /> Novo Pedido
+                            <Button 
+                              onClick={() => { setIsNewSheetOpen(true); setIsMobileCartOpen(false); }} 
+                              className="rounded-2xl font-bold shadow-lg shadow-primary/20 h-12 px-6 hover:-translate-y-0.5 transition-transform"
+                            >
+                                <Plus className="mr-2 h-5 w-5" /> Novo Pedido
                             </Button>
                         )}
                     </div>
@@ -1288,7 +1258,7 @@ export default function Separations() {
             </header>
         )}
 
-        <main className="container px-3 sm:px-8 py-6">
+        <main className="container px-4 py-8">
            <AnimatePresence mode="wait">
               {selectedSeparation ? (
                   <DetailedView 
@@ -1309,33 +1279,33 @@ export default function Separations() {
               ) : (
                   <m.div 
                       key="list"
-                      initial={{ opacity: 0 }} 
-                      animate={{ opacity: 1 }} 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }} 
                       className="space-y-6"
                   >
-                      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-card p-4 rounded-xl border shadow-sm">
-                         <div className="relative w-full sm:max-w-xs group">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                         <div className="relative w-full md:max-w-md group bg-background rounded-2xl shadow-sm border border-border focus-within:border-primary/50 focus-within:ring-4 ring-primary/10 transition-all">
+                            <Search className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                             <Input 
-                                placeholder="Filtrar pedidos..." 
-                                className="pl-9 bg-muted/30 border-transparent focus:bg-background focus:border-primary transition-all"
+                                placeholder="Buscar cliente ou OP..." 
+                                className="pl-12 h-12 border-0 bg-transparent shadow-none text-base focus-visible:ring-0"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
                          </div>
-                         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full sm:w-auto">
-                             <TabsList>
-                                 <TabsTrigger value="pendente">Pendentes</TabsTrigger>
-                                 <TabsTrigger value="entregue">Entregues</TabsTrigger>
-                                 <TabsTrigger value="arquivadas">Arquivadas</TabsTrigger>
+                         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full md:w-auto bg-muted/40 p-1 rounded-2xl">
+                             <TabsList className="bg-transparent border-0 h-10 w-full md:w-auto grid grid-cols-3 gap-1">
+                                 <TabsTrigger value="pendente" className="rounded-xl font-bold data-[state=active]:shadow-sm">Ativos</TabsTrigger>
+                                 <TabsTrigger value="entregue" className="rounded-xl font-bold data-[state=active]:shadow-sm">Entregues</TabsTrigger>
+                                 <TabsTrigger value="arquivadas" className="rounded-xl font-bold data-[state=active]:shadow-sm">Arquivados</TabsTrigger>
                              </TabsList>
                          </Tabs>
                       </div>
 
                       {filteredSeparations.length === 0 ? (
-                         <EmptyState title="Tudo limpo!" description="Nenhum pedido encontrado com os filtros atuais." />
+                         <EmptyState title="Tudo limpo por aqui!" description="Não encontramos nenhum pedido com os filtros selecionados." />
                       ) : (
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-24">
                              {filteredSeparations.map(sep => (
                                  <SeparationCard 
                                     key={sep.id} 
@@ -1350,87 +1320,86 @@ export default function Separations() {
            </AnimatePresence>
         </main>
 
-        {/* --- SHEET DE CRIAÇÃO (TELA CHEIA) --- */}
-        <Sheet open={isNewSheetOpen} onOpenChange={setIsNewSheetOpen}>
-            {/* Adicionado w-screen e max-w-none para forçar tela cheia em qualquer monitor desktop */}
-            <SheetContent className="w-full sm:w-screen sm:max-w-none flex flex-col h-full p-0 border-none shadow-2xl" side="right">
+        {/* --- SHEET DE CRIAÇÃO (TELA CHEIA NUBANK STYLE RESPONSIVA) --- */}
+        <Sheet open={isNewSheetOpen} onOpenChange={(open) => { setIsNewSheetOpen(open); if(!open) setIsMobileCartOpen(false); }}>
+            <SheetContent className="w-full sm:w-screen sm:max-w-none flex flex-col h-full p-0 border-none shadow-2xl bg-background" side="bottom">
                 
-                {/* Header fixo da Sheet */}
-                <div className="px-6 py-5 border-b bg-background/95 backdrop-blur z-10 flex-none">
-                    <SheetHeader>
-                        <SheetTitle className="text-xl font-bold flex items-center gap-2">
+                {/* O Header fica fixo independente de estar no catálogo ou carrinho */}
+                <div className="px-5 py-4 border-b border-border/50 bg-background/80 backdrop-blur-xl z-30 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                             <ShoppingCart className="h-5 w-5 text-primary" />
-                            Nova Solicitação
-                        </SheetTitle>
-                        <SheetDescription>Preencha os dados e selecione os itens do pedido.</SheetDescription>
-                    </SheetHeader>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-black leading-none">Novo Pedido</h2>
+                            <p className="text-xs font-medium text-muted-foreground mt-1 hidden sm:block">Selecione os itens para o almoxarifado</p>
+                        </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-muted/50 hover:bg-muted" onClick={() => setIsNewSheetOpen(false)}>
+                        <X className="h-5 w-5" />
+                    </Button>
                 </div>
 
-                {/* Estrutura dividida para Desktop (Esquerda: Catálogo | Direita: Carrinho Fixo) */}
-                <div className="flex-1 flex flex-col lg:flex-row min-h-0 bg-muted/5">
+                <div className="flex-1 flex overflow-hidden relative bg-muted/5">
                     
-                    {/* ESQUERDA: Formulário e Catálogo */}
-                    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 lg:border-r border-border bg-background/50">
-                        <section className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">1</div>
-                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Dados do Pedido</h3>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-card p-5 rounded-2xl border shadow-sm">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Número da OP</Label>
+                    {/* ESQUERDA: Formulário e Catálogo (Escondido no mobile se o carrinho estiver aberto) */}
+                    <div className={cn(
+                        "flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-10 lg:border-r border-border/50 bg-background/50 scroll-smooth",
+                        isMobileCartOpen ? "hidden lg:block" : "block w-full"
+                    )}>
+                        <section className="max-w-5xl mx-auto space-y-4">
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">1. Identificação</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-2 group">
+                                    <Label className="text-sm font-bold ml-1">Número da OP</Label>
                                     <Input 
                                         value={productionOrder} 
                                         onChange={e => setProductionOrder(e.target.value)} 
                                         placeholder="Ex: 12345" 
-                                        className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all text-base"
+                                        className="h-14 rounded-2xl bg-muted/30 border-transparent focus:border-primary focus:ring-4 ring-primary/10 transition-all text-lg font-medium px-5"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Cliente / Destino</Label>
+                                <div className="space-y-2 group">
+                                    <Label className="text-sm font-bold ml-1">Cliente / Destino</Label>
                                     <Input 
                                         value={clientName} 
                                         onChange={e => setClientName(e.target.value)} 
-                                        placeholder="Ex: Cliente A" 
-                                        className="h-11 bg-background border-muted-foreground/20 focus:border-primary transition-all text-base"
+                                        placeholder="Ex: Cliente Alpha" 
+                                        className="h-14 rounded-2xl bg-muted/30 border-transparent focus:border-primary focus:ring-4 ring-primary/10 transition-all text-lg font-medium px-5"
                                     />
                                 </div>
                             </div>
                         </section>
 
-                        <Separator className="my-6 max-w-4xl" />
+                        <Separator className="max-w-5xl mx-auto opacity-50" />
 
-                        <section className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 pb-10">
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</div>
-                                <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">Catálogo de Produtos</h3>
-                            </div>
+                        <section className="max-w-5xl mx-auto space-y-6 pb-32 lg:pb-10">
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">2. Seleção de Produtos</h3>
                             
-                            <div className="flex flex-col sm:flex-row gap-3 sticky top-0 z-10 bg-background/80 pb-4 pt-2 backdrop-blur-md">
-                                <div className="relative shadow-sm max-w-md w-full">
-                                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                            <div className="flex flex-col sm:flex-row gap-4 sticky top-0 z-10 bg-background/90 py-3 backdrop-blur-xl rounded-b-2xl">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-4 top-4 h-6 w-6 text-muted-foreground" />
                                     <Input 
-                                        placeholder="Buscar por nome ou SKU..." 
+                                        placeholder="Buscar no catálogo..." 
                                         value={productSearchTerm}
                                         onChange={e => setProductSearchTerm(e.target.value)}
-                                        className="pl-10 h-11 bg-background border-muted-foreground/20 focus:ring-2 focus:ring-primary/20"
+                                        className="pl-12 h-14 rounded-2xl bg-card border-border shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] focus:border-primary focus:ring-4 ring-primary/10 text-base font-medium"
                                     />
                                 </div>
-                                <div className="flex items-center space-x-2 bg-card border rounded-md px-4 h-11 shrink-0 shadow-sm">
+                                <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-5 h-14 shadow-sm shrink-0">
                                     <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
-                                    <Label htmlFor="stock-filter" className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
-                                        <Filter className="h-4 w-4" /> Com estoque
-                                    </Label>
+                                    <Label htmlFor="stock-filter" className="text-sm font-bold cursor-pointer">Apenas com estoque</Label>
                                 </div>
                             </div>
 
-                            {/* O Catálogo agora usa um GRID no desktop para ocupar a tela toda */}
-                            <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 min-h-[300px]">
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                                 {filteredCatalogProducts.length === 0 ? (
-                                    <div className="col-span-full flex flex-col items-center justify-center py-16 text-muted-foreground border-2 border-dashed rounded-xl bg-card/50">
-                                        <Search className="h-10 w-10 mb-3 opacity-20" />
-                                        <p className="text-base font-medium">Nenhum produto encontrado</p>
+                                    <div className="col-span-full py-20 text-center">
+                                        <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Search className="h-10 w-10 text-muted-foreground/50" />
+                                        </div>
+                                        <h3 className="text-xl font-bold">Nenhum produto encontrado</h3>
+                                        <p className="text-muted-foreground mt-2">Tente ajustar os filtros ou a busca.</p>
                                     </div>
                                 ) : (
                                     <AnimatePresence>
@@ -1450,24 +1419,49 @@ export default function Separations() {
                         </section>
                     </div>
 
-                    {/* DIREITA: Carrinho / Resumo (Ocupa a lateral no desktop e empilha no mobile) */}
-                    <div className="w-full lg:w-[450px] 2xl:w-[500px] flex flex-col bg-muted/20 lg:border-l border-border shadow-inner lg:shadow-none z-10 lg:z-auto">
-                        <div className="p-5 border-b border-border/50 bg-background/50 backdrop-blur sticky top-0 flex justify-between items-center z-10">
-                            <h3 className="font-bold flex items-center gap-2 text-lg">
-                                <Package className="h-5 w-5 text-primary" />
-                                Resumo do Pedido
-                            </h3>
-                            <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 text-sm px-3 py-1">
-                                {totalUniqueItems} {totalUniqueItems === 1 ? 'item' : 'itens'}
-                            </Badge>
+                    {/* BOTÃO FLUTUANTE MOBILE (Mostra o carrinho) */}
+                    {!isMobileCartOpen && (
+                        <div className="lg:hidden absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/95 to-transparent z-10 pt-16">
+                            <Button 
+                                size="lg" 
+                                className="w-full h-14 rounded-2xl font-black text-lg shadow-[0_10px_30px_-10px_rgba(var(--primary),0.5)]"
+                                onClick={() => setIsMobileCartOpen(true)}
+                            >
+                                <ShoppingCart className="mr-3 h-6 w-6" />
+                                Ver Carrinho ({totalItemsInCart})
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* DIREITA: Carrinho Lateral Fixo (Oculto no mobile até clicar no botão) */}
+                    <div className={cn(
+                        "flex-col bg-card/50 backdrop-blur z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] lg:border-l border-border/30 h-full w-full lg:w-[420px] xl:w-[480px] absolute inset-0 lg:static",
+                        isMobileCartOpen ? "flex" : "hidden lg:flex"
+                    )}>
+                        <div className="p-4 sm:p-6 border-b border-border/50 bg-background/90 backdrop-blur sticky top-0 flex justify-between items-center z-10">
+                            <div className="flex items-center gap-3">
+                                {/* Botão de voltar (Apenas Mobile) */}
+                                <Button variant="ghost" size="icon" className="lg:hidden h-10 w-10 rounded-full bg-muted/50 -ml-1" onClick={() => setIsMobileCartOpen(false)}>
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
+                                <div>
+                                    <h3 className="font-black text-xl flex items-center gap-2">Carrinho</h3>
+                                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mt-0.5">{totalUniqueItems} {totalUniqueItems === 1 ? 'tipo selecionado' : 'tipos selecionados'}</p>
+                                </div>
+                            </div>
+                            {totalItemsInCart > 0 && (
+                                <Button variant="ghost" size="sm" onClick={clearCart} className="text-destructive hover:bg-destructive/10 font-bold rounded-xl h-10 px-4">
+                                    Limpar Tudo
+                                </Button>
+                            )}
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto p-5 space-y-3 min-h-[250px] lg:min-h-0">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 relative pb-32 lg:pb-5">
                             {totalUniqueItems === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full text-center opacity-50 py-10">
-                                    <ShoppingCart className="h-12 w-12 mb-4" />
-                                    <p className="text-base font-medium">Seu carrinho está vazio.</p>
-                                    <p className="text-sm mt-1">Adicione itens pelo catálogo ao lado.</p>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center opacity-50 p-6">
+                                    <ShoppingCart className="h-16 w-16 mb-4 text-muted-foreground" />
+                                    <p className="text-lg font-bold">Seu carrinho está vazio</p>
+                                    <p className="text-sm mt-2 max-w-[200px]">Os itens que você adicionar ao lado aparecerão aqui.</p>
                                 </div>
                             ) : (
                                 Object.entries(selectedProducts).map(([pid, qty]) => {
@@ -1476,55 +1470,52 @@ export default function Separations() {
                                     
                                     const stock = prod.stock?.quantity_on_hand ?? prod.stock_available ?? 0;
                                     const isExceeding = qty > stock;
+                                    const allowDecimal = isDecimalUnit(prod.unit);
 
                                     return (
                                         <div key={pid} className={cn(
-                                            "flex flex-col p-4 rounded-xl border bg-card shadow-sm transition-all animate-in fade-in slide-in-from-right-4",
-                                            isExceeding ? "border-amber-500/50 bg-amber-500/5" : "hover:border-primary/30"
+                                            "flex flex-col p-4 rounded-3xl bg-background border transition-all animate-in fade-in slide-in-from-right-4",
+                                            isExceeding ? "border-amber-500/30 shadow-[0_4px_15px_-4px_rgba(245,158,11,0.1)]" : "border-border/50 shadow-sm"
                                         )}>
                                             <div className="flex justify-between items-start mb-3">
                                                 <div className="flex-1 min-w-0 pr-3">
                                                     <p className="text-base font-bold truncate leading-tight text-foreground">{prod.name}</p>
-                                                    <span className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{prod.sku}</span>
+                                                    <span className="text-[11px] font-mono font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md mt-1 inline-block">{prod.sku}</span>
                                                 </div>
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-full" 
-                                                    onClick={() => updateCartQuantity(pid, 0)}
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
                                             </div>
                                             
-                                            <div className="flex items-center justify-between mt-auto">
+                                            <div className="flex items-center justify-between mt-1">
                                                 {isExceeding ? (
-                                                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 flex items-center bg-amber-500/10 px-2 py-1 rounded-md">
-                                                        <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Disponível: {stock}
+                                                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-500 flex items-center bg-amber-500/10 px-2 py-1 rounded-lg">
+                                                        <AlertTriangle className="h-3.5 w-3.5 mr-1.5" /> Faltam {Number((qty - stock).toFixed(2))} un.
                                                     </span>
                                                 ) : (
-                                                    <span className="text-xs font-medium text-muted-foreground">Estoque: {stock}</span>
+                                                    <span className="text-xs font-semibold text-muted-foreground">Estoque: {stock}</span>
                                                 )}
 
-                                                <div className="flex items-center bg-background border rounded-lg shadow-sm h-9">
-                                                    <Button variant="ghost" size="icon" className="h-full w-9 rounded-l-lg hover:bg-destructive/10 hover:text-destructive" onClick={() => removeItemFromCart(pid)}>
-                                                        <Minus className="h-3.5 w-3.5" />
+                                                <div className={cn(
+                                                    "flex items-center bg-muted/30 border rounded-2xl shadow-sm h-10 p-1",
+                                                    isExceeding ? "border-amber-300 ring-2 ring-amber-500/10" : "border-border"
+                                                )}>
+                                                    <Button variant="ghost" size="icon" className="h-full w-8 rounded-xl hover:bg-background text-muted-foreground" onClick={() => removeItemFromCart(pid)}>
+                                                        <Minus className="h-4 w-4" />
                                                     </Button>
                                                     <Input 
                                                         type="number" 
-                                                        value={qty} 
+                                                        step={allowDecimal ? "any" : "1"}
+                                                        value={qty === 0 ? "" : qty} 
                                                         onChange={(e) => {
-                                                            let val = parseInt(e.target.value);
+                                                            let val = allowDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
                                                             if (isNaN(val)) val = 0;
                                                             updateCartQuantity(pid, val);
                                                         }}
                                                         className={cn(
-                                                            "h-full w-14 border-0 p-0 text-center text-sm font-bold shadow-none focus-visible:ring-0 rounded-none bg-transparent",
-                                                            isExceeding && "text-amber-600 dark:text-amber-500"
+                                                            "h-full w-14 sm:w-16 border-0 p-0 text-center text-sm font-black shadow-none focus-visible:ring-0 rounded-none bg-transparent",
+                                                            isExceeding ? "text-amber-600 dark:text-amber-500" : "text-foreground"
                                                         )}
                                                     />
-                                                    <Button variant="ghost" size="icon" className="h-full w-9 rounded-r-lg hover:bg-primary/10 hover:text-primary" onClick={() => addItemToCart(pid)}>
-                                                        <Plus className="h-3.5 w-3.5" />
+                                                    <Button variant="ghost" size="icon" className="h-full w-8 rounded-xl hover:bg-background text-foreground" onClick={() => addItemToCart(pid)}>
+                                                        <Plus className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             </div>
@@ -1534,83 +1525,69 @@ export default function Separations() {
                             )}
                         </div>
 
-                        {/* Footer Fixo do Carrinho */}
-                        <div className="border-t border-border/50 bg-background p-5 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-20 flex-none">
-                            <div className="space-y-4">
+                        {/* Footer Fixo do Carrinho (Botão Confirmar) */}
+                        <div className="absolute bottom-0 left-0 right-0 lg:static border-t border-border/50 bg-background/95 backdrop-blur-xl p-4 sm:p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
+                            <div className="space-y-4 sm:space-y-5">
                                 {hasExceedingItemsInCart && (
-                                    <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 p-3 rounded-xl animate-in fade-in zoom-in-95">
+                                    <div className="flex items-start gap-3 bg-amber-500/10 text-amber-700 dark:text-amber-400 p-3 sm:p-4 rounded-2xl animate-in fade-in zoom-in-95">
                                         <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                                        <p className="text-xs sm:text-sm font-medium leading-snug">
-                                            Atenção: Alguns itens excedem o estoque atual. A solicitação registrará os itens faltantes como pendentes.
+                                        <p className="text-[11px] sm:text-xs font-bold leading-snug">
+                                            Atenção: A quantidade de alguns itens excede o estoque atual. O pedido ficará com status pendente.
                                         </p>
                                     </div>
                                 )}
 
-                                <div className="flex items-center justify-between text-sm pb-2 border-b border-border/50">
-                                    <span className="text-muted-foreground font-semibold">Volume Total:</span>
-                                    <strong className="text-xl text-foreground font-black">{totalItemsInCart} un.</strong>
+                                <div className="flex items-center justify-between pb-1 sm:pb-2 border-b border-border/50">
+                                    <span className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] sm:text-xs">Quantidade Total</span>
+                                    <strong className="text-2xl sm:text-3xl text-foreground font-black">{totalItemsInCart}</strong>
                                 </div>
                                 
-                                <div className="flex flex-col gap-3 pt-1">
-                                    <Button 
-                                        size="lg"
-                                        className="w-full h-14 font-bold text-base rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5"
-                                        disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
-                                        onClick={() => {
-                                            const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
-                                                product_id: pid,
-                                                quantity: qty
-                                            }));
-                                            createSeparationMutation.mutate({
-                                                production_order: productionOrder,
-                                                client_name: clientName,
-                                                destination: profile?.sector || "Setor",
-                                                items: itemsPayload
-                                            });
-                                        }}
-                                    >
-                                        {createSeparationMutation.isPending ? (
-                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                        ) : (
-                                            <Check className="mr-2 h-5 w-5" />
-                                        )}
-                                        Confirmar Pedido
-                                    </Button>
-
-                                    <div className="flex gap-3">
-                                        <Button variant="outline" size="lg" className="flex-1 h-12 rounded-xl text-muted-foreground hover:text-foreground" onClick={() => setIsNewSheetOpen(false)}>
-                                            Cancelar
-                                        </Button>
-                                        {totalItemsInCart > 0 && (
-                                            <Button variant="ghost" size="lg" onClick={clearCart} className="flex-1 h-12 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive">
-                                                <Trash2 className="h-4 w-4 mr-2" /> Limpar
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
+                                <Button 
+                                    size="lg"
+                                    className="w-full h-14 sm:h-16 rounded-2xl font-black text-base sm:text-lg shadow-[0_10px_30px_-10px_rgba(var(--primary),0.5)] transition-all hover:-translate-y-1 hover:shadow-[0_15px_40px_-10px_rgba(var(--primary),0.6)]"
+                                    disabled={createSeparationMutation.isPending || totalItemsInCart === 0 || !productionOrder || !clientName}
+                                    onClick={() => {
+                                        const itemsPayload = Object.entries(selectedProducts).map(([pid, qty]) => ({
+                                            product_id: pid,
+                                            quantity: qty
+                                        }));
+                                        createSeparationMutation.mutate({
+                                            production_order: productionOrder,
+                                            client_name: clientName,
+                                            destination: profile?.sector || "Setor",
+                                            items: itemsPayload
+                                        });
+                                    }}
+                                >
+                                    {createSeparationMutation.isPending ? (
+                                        <Loader2 className="mr-3 h-6 w-6 animate-spin" />
+                                    ) : (
+                                        <Check className="mr-3 h-6 w-6" />
+                                    )}
+                                    Confirmar Solicitação
+                                </Button>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </SheetContent>
         </Sheet>
 
         <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-           <AlertDialogContent>
+           <AlertDialogContent className="rounded-[2rem]">
               <AlertDialogHeader>
-                 <AlertDialogTitle className="text-destructive flex items-center gap-2">
-                    <Trash2 className="h-5 w-5" /> Excluir Pedido
+                 <AlertDialogTitle className="text-destructive flex items-center gap-2 text-xl font-black">
+                    <Trash2 className="h-6 w-6" /> Excluir Pedido
                  </AlertDialogTitle>
-                 <AlertDialogDescription>
+                 <AlertDialogDescription className="text-base">
                     Tem certeza que deseja excluir esta solicitação? Esta ação removerá o pedido permanentemente e não pode ser desfeita.
                  </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter>
-                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogFooter className="mt-4 gap-3">
+                 <AlertDialogCancel className="rounded-xl h-12 font-bold flex-1">Cancelar</AlertDialogCancel>
                  <AlertDialogAction 
                     onClick={() => deleteId && deleteSeparationMutation.mutate(deleteId)} 
-                    className="bg-destructive hover:bg-destructive/90 text-white"
+                    className="bg-destructive hover:bg-destructive/90 text-white rounded-xl h-12 font-bold flex-1"
                  >
                     {deleteSeparationMutation.isPending ? "Excluindo..." : "Sim, Excluir"}
                  </AlertDialogAction>
@@ -1619,52 +1596,59 @@ export default function Separations() {
         </AlertDialog>
 
         <AlertDialog open={isPartialDeliveryModalOpen} onOpenChange={setIsPartialDeliveryModalOpen}>
-           <AlertDialogContent>
+           <AlertDialogContent className="rounded-[2rem]">
                <AlertDialogHeader>
-                   <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
-                       <AlertTriangle className="h-5 w-5" />
-                       Entrega Parcial Detectada
+                   <AlertDialogTitle className="flex items-center gap-2 text-amber-600 text-xl font-black">
+                       <AlertTriangle className="h-6 w-6" />
+                       Entrega Parcial
                    </AlertDialogTitle>
-                   <AlertDialogDescription>
-                       Este pedido não está 100% completo. Alguns itens ainda possuem pendências.
+                   <AlertDialogDescription className="text-base">
+                       Este pedido não está 100% completo.
                        <br/><br/>
-                       Deseja finalizar a entrega mesmo assim? Os itens restantes continuarão pendentes ou serão ajustados conforme a regra de negócio.
+                       Deseja finalizar a entrega mesmo assim? Os itens restantes continuarão como pendência.
                    </AlertDialogDescription>
                </AlertDialogHeader>
-               <AlertDialogFooter>
-                   <AlertDialogCancel>Voltar e Revisar</AlertDialogCancel>
+               <AlertDialogFooter className="mt-4 gap-3">
+                   <AlertDialogCancel className="rounded-xl h-12 font-bold flex-1">Revisar</AlertDialogCancel>
                    <AlertDialogAction 
                        onClick={executeDelivery}
-                       className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                       className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl h-12 font-bold flex-1"
                    >
-                       Confirmar Entrega Parcial
+                       Confirmar Parcial
                    </AlertDialogAction>
                </AlertDialogFooter>
            </AlertDialogContent>
         </AlertDialog>
         
         <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
-            <DialogContent>
+            <DialogContent className="rounded-[2rem]">
                 <DialogHeader>
-                    <DialogTitle>Devolver Itens</DialogTitle>
+                    <DialogTitle className="text-xl font-black">Devolver Itens</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-3 mt-4">
                      {selectedSeparation?.items.map(item => {
                          const returned = selectedSeparation.returns?.filter(r => r.product_id === item.product_id && r.status !== 'rejeitado').reduce((a, b) => a + b.quantity, 0) || 0;
                          const available = item.quantity - returned;
                          if (available <= 0) return null;
+                         const allowDecimal = isDecimalUnit(item.products?.unit);
+                         
                          return (
-                             <div key={item.id} className="flex justify-between items-center border-b pb-2">
-                                 <div>
-                                     <div className="font-semibold text-sm">{item.products?.name}</div>
-                                     <div className="text-xs text-muted-foreground">Disp: {available}</div>
+                             <div key={item.id} className="flex justify-between items-center bg-muted/30 p-3 rounded-2xl">
+                                 <div className="min-w-0 pr-3">
+                                     <div className="font-bold text-sm truncate">{item.products?.name}</div>
+                                     <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mt-1">Separado: {available}</div>
                                  </div>
                                  <Input 
-                                     type="number" className="w-20" placeholder="0" max={available}
-                                     value={returnPayload[item.product_id] || ""}
+                                     type="number" 
+                                     step={allowDecimal ? "any" : "1"}
+                                     className="w-24 h-12 rounded-xl text-center font-black text-lg focus-visible:ring-primary/20 bg-background" 
+                                     placeholder="0" 
+                                     max={available}
+                                     value={returnPayload[item.product_id] === 0 ? "" : (returnPayload[item.product_id] || "")}
                                      onChange={e => {
-                                         let v = parseFloat(e.target.value);
-                                         if(v > available) v = available;
+                                         let v = allowDecimal ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
+                                         if (isNaN(v)) v = 0;
+                                         if (v > available) v = available;
                                          setReturnPayload(p => ({...p, [item.product_id]: v}));
                                      }}
                                  />
@@ -1672,8 +1656,10 @@ export default function Separations() {
                          )
                      })}
                 </div>
-                <DialogFooter>
-                    <Button onClick={handleReturnSubmit} disabled={createReturnMutation.isPending}>Confirmar</Button>
+                <DialogFooter className="mt-6">
+                    <Button onClick={handleReturnSubmit} disabled={createReturnMutation.isPending} size="lg" className="w-full rounded-xl h-14 font-black text-base">
+                        Confirmar Devolução
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
