@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom"; // Importado para os links rápidos
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Package,
@@ -13,10 +13,8 @@ import {
   Calendar,
   Plus,
   ArrowRight,
-  Clock,
   AlertCircle,
   History,
-  ShoppingCart,
   ChevronRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -94,11 +92,11 @@ export default function Dashboard() {
     month: "long",
   });
 
-  // --- MOCKS DE DADOS (Substitua por dados do backend depois) ---
+  // --- MOCKS DE DADOS REFINADOS ---
   const mockRecentSeparations = [
-    { id: "SEP-1042", setor: "Tecnologia", time: "Há 2 horas", status: "Concluído", color: "text-emerald-500 bg-emerald-500/10" },
-    { id: "SEP-1041", setor: "Manutenção", time: "Há 4 horas", status: "Pendente", color: "text-amber-500 bg-amber-500/10" },
-    { id: "SEP-1040", setor: "Recursos Humanos", time: "Há 5 horas", status: "Concluído", color: "text-emerald-500 bg-emerald-500/10" },
+    { id: "SEP-1042", client: "TechCorp Solutions", items: 124, progress: 85, value: 14500.00, status: "Em andamento", color: "bg-blue-500" },
+    { id: "SEP-1041", client: "Construtora Alfa", items: 45, progress: 100, value: 3250.90, status: "Concluído", color: "bg-emerald-500" },
+    { id: "SEP-1040", client: "Clínica Vida Plena", items: 12, progress: 30, value: 890.50, status: "Iniciando", color: "bg-amber-500" },
   ];
 
   const mockCriticalProducts = [
@@ -108,19 +106,17 @@ export default function Dashboard() {
   ];
 
   // --- COMPONENTES AUXILIARES UI ---
-  const QuickAccessBtn = ({ icon: Icon, label, onClick, colorClass }: any) => (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-3 p-4 rounded-2xl border border-border bg-card hover:shadow-md transition-all duration-300 hover:-translate-y-1 text-left w-full group`}
-    >
-      <div className={`p-3 rounded-full ${colorClass}`}>
-        <Icon className="h-5 w-5" />
+  
+  // Botão de Acesso Rápido - Estilo Nubank (Ícone no quadrado colorido, texto embaixo)
+  const QuickAccessBtn = ({ icon: Icon, label, onClick, bgGradient }: any) => (
+    <div className="flex flex-col items-center gap-3 cursor-pointer group" onClick={onClick}>
+      <div className={`w-16 h-16 md:w-20 md:h-20 flex items-center justify-center rounded-[1.25rem] shadow-sm transform transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg ${bgGradient}`}>
+        <Icon className="h-7 w-7 md:h-8 md:w-8 text-white drop-shadow-sm" />
       </div>
-      <div className="flex-1 font-semibold text-sm text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+      <span className="text-[11px] md:text-xs font-semibold text-muted-foreground group-hover:text-foreground text-center max-w-[80px] leading-tight transition-colors">
         {label}
-      </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-    </button>
+      </span>
+    </div>
   );
 
   const PremiumValueCard = () => (
@@ -145,7 +141,7 @@ export default function Dashboard() {
     </Card>
   );
 
-  // --- DASHBOARD DO CHEFE (NÍVEL NUBANK) ---
+  // --- DASHBOARD DO CHEFE (NÍVEL PREMIUM) ---
   const renderChefeDashboard = () => {
     const volumeData = [
       { name: "Produtos", value: stats?.totalProducts || 0, color: "#8b5cf6" },
@@ -161,7 +157,7 @@ export default function Dashboard() {
     ];
 
     return (
-      <div className="space-y-8 animate-in fade-in duration-700 pb-10">
+      <div className="space-y-10 animate-in fade-in duration-700 pb-10">
         
         {/* Cabeçalho */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -180,88 +176,148 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* --- ACESSO RÁPIDO --- */}
+        {/* --- ACESSO RÁPIDO (GRID DE ÍCONES) --- */}
         <section>
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Acesso Rápido</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex flex-wrap gap-6 md:gap-8 items-start">
             <QuickAccessBtn 
               icon={Plus} 
               label="Nova Solicitação" 
-              colorClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+              bgGradient="bg-gradient-to-br from-emerald-400 to-emerald-600"
               onClick={() => navigate('/solicitacoes')} 
             />
             <QuickAccessBtn 
               icon={Package} 
               label="Cadastrar Produto" 
-              colorClass="bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+              bgGradient="bg-gradient-to-br from-blue-400 to-blue-600"
               onClick={() => navigate('/produtos')} 
             />
             <QuickAccessBtn 
               icon={History} 
-              label="Histórico de Separações" 
-              colorClass="bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400"
+              label="Histórico Separações" 
+              bgGradient="bg-gradient-to-br from-purple-400 to-purple-600"
               onClick={() => navigate('/separacoes')} 
             />
             <QuickAccessBtn 
               icon={FileText} 
-              label="Gerar Relatórios" 
-              colorClass="bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400"
+              label="Relatórios Gerenciais" 
+              bgGradient="bg-gradient-to-br from-amber-400 to-amber-600"
               onClick={() => navigate('/relatorios')} 
             />
           </div>
         </section>
 
         {/* --- KPI DESTAQUES --- */}
-        <section>
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Indicadores em Destaque</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <PremiumValueCard />
-            
-            <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  Estoque Crítico
-                </CardTitle>
-                <div className="p-2 bg-rose-100 dark:bg-rose-500/10 rounded-full">
-                  <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
-                  <AnimatedCounter value={stats?.lowStock || 0} isCurrency={false} />
-                </div>
-                <p className="text-xs font-medium text-rose-500 mt-2 flex items-center gap-1">
-                  <ArrowRight className="h-3 w-3" /> Requer atenção imediata
-                </p>
-              </CardContent>
-            </Card>
+        <section className="grid gap-4 md:grid-cols-3">
+          <PremiumValueCard />
+          
+          <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Estoque Crítico
+              </CardTitle>
+              <div className="p-2 bg-rose-100 dark:bg-rose-500/10 rounded-full">
+                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
+                <AnimatedCounter value={stats?.lowStock || 0} isCurrency={false} />
+              </div>
+              <p className="text-xs font-medium text-rose-500 mt-2 flex items-center gap-1">
+                <ArrowRight className="h-3 w-3" /> Requer atenção imediata
+              </p>
+            </CardContent>
+          </Card>
 
-            <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  Pendências Abertas
-                </CardTitle>
-                <div className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-full">
-                  <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
-                  <AnimatedCounter value={stats?.openRequests || 0} isCurrency={false} />
-                </div>
-                <p className="text-xs font-medium text-muted-foreground mt-2">
-                  Aguardando ação da equipe
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Pendências Abertas
+              </CardTitle>
+              <div className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-full">
+                <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
+                <AnimatedCounter value={stats?.openRequests || 0} isCurrency={false} />
+              </div>
+              <p className="text-xs font-medium text-muted-foreground mt-2">
+                Aguardando ação da equipe
+              </p>
+            </CardContent>
+          </Card>
         </section>
 
         {/* --- ÁREA DE DETALHAMENTO: Gráficos + Listas --- */}
         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-12">
           
-          {/* Lado Esquerdo: Gráficos (Ocupa 7 colunas em telas grandes) */}
+          {/* Lado Esquerdo: Últimas Separações e Gráfico (Ocupa 7 colunas) */}
           <div className="space-y-6 lg:col-span-7">
+            
+            {/* NOVO: CARDS DE ÚLTIMAS SEPARAÇÕES */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-foreground">Acompanhamento de Separações</h2>
+                <button 
+                  onClick={() => navigate('/separacoes')}
+                  className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 flex items-center gap-1 transition-colors"
+                >
+                  Ver todas <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="grid gap-4">
+                {mockRecentSeparations.map((sep, idx) => (
+                  <Card key={idx} className="p-5 bg-card border-border shadow-sm rounded-2xl hover:shadow-md transition-shadow group cursor-pointer">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      
+                      {/* Info do Cliente e Itens */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-base text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            {sep.client}
+                          </h3>
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
+                            {sep.id}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {sep.items} itens • <span className="font-medium">{sep.status}</span>
+                        </p>
+                      </div>
+
+                      {/* Progresso e Valor */}
+                      <div className="flex items-center gap-6 md:min-w-[280px] justify-between md:justify-end">
+                        <div className="w-24 space-y-1.5">
+                          <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                            <span>Progresso</span>
+                            <span className="text-foreground">{sep.progress}%</span>
+                          </div>
+                          {/* Barra de Progresso Customizada */}
+                          <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${sep.color}`} 
+                              style={{ width: `${sep.progress}%` }} 
+                            />
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5">Valor Bruto</p>
+                          <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">
+                            {formatCurrency(sep.value)}
+                          </p>
+                        </div>
+                      </div>
+
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Gráfico de Barras */}
             <Card className="bg-card shadow-sm border-border rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg font-bold text-foreground">Volume de Movimentações</CardTitle>
@@ -282,32 +338,13 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-
-            <Card className="bg-card shadow-sm border-border rounded-2xl hidden md:block">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold text-foreground">Saúde Geral do Estoque</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[250px] flex justify-center items-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={stockHealthData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                      {stockHealthData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: "var(--background)", borderColor: "var(--border)", borderRadius: "12px" }} />
-                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '14px', color: '#888888' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Lado Direito: Listas de Ação Rápida (Ocupa 5 colunas em telas grandes) */}
+          {/* Lado Direito: Alertas e Gráfico de Pizza (Ocupa 5 colunas) */}
           <div className="space-y-6 lg:col-span-5">
             
             {/* Lista: Produtos Críticos há muito tempo */}
-            <Card className="bg-card shadow-sm border-rose-200 dark:border-rose-900/50 rounded-2xl overflow-hidden flex flex-col h-auto">
+            <Card className="bg-card shadow-sm border-rose-200 dark:border-rose-900/50 rounded-2xl overflow-hidden flex flex-col">
               <div className="bg-rose-50 dark:bg-rose-950/20 p-4 border-b border-rose-100 dark:border-rose-900/30">
                 <CardTitle className="text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" /> Alerta Prolongado
@@ -339,38 +376,22 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Lista: Últimas Separações */}
-            <Card className="bg-card shadow-sm border-border rounded-2xl flex flex-col h-auto">
-              <CardHeader className="pb-3 border-b border-border">
-                <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-emerald-500" /> Últimas Separações
-                </CardTitle>
+            <Card className="bg-card shadow-sm border-border rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold text-foreground">Saúde Geral do Estoque</CardTitle>
               </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border">
-                  {mockRecentSeparations.map((sep, idx) => (
-                    <div key={idx} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors group cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${sep.color}`}>
-                          <ShoppingCart className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm text-foreground">{sep.id}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Clock className="h-3 w-3" /> {sep.time} • {sep.setor}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  ))}
-                </div>
-                <button 
-                  onClick={() => navigate('/separacoes')}
-                  className="w-full p-3 text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors flex items-center justify-center gap-1 border-t border-border"
-                >
-                  Ir para Separações <ArrowRight className="h-4 w-4" />
-                </button>
+              <CardContent className="h-[300px] flex justify-center items-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={stockHealthData} cx="50%" cy="50%" innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
+                      {stockHealthData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: "var(--background)", borderColor: "var(--border)", borderRadius: "12px" }} />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '14px', color: '#888888' }} />
+                  </PieChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
@@ -379,7 +400,7 @@ export default function Dashboard() {
     );
   };
 
-  // --- RENDERS DOS OUTROS PERFIS (Mantive as melhorias básicas) ---
+  // --- RENDERS DOS OUTROS PERFIS ---
   const renderAdminDashboard = () => (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-foreground">Dashboard Admin</h1>
