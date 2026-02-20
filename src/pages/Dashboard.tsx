@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom"; // Importado para os links rápidos
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Package,
@@ -10,6 +11,13 @@ import {
   Activity,
   TrendingUp,
   Calendar,
+  Plus,
+  ArrowRight,
+  Clock,
+  AlertCircle,
+  History,
+  ShoppingCart,
+  ChevronRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -30,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -46,14 +55,8 @@ export default function Dashboard() {
     }).format(value);
   };
 
-  // --- COMPONENTE DE ANIMAÇÃO MELHORADO ---
-  const AnimatedCounter = ({
-    value,
-    isCurrency = true,
-  }: {
-    value: number;
-    isCurrency?: boolean;
-  }) => {
+  // --- ANIMAÇÃO DE NÚMEROS ---
+  const AnimatedCounter = ({ value, isCurrency = true }: { value: number; isCurrency?: boolean }) => {
     const [displayValue, setDisplayValue] = useState(0);
 
     useEffect(() => {
@@ -68,19 +71,13 @@ export default function Dashboard() {
         const current = startValue + (value - startValue) * ease;
         setDisplayValue(current);
 
-        if (progress < 1) {
-          window.requestAnimationFrame(step);
-        }
+        if (progress < 1) window.requestAnimationFrame(step);
       };
 
       window.requestAnimationFrame(step);
     }, [value]);
 
-    if (isCurrency) {
-      return <>{formatCurrency(displayValue)}</>;
-    }
-
-    // Para números inteiros (Quantidade)
+    if (isCurrency) return <>{formatCurrency(displayValue)}</>;
     return <>{Math.round(displayValue)}</>;
   };
 
@@ -97,64 +94,38 @@ export default function Dashboard() {
     month: "long",
   });
 
-  // --- SKELETON LOADING (Corrigido para Dark Mode) ---
-  const DashboardSkeleton = () => (
-    <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-transparent min-h-[85vh] rounded-2xl animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border pb-4 gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64 md:w-96 bg-slate-200 dark:bg-slate-800" />
-          <Skeleton className="h-4 w-48 bg-slate-200 dark:bg-slate-800" />
-        </div>
-        <Skeleton className="h-8 w-40 rounded-full bg-slate-200 dark:bg-slate-800" />
-      </div>
+  // --- MOCKS DE DADOS (Substitua por dados do backend depois) ---
+  const mockRecentSeparations = [
+    { id: "SEP-1042", setor: "Tecnologia", time: "Há 2 horas", status: "Concluído", color: "text-emerald-500 bg-emerald-500/10" },
+    { id: "SEP-1041", setor: "Manutenção", time: "Há 4 horas", status: "Pendente", color: "text-amber-500 bg-amber-500/10" },
+    { id: "SEP-1040", setor: "Recursos Humanos", time: "Há 5 horas", status: "Concluído", color: "text-emerald-500 bg-emerald-500/10" },
+  ];
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="border-border shadow-sm rounded-2xl">
-            <CardHeader className="pb-2">
-              <Skeleton className="h-4 w-24 bg-slate-100 dark:bg-slate-800" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-32 mb-2 bg-slate-200 dark:bg-slate-700" />
-              <Skeleton className="h-3 w-20 bg-slate-100 dark:bg-slate-800" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  const mockCriticalProducts = [
+    { name: "Cartucho de Toner Preto", stock: 2, min: 10, days: 15 },
+    { name: "Papel A4 Resma", stock: 5, min: 50, days: 8 },
+    { name: "Filtro de Ar Condicionado", stock: 0, min: 5, days: 21 },
+  ];
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4 border-border shadow-sm rounded-2xl">
-          <CardHeader>
-            <Skeleton className="h-5 w-48 bg-slate-100 dark:bg-slate-800" />
-          </CardHeader>
-          <CardContent className="h-[300px] flex items-end justify-between p-6 gap-2">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton
-                key={i}
-                className="w-full bg-slate-100 dark:bg-slate-800 rounded-t-md"
-                style={{ height: `${Math.random() * 100}%` }}
-              />
-            ))}
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-3 border-border shadow-sm rounded-2xl">
-          <CardHeader>
-            <Skeleton className="h-5 w-32 bg-slate-100 dark:bg-slate-800" />
-          </CardHeader>
-          <CardContent className="h-[300px] flex items-center justify-center">
-            <Skeleton className="h-48 w-48 rounded-full bg-slate-100 dark:bg-slate-800 border-4 border-background shadow-sm" />
-          </CardContent>
-        </Card>
+  // --- COMPONENTES AUXILIARES UI ---
+  const QuickAccessBtn = ({ icon: Icon, label, onClick, colorClass }: any) => (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 p-4 rounded-2xl border border-border bg-card hover:shadow-md transition-all duration-300 hover:-translate-y-1 text-left w-full group`}
+    >
+      <div className={`p-3 rounded-full ${colorClass}`}>
+        <Icon className="h-5 w-5" />
       </div>
-    </div>
+      <div className="flex-1 font-semibold text-sm text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+        {label}
+      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+    </button>
   );
 
-  // --- CARD FINANCEIRO PREMIUM ---
   const PremiumValueCard = () => (
     <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transform hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
-      {/* Efeito sutil de brilho ao fundo */}
       <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
-      
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           Valor em Estoque
@@ -174,10 +145,10 @@ export default function Dashboard() {
     </Card>
   );
 
-  // --- DASHBOARD DO CHEFE ---
+  // --- DASHBOARD DO CHEFE (NÍVEL NUBANK) ---
   const renderChefeDashboard = () => {
     const volumeData = [
-      { name: "Produtos", value: stats?.totalProducts || 0, color: "#8b5cf6" }, // Roxo moderno
+      { name: "Produtos", value: stats?.totalProducts || 0, color: "#8b5cf6" },
       { name: "Solicitações", value: stats?.totalRequests || 0, color: "#f59e0b" },
       { name: "Separações", value: stats?.totalSeparations || 0, color: "#10b981" },
     ];
@@ -190,164 +161,228 @@ export default function Dashboard() {
     ];
 
     return (
-      <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-transparent min-h-[85vh] rounded-2xl animate-in fade-in duration-700">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border pb-4 gap-4">
+      <div className="space-y-8 animate-in fade-in duration-700 pb-10">
+        
+        {/* Cabeçalho */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
-            <h1 className="text-2xl md:text-4xl font-bold text-foreground tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tight flex items-center gap-3">
               <TrendingUp className="h-8 w-8 text-emerald-500" />
               {getGreeting()}, {profile?.name}.
             </h1>
-            <p className="text-muted-foreground text-sm md:text-base mt-2 font-light">
-              Visão estratégica e indicadores de performance.
+            <p className="text-muted-foreground text-base mt-2 font-light">
+              Seu resumo estratégico operacional de hoje.
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-secondary/50 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium text-secondary-foreground border border-border shadow-sm self-start md:self-auto">
-            <Calendar className="h-4 w-4 opacity-70" />
+          <div className="flex items-center gap-2 bg-card/50 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium text-muted-foreground border border-border shadow-sm">
+            <Calendar className="h-4 w-4" />
             <span className="capitalize">{today}</span>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <PremiumValueCard />
-          <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                Estoque Crítico
-              </CardTitle>
-              <div className="p-2 bg-rose-100 dark:bg-rose-500/10 rounded-full">
-                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
-                {stats?.lowStock || 0}
-              </div>
-              <p className="text-xs font-medium text-muted-foreground mt-2">
-                Produtos abaixo do mínimo
-              </p>
-            </CardContent>
-          </Card>
+        {/* --- ACESSO RÁPIDO --- */}
+        <section>
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Acesso Rápido</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <QuickAccessBtn 
+              icon={Plus} 
+              label="Nova Solicitação" 
+              colorClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400"
+              onClick={() => navigate('/solicitacoes')} 
+            />
+            <QuickAccessBtn 
+              icon={Package} 
+              label="Cadastrar Produto" 
+              colorClass="bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+              onClick={() => navigate('/produtos')} 
+            />
+            <QuickAccessBtn 
+              icon={History} 
+              label="Histórico de Separações" 
+              colorClass="bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400"
+              onClick={() => navigate('/separacoes')} 
+            />
+            <QuickAccessBtn 
+              icon={FileText} 
+              label="Gerar Relatórios" 
+              colorClass="bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400"
+              onClick={() => navigate('/relatorios')} 
+            />
+          </div>
+        </section>
 
-          <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                Pendências
-              </CardTitle>
-              <div className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-full">
-                <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
-                {stats?.openRequests || 0}
-              </div>
-              <p className="text-xs font-medium text-muted-foreground mt-2">
-                Solicitações em aberto
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* --- KPI DESTAQUES --- */}
+        <section>
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-1">Indicadores em Destaque</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <PremiumValueCard />
+            
+            <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Estoque Crítico
+                </CardTitle>
+                <div className="p-2 bg-rose-100 dark:bg-rose-500/10 rounded-full">
+                  <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
+                  <AnimatedCounter value={stats?.lowStock || 0} isCurrency={false} />
+                </div>
+                <p className="text-xs font-medium text-rose-500 mt-2 flex items-center gap-1">
+                  <ArrowRight className="h-3 w-3" /> Requer atenção imediata
+                </p>
+              </CardContent>
+            </Card>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="lg:col-span-4 bg-card shadow-sm border-border rounded-2xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
-                Volume de Movimentações
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={volumeData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            <Card className="bg-card text-card-foreground shadow-sm hover:shadow-md border-border rounded-2xl transition-all hover:-translate-y-1">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Pendências Abertas
+                </CardTitle>
+                <div className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-full">
+                  <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
+                  <AnimatedCounter value={stats?.openRequests || 0} isCurrency={false} />
+                </div>
+                <p className="text-xs font-medium text-muted-foreground mt-2">
+                  Aguardando ação da equipe
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* --- ÁREA DE DETALHAMENTO: Gráficos + Listas --- */}
+        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-12">
+          
+          {/* Lado Esquerdo: Gráficos (Ocupa 7 colunas em telas grandes) */}
+          <div className="space-y-6 lg:col-span-7">
+            <Card className="bg-card shadow-sm border-border rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold text-foreground">Volume de Movimentações</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={volumeData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.1} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#888888" }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#888888" }} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: "currentColor", opacity: 0.05 }} contentStyle={{ backgroundColor: "var(--background)", borderColor: "var(--border)", borderRadius: "12px", color: "var(--foreground)" }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                      {volumeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card shadow-sm border-border rounded-2xl hidden md:block">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold text-foreground">Saúde Geral do Estoque</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[250px] flex justify-center items-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={stockHealthData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                      {stockHealthData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: "var(--background)", borderColor: "var(--border)", borderRadius: "12px" }} />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '14px', color: '#888888' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Lado Direito: Listas de Ação Rápida (Ocupa 5 colunas em telas grandes) */}
+          <div className="space-y-6 lg:col-span-5">
+            
+            {/* Lista: Produtos Críticos há muito tempo */}
+            <Card className="bg-card shadow-sm border-rose-200 dark:border-rose-900/50 rounded-2xl overflow-hidden flex flex-col h-auto">
+              <div className="bg-rose-50 dark:bg-rose-950/20 p-4 border-b border-rose-100 dark:border-rose-900/30">
+                <CardTitle className="text-base font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" /> Alerta Prolongado
+                </CardTitle>
+                <p className="text-xs text-rose-600/80 dark:text-rose-400/80 mt-1">Produtos no crítico há mais de 7 dias.</p>
+              </div>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {mockCriticalProducts.map((prod, idx) => (
+                    <div key={idx} className="p-4 flex justify-between items-center hover:bg-muted/50 transition-colors">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{prod.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1 font-mono">Estoque: {prod.stock} / Mín: {prod.min}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-block px-2 py-1 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-md">
+                          Há {prod.days} dias
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => navigate('/estoque-baixo')}
+                  className="w-full p-3 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors flex items-center justify-center gap-1"
                 >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="currentColor"
-                    strokeOpacity={0.1}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12, fill: "#888888" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: "#888888" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "currentColor", opacity: 0.05 }}
-                    contentStyle={{
-                      backgroundColor: "var(--background)",
-                      borderColor: "var(--border)",
-                      borderRadius: "12px",
-                      color: "var(--foreground)",
-                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                    }}
-                    itemStyle={{ color: "var(--foreground)" }}
-                  />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={50}>
-                    {volumeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                  Ver todos os alertas <ChevronRight className="h-4 w-4" />
+                </button>
+              </CardContent>
+            </Card>
 
-          <Card className="lg:col-span-3 bg-card shadow-sm border-border rounded-2xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
-                Saúde do Estoque
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px] flex flex-col justify-center items-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stockHealthData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={70}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {stockHealthData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--background)",
-                      borderColor: "var(--border)",
-                      borderRadius: "12px",
-                      color: "var(--foreground)",
-                    }}
-                    itemStyle={{ color: "var(--foreground)" }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '14px', color: '#888888' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            {/* Lista: Últimas Separações */}
+            <Card className="bg-card shadow-sm border-border rounded-2xl flex flex-col h-auto">
+              <CardHeader className="pb-3 border-b border-border">
+                <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-emerald-500" /> Últimas Separações
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border">
+                  {mockRecentSeparations.map((sep, idx) => (
+                    <div key={idx} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors group cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${sep.color}`}>
+                          <ShoppingCart className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">{sep.id}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Clock className="h-3 w-3" /> {sep.time} • {sep.setor}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => navigate('/separacoes')}
+                  className="w-full p-3 text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors flex items-center justify-center gap-1 border-t border-border"
+                >
+                  Ir para Separações <ArrowRight className="h-4 w-4" />
+                </button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );
   };
 
-  // --- DASHBOARDS ESPECÍFICOS ---
-
+  // --- RENDERS DOS OUTROS PERFIS (Mantive as melhorias básicas) ---
   const renderAdminDashboard = () => (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard Admin</h1>
-      </div>
+      <h1 className="text-3xl font-bold text-foreground">Dashboard Admin</h1>
       <div className="grid gap-4 md:grid-cols-4">
         <PremiumValueCard />
         <Card className="rounded-2xl">
@@ -355,29 +390,21 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Produtos</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.totalProducts}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats?.totalProducts}</div></CardContent>
         </Card>
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Baixo</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium text-rose-600">Estoque Baixo</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">
-              {stats?.lowStock}
-            </div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold text-rose-600">{stats?.lowStock}</div></CardContent>
         </Card>
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Solicitações</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.totalRequests}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats?.totalRequests}</div></CardContent>
         </Card>
       </div>
     </div>
@@ -385,53 +412,34 @@ export default function Dashboard() {
 
   const renderAlmoxarifeDashboard = () => (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Almoxarifado</h1>
-      </div>
+      <h1 className="text-3xl font-bold text-foreground">Almoxarifado</h1>
       <div className="grid gap-4 md:grid-cols-4">
-        {/* CARD FINANCEIRO */}
         <PremiumValueCard />
-
-        {/* --- CARD PERSONALIZADO: PRODUTOS CADASTRADOS --- */}
         <Card className="bg-blue-600 dark:bg-blue-700 text-white shadow-lg border-blue-500 rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-bold text-white/90 tracking-wider">
-              PRODUTOS CADASTRADOS
-            </CardTitle>
+            <CardTitle className="text-sm font-bold text-white/90 tracking-wider">PRODUTOS CADASTRADOS</CardTitle>
             <Package className="h-5 w-5 text-white/80" />
           </CardHeader>
           <CardContent>
-            {/* EFEITO ANIMADO DE CONTAGEM */}
             <div className="text-4xl font-extrabold text-white drop-shadow-md">
-              <AnimatedCounter
-                value={stats?.totalProducts || 0}
-                isCurrency={false}
-              />
+              <AnimatedCounter value={stats?.totalProducts || 0} isCurrency={false} />
             </div>
-            <p className="text-xs text-blue-100 mt-1 font-medium opacity-90">
-              Total de itens no catálogo
-            </p>
+            <p className="text-xs text-blue-100 mt-1 font-medium opacity-90">Total de itens no catálogo</p>
           </CardContent>
         </Card>
-
-        {/* Demais cards */}
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Solicitações</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.totalRequests}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats?.totalRequests}</div></CardContent>
         </Card>
         <Card className="rounded-2xl">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Separações</CardTitle>
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.totalSeparations}</div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold">{stats?.totalSeparations}</div></CardContent>
         </Card>
       </div>
     </div>
@@ -439,60 +447,53 @@ export default function Dashboard() {
 
   const renderSetorDashboard = () => (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Setor</h1>
-      </div>
+      <h1 className="text-3xl font-bold text-foreground">Setor</h1>
       <Card className="rounded-2xl border-border">
-        <CardHeader>
-          <CardTitle>Minhas Solicitações</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Acesse o menu lateral para ver suas solicitações.</p>
-        </CardContent>
+        <CardHeader><CardTitle>Minhas Solicitações</CardTitle></CardHeader>
+        <CardContent><p className="text-muted-foreground">Acesse o menu lateral para ver suas solicitações.</p></CardContent>
       </Card>
     </div>
   );
 
   const renderComprasDashboard = () => (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Compras</h1>
-      </div>
+      <h1 className="text-3xl font-bold text-foreground">Compras</h1>
       <div className="grid gap-4 md:grid-cols-3">
         <PremiumValueCard />
-        <Card className="rounded-2xl">
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Estoque Baixo</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium text-rose-600">Estoque Baixo</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">
-              {stats?.lowStock}
-            </div>
-          </CardContent>
+          <CardContent><div className="text-3xl font-bold text-rose-600">{stats?.lowStock}</div></CardContent>
         </Card>
       </div>
     </div>
   );
 
-  const renderDashboard = () => {
-    if (isLoading) return <DashboardSkeleton />;
+  // --- CONTROLE PRINCIPAL DE RENDER ---
+  const DashboardSkeleton = () => (
+    <div className="p-6 space-y-6 bg-transparent rounded-2xl animate-pulse">
+      <Skeleton className="h-10 w-64 md:w-96 bg-slate-200 dark:bg-slate-800" />
+      <div className="grid gap-4 md:grid-cols-3">
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-2xl bg-slate-200 dark:bg-slate-800" />)}
+      </div>
+      <Skeleton className="h-[400px] w-full rounded-2xl bg-slate-200 dark:bg-slate-800" />
+    </div>
+  );
 
+  if (isLoading) return <div className="p-4 md:p-8 min-h-screen bg-background"><DashboardSkeleton /></div>;
+
+  const content = () => {
     switch (profile?.role) {
-      case "admin":
-        return renderAdminDashboard();
-      case "chefe":
-        return renderChefeDashboard();
-      case "almoxarife":
-        return renderAlmoxarifeDashboard();
-      case "setor":
-        return renderSetorDashboard();
-      case "compras":
-        return renderComprasDashboard();
-      default:
-        return <div className="p-8 text-center text-muted-foreground">Perfil não reconhecido.</div>;
+      case "admin": return renderAdminDashboard();
+      case "chefe": return renderChefeDashboard();
+      case "almoxarife": return renderAlmoxarifeDashboard();
+      case "setor": return renderSetorDashboard();
+      case "compras": return renderComprasDashboard();
+      default: return <div className="p-8 text-center text-muted-foreground">Perfil não reconhecido.</div>;
     }
   };
 
-  return <div className="p-2 md:p-6 bg-background text-foreground min-h-screen">{renderDashboard()}</div>;
+  return <div className="p-4 md:p-8 bg-background text-foreground min-h-screen">{content()}</div>;
 }
