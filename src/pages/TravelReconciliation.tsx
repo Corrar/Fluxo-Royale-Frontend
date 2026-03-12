@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import * as XLSX from 'xlsx';
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -22,11 +22,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { exportToExcel } from "@/utils/exportUtils"; // Removi exportToPDF pois faremos manual
+import { exportToExcel } from "@/utils/exportUtils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Definição do tipo de item
+// --- TIPAGENS FORTES ---
+interface Product {
+  sku: string;
+  name: string;
+  unit: string;
+}
+
 interface TravelItem {
   sku: string;
   name: string;
@@ -56,31 +62,39 @@ export default function TravelReconciliation() {
   const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
   const [manualInbound, setManualInbound] = useState({ sku: "", name: "", quantity: "", unit: "" });
 
-  // 1. BUSCAR PRODUTOS (Para Auto-Complete)
-  const { data: products = [] } = useQuery({
+  // 1. BUSCAR PRODUTOS
+  const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
     staleTime: 1000 * 60 * 10,
   });
 
-  const findProduct = (sku: string) => products.find((p: any) => p.sku === sku);
+  // MELHORIA: Dicionário em Cache (Map) para busca O(1) ultra-rápida de SKUs
+  const productsDictionary = useMemo(() => {
+    const map = new Map<string, Product>();
+    products.forEach((p) => map.set(p.sku, p));
+    return map;
+  }, [products]);
 
-  // HANDLER INTELIGENTE DE SKU
+  // HANDLER INTELIGENTE DE SKU OTIMIZADO
   const handleSkuChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'outbound' | 'inbound') => {
     const newSku = e.target.value;
     const setInput = type === 'outbound' ? setManualOutbound : setManualInbound;
     const currentInput = type === 'outbound' ? manualOutbound : manualInbound;
 
     const updatedInput = { ...currentInput, sku: newSku };
-    const found = findProduct(newSku);
+    
+    // Busca instantânea no Map
+    const found = productsDictionary.get(newSku);
     if (found) {
       updatedInput.name = found.name;
       updatedInput.unit = found.unit || "un";
     }
+    
     setInput(updatedInput);
   };
 
-  // LEITURA DE EXCEL
+  // LEITURA DE EXCEL TIPADA
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'outbound' | 'inbound') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -91,9 +105,11 @@ export default function TravelReconciliation() {
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws);
+      
+      // Usamos Record<string, any> para dizer ao TS que é um objeto com chaves do Excel
+      const data = XLSX.utils.sheet_to_json<Record<string, string | number>>(ws);
 
-      const formattedData: TravelItem[] = data.map((row: any) => ({
+      const formattedData: TravelItem[] = data.map((row) => ({
         sku: String(row['sku'] || row['SKU'] || row['Codigo'] || row['Código'] || row['id'] || "Unknown"),
         name: String(row['name'] || row['Nome'] || row['Produto'] || row['Descricao'] || "Item sem nome"),
         quantity: Number(row['quantity'] || row['qtd'] || row['Qtd'] || row['Quantidade'] || 0),
@@ -107,6 +123,9 @@ export default function TravelReconciliation() {
         setInboundList(formattedData);
         toast.success(`${formattedData.length} itens carregados no Retorno.`);
       }
+      
+      // Reseta o input de ficheiro para permitir re-upload do mesmo ficheiro
+      e.target.value = '';
     };
     reader.readAsBinaryString(file);
   };
@@ -187,7 +206,7 @@ export default function TravelReconciliation() {
       inboundMap.delete(outItem.sku);
     });
 
-    // 2. Verifica itens que voltaram mas não saíram (Inesperados)
+    // 2. Verifica itens que voltaram mas não saíram (Inesperados / Sobras Absolutas)
     inboundList.forEach(inItem => {
       if (inboundMap.has(inItem.sku)) {
         results.push({
@@ -220,45 +239,37 @@ export default function TravelReconciliation() {
 
     const doc = new jsPDF();
 
-    // 1. Título Principal (Letra Grande e Negrito)
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
     doc.text("Relatório de Confronto de Viagem", 14, 20);
 
-    // 2. Subtítulos (Letra Menor)
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100); // Cinza para o subtítulo
+    doc.setTextColor(100); 
 
     const dateStr = new Date().toLocaleDateString();
     
-    // Linha 1 de informações
     doc.text(`Cidade: ${city}  |  Técnicos: ${technicians}`, 14, 28);
-    // Linha 2 de informações
     doc.text(`Data: ${dateStr}  |  Sistema: Fluxo Royale`, 14, 34);
 
-    // 3. Tabela
     const tableColumn = ["SKU", "Produto", "Saída", "Retorno", "Dif.", "Status"];
-    const tableRows: any[] = [];
-
-    comparisonResult.forEach(item => {
-        const rowData = [
-            item.sku,
-            item.name,
-            item.quantity,
-            item.returnedQuantity,
-            item.difference,
-            item.status === 'ok' ? "OK" : item.status === 'missing' ? "FALTA" : "SOBRA"
-        ];
-        tableRows.push(rowData);
-    });
+    
+    // Define o tipo exato da linha para o AutoTable
+    const tableRows = comparisonResult.map(item => [
+      item.sku,
+      item.name,
+      item.quantity,
+      item.returnedQuantity,
+      item.difference,
+      item.status === 'ok' ? "OK" : item.status === 'missing' ? "FALTA" : "SOBRA"
+    ]);
 
     autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
-        startY: 40, // Começa logo abaixo do cabeçalho
+        startY: 40,
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [71, 85, 105] }, // Cor do cabeçalho da tabela (Slate-600)
+        headStyles: { fillColor: [71, 85, 105] },
     });
 
     doc.save(`Confronto_${city.replace(/\s/g, '_')}.pdf`);
@@ -297,7 +308,7 @@ export default function TravelReconciliation() {
             </div>
         </div>
 
-        {/* Botão de Exportar só aparece se tiver resultado */}
+        {/* Botão de Exportar */}
         {comparisonResult.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -317,7 +328,7 @@ export default function TravelReconciliation() {
         )}
       </div>
 
-      {/* --- DADOS DA VIAGEM --- */}
+      {/* DADOS DA VIAGEM */}
       <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
         <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -403,7 +414,6 @@ export default function TravelReconciliation() {
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    {/* INPUT COM PROTEÇÃO CONTRA NEGATIVOS */}
                     <Input 
                       className="h-8 dark:bg-slate-800" 
                       type="number" 
@@ -496,7 +506,6 @@ export default function TravelReconciliation() {
                   </div>
                   <div className="grid gap-1 w-16">
                     <Label className="text-xs">Qtd.</Label>
-                    {/* INPUT COM PROTEÇÃO CONTRA NEGATIVOS */}
                     <Input 
                       className="h-8 dark:bg-slate-800" 
                       type="number" 
@@ -567,7 +576,6 @@ export default function TravelReconciliation() {
                 <CardTitle className="dark:text-slate-100">Resultado da Auditoria</CardTitle>
                 <CardDescription className="dark:text-slate-400">Itens que não fecharam a conta estão destacados.</CardDescription>
             </div>
-            {/* Botão de salvar histórico removido conforme solicitação */}
           </CardHeader>
           <CardContent className="p-0">
             {/* CARDS DE RESUMO */}
