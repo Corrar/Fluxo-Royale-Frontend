@@ -195,7 +195,6 @@ export default function TravelReconciliation() {
     });
   };
 
-  // NOVO: Adicionar valor escrito manualmente sem quebrar estado
   const handleDirectQuantityChange = (productId: string, value: string) => {
     setOutboundList(prev => {
       return prev.map(item => {
@@ -299,7 +298,6 @@ export default function TravelReconciliation() {
     if (!technicians || !city) return toast.warning("Preencha o Destino e a Equipa.");
     if (outboundList.length === 0) return toast.warning("Adicione pelo menos um material à viagem.");
 
-    // Bloqueia envios se algum item ficou vazio ' ' no input
     const hasEmptyQuantities = outboundList.some(i => i.quantity === '' || i.quantity === 0);
     if (hasEmptyQuantities) return toast.warning("Tem itens com quantidade inválida. Verifique o carrinho.");
 
@@ -443,8 +441,8 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* FAB apenas para Mobile na vista List */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40 md:hidden flex justify-center pointer-events-none">
+        {/* FAB ELEVADO PARA TELEMÓVEIS (bottom-20) */}
+        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40 md:hidden flex justify-center pointer-events-none">
            <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl shadow-emerald-600/30 px-8 h-14 text-lg font-bold pointer-events-auto transition-all active:scale-[0.98]">
             <Plus className="mr-2 h-6 w-6" /> Nova Viagem
           </Button>
@@ -595,8 +593,8 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* Rodapé fixo - Ajustado com padding extra para iOS Safari e posicionamento seguro */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
+        {/* RODAPÉ ELEVADO PARA TELEMÓVEIS (bottom-20) */}
+        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
           <div className="max-w-5xl mx-auto flex gap-4">
              <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex bg-background shadow-sm hover:bg-muted">
                Cancelar
@@ -716,9 +714,9 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
-        {/* Rodapé fixo com pb-safe para lidar com barra do iPhone */}
+        {/* RODAPÉ ELEVADO PARA TELEMÓVEIS (bottom-20) */}
         {!isViewing && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
+          <div className="fixed bottom-20 md:bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
             <div className="max-w-6xl mx-auto flex gap-4">
                <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex bg-background shadow-sm hover:bg-muted">
                  Cancelar
