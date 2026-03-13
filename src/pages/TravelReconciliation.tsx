@@ -62,16 +62,17 @@ export default function TravelReconciliation() {
   const [technicians, setTechnicians] = useState("");
   const [city, setCity] = useState("");
   const [outboundList, setOutboundList] = useState<TravelItemInput[]>([]);
-  const [searchTerm, setSearchTerm] = useState(""); // Estado para a busca inteligente
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Estados Acerto (Volta)
   const [reconcileItems, setReconcileItems] = useState<any[]>([]);
 
   // 1. DADOS: Buscar Produtos
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [], refetch: refetchProducts } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
-    staleTime: 1000 * 60 * 10,
+    // ✨ TRAVA 1: Reduzido o tempo de cache. O React Query deve trazer o estoque real quase em tempo real.
+    staleTime: 1000 * 15, // 15 segundos no máximo.
   });
 
   const productsDictionary = useMemo(() => {
@@ -87,7 +88,7 @@ export default function TravelReconciliation() {
     return products.filter(p =>
       p.name.toLowerCase().includes(lower) ||
       p.sku.toLowerCase().includes(lower)
-    ).slice(0, 5); // Mostra até 5 resultados
+    ).slice(0, 5); 
   }, [searchTerm, products]);
 
   // 2. DADOS: Buscar Viagens
@@ -96,27 +97,43 @@ export default function TravelReconciliation() {
     queryFn: async () => (await api.get("/travel-orders")).data,
   });
 
+  // Atualizações em Tempo Real via Sockets
   useEffect(() => {
     if (!socket) return;
-    const handleUpdate = () => queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
+    const handleUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] }); // Atualiza estoque caso a alteração venha de outro lugar
+    };
     socket.on("travel_orders_update", handleUpdate);
-    return () => { socket.off("travel_orders_update", handleUpdate); };
+    socket.on("stock_update", handleUpdate); // Se o teu backend tiver esse evento, ele já o apanha
+    return () => { 
+      socket.off("travel_orders_update", handleUpdate); 
+      socket.off("stock_update", handleUpdate);
+    };
   }, [socket, queryClient]);
 
   // 3. MUTAÇÕES
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => await api.post('/travel-orders', data),
     onSuccess: () => {
+      // ✨ TRAVA 2: Invalidação FORÇADA do cache ao criar viagem
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
+      
       toast.success("Viagem registrada! Estoque reservado com sucesso.");
       resetNewTripForm();
       setViewMode('list');
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao registrar viagem.")
+    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao registrar viagem. O estoque pode não ser suficiente no servidor.")
   });
 
   const reconcileOrderMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string, data: any }) => await api.post(`/travel-orders/${id}/reconcile`, data),
     onSuccess: () => {
+      // Ao concluir acerto, os itens voltam pro estoque. Precisamos atualizar!
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
+      
       toast.success("Acerto concluído! Estoque físico e reservas atualizados.");
       setViewMode('list');
     },
@@ -128,14 +145,13 @@ export default function TravelReconciliation() {
     setTechnicians(""); setCity(""); setOutboundList([]); setSearchTerm("");
   };
 
-  // Adicionar ao clicar na busca inteligente
   const handleAddFromSearch = (product: Product) => {
     setOutboundList(prev => {
       const existing = prev.find(i => i.product_id === product.id);
       const currentQty = existing ? existing.quantity : 0;
 
       if (currentQty + 1 > product.available_quantity) {
-        toast.error(`Estoque insuficiente. Restam apenas ${product.available_quantity} unidades.`);
+        toast.error(`Estoque insuficiente de ${product.name}. Restam apenas ${product.available_quantity} unidades.`);
         return prev;
       }
 
@@ -150,18 +166,21 @@ export default function TravelReconciliation() {
     setSearchTerm("");
   };
 
-  // Atualizar quantidade no Carrinho (+ e -)
   const updateItemQuantity = (productId: string, delta: number) => {
     setOutboundList(prev => {
       return prev.map(item => {
         if (item.product_id === productId) {
+           const freshProduct = productsDictionary.get(item.sku);
+           const currentStock = freshProduct?.available_quantity || 0;
+           
            const newQty = item.quantity + delta;
            if (newQty <= 0) return null; 
-           if (newQty > item.available_stock) {
-             toast.error(`Limite atingido. Disponível: ${item.available_stock} ${item.unit}.`);
+           
+           if (newQty > currentStock) {
+             toast.error(`Limite atingido para ${item.name}. Estoque atual: ${currentStock} ${item.unit}.`);
              return item;
            }
-           return { ...item, quantity: newQty };
+           return { ...item, quantity: newQty, available_stock: currentStock };
         }
         return item;
       }).filter(Boolean) as TravelItemInput[];
@@ -189,12 +208,14 @@ export default function TravelReconciliation() {
           const found = productsDictionary.get(sku);
           
           if (found && qty > 0) {
-            const existing = formatted.find(i => i.product_id === found.id);
-            const currentQty = existing ? existing.quantity : 0;
+            const existingInCart = outboundList.find(i => i.product_id === found.id);
+            const existingInFormatted = formatted.find(i => i.product_id === found.id);
+            
+            const currentQty = (existingInCart?.quantity || 0) + (existingInFormatted?.quantity || 0);
             const totalQty = currentQty + qty;
 
             if (totalQty <= (found.available_quantity || 0)) {
-              if (existing) existing.quantity = totalQty;
+              if (existingInFormatted) existingInFormatted.quantity += qty;
               else formatted.push({ 
                 product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, 
                 quantity: qty, available_stock: found.available_quantity 
@@ -205,9 +226,18 @@ export default function TravelReconciliation() {
           }
         });
         
-        setOutboundList(prev => [...prev, ...formatted]);
-        toast.success(`${formatted.length} itens adicionados via planilha.`);
-        if (skippedItems > 0) toast.warning(`${skippedItems} itens ignorados por falta de estoque.`);
+        setOutboundList(prev => {
+           // Mescla as listas atualizando quantidades
+           const newList = [...prev];
+           formatted.forEach(newItem => {
+               const existing = newList.find(i => i.product_id === newItem.product_id);
+               if (existing) existing.quantity += newItem.quantity;
+               else newList.push(newItem);
+           });
+           return newList;
+        });
+        toast.success(`${formatted.length} itens da planilha processados.`);
+        if (skippedItems > 0) toast.warning(`${skippedItems} itens ignorados por excederem o estoque!`);
       } 
       else if (target === 'reconcile') {
         let updatedItems = [...reconcileItems];
@@ -235,6 +265,20 @@ export default function TravelReconciliation() {
   const handleCreateTrip = () => {
     if (!technicians || !city) return toast.warning("Preencha os Técnicos e a Cidade.");
     if (outboundList.length === 0) return toast.warning("O carrinho de viagem está vazio.");
+
+    // ✨ TRAVA 3: Double-Check / Pre-flight check.
+    // Confirma uma última vez contra a array de 'products' mais recente se houve furo antes de bater no servidor.
+    for (const item of outboundList) {
+      const freshProduct = products.find(p => p.id === item.product_id);
+      const currentAvailable = freshProduct?.available_quantity || 0;
+      
+      if (item.quantity > currentAvailable) {
+        toast.error(`Bloqueado: O estoque de ${item.name} sofreu alterações! Disponível agora: ${currentAvailable}. Ajuste o carrinho.`);
+        refetchProducts(); // Força baixar tudo de novo
+        return; // Interrompe a criação
+      }
+    }
+
     createOrderMutation.mutate({ technicians, city, items: outboundList });
   };
 
@@ -296,7 +340,6 @@ export default function TravelReconciliation() {
   // RENDERIZAÇÃO DAS TELAS
   // ============================================================================
 
-  // ------------------------- VISTA 1: LISTA (DASHBOARD) -------------------------
   if (viewMode === 'list') {
     return (
       <div className="space-y-6 pb-20 animate-in fade-in duration-500">
@@ -365,7 +408,6 @@ export default function TravelReconciliation() {
     );
   }
 
-  // ------------------------- VISTA 2: NOVA VIAGEM (NOVO DESIGN COM PESQUISA) -------------------------
   if (viewMode === 'new') {
     return (
       <div className="max-w-3xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -402,7 +444,6 @@ export default function TravelReconciliation() {
             <Input id="upload-excel" type="file" accept=".xlsx" className="hidden" onChange={e => handleExcelUpload(e, 'outbound')} />
           </div>
 
-          {/* BARRA DE PESQUISA INTELIGENTE */}
           <div className="relative z-10">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
@@ -414,7 +455,6 @@ export default function TravelReconciliation() {
               />
             </div>
 
-            {/* Resultados Flutuantes da Busca */}
             {searchTerm && searchResults.length > 0 && (
               <Card className="absolute top-full left-0 right-0 mt-2 p-2 shadow-2xl border-border rounded-2xl bg-card animate-in fade-in slide-in-from-top-2">
                 {searchResults.map(product => (
@@ -445,7 +485,6 @@ export default function TravelReconciliation() {
             )}
           </div>
 
-          {/* Carrinho UI */}
           {outboundList.length > 0 ? (
             <div className="space-y-3 mt-6">
               {outboundList.map((item) => (
@@ -490,7 +529,6 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* Rodapé Fixo */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
           <div className="max-w-3xl mx-auto">
             <Button
@@ -506,7 +544,6 @@ export default function TravelReconciliation() {
     );
   }
 
-  // ------------------------- VISTA 3: ACERTO DE CONTAS -------------------------
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
