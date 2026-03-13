@@ -6,13 +6,12 @@ import { useSocket } from "@/contexts/SocketContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  CheckCircle2, AlertTriangle, ArrowLeft, Upload, FileSpreadsheet, Plus, Trash2,
+  AlertTriangle, ArrowLeft, Upload, FileSpreadsheet, Plus, Trash2,
   ArrowRightLeft, FileText, Download, Scale, MapPin, Users, Eye
 } from "lucide-react";
 import {
@@ -28,13 +27,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 // --- TIPAGENS ---
-// ✨ NOVO: Adicionado 'available_quantity' para controle de estoque
 interface Product { 
   id: string; 
   sku: string; 
   name: string; 
   unit: string; 
-  available_quantity: number; // Certifique-se que o backend envia isso!
+  available_quantity: number; 
 }
 
 interface TravelItemInput {
@@ -65,7 +63,6 @@ export default function TravelReconciliation() {
   const [technicians, setTechnicians] = useState("");
   const [city, setCity] = useState("");
   const [outboundList, setOutboundList] = useState<TravelItemInput[]>([]);
-  // ✨ NOVO: Adicionado available_stock no estado manual para mostrar na tela
   const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
 
   // Estados Acerto (Volta)
@@ -133,7 +130,7 @@ export default function TravelReconciliation() {
       name: found?.name || "", 
       unit: found?.unit || "un", 
       product_id: found?.id || "",
-      available_stock: found?.available_quantity || 0 // ✨ Puxa o estoque
+      available_stock: found?.available_quantity || 0
     });
   };
 
@@ -142,7 +139,6 @@ export default function TravelReconciliation() {
     if (!manualOutbound.product_id) return toast.warning("Produto não encontrado na base de dados.");
     if (qtd <= 0 || isNaN(qtd)) return toast.warning("Quantidade inválida.");
 
-    // ✨ NOVO: Lógica restritiva de estoque
     const existingItem = outboundList.find(i => i.product_id === manualOutbound.product_id);
     const quantityAlreadyInList = existingItem ? existingItem.quantity : 0;
     const totalDesiredQuantity = quantityAlreadyInList + qtd;
@@ -174,7 +170,7 @@ export default function TravelReconciliation() {
 
       if (target === 'outbound') {
         const formatted: TravelItemInput[] = [];
-        let skippedItems = 0; // ✨ NOVO: Contador para itens com estoque insuficiente
+        let skippedItems = 0;
 
         data.forEach(row => {
           const sku = String(row['sku'] || row['SKU'] || row['Codigo'] || "");
@@ -186,7 +182,6 @@ export default function TravelReconciliation() {
             const currentQty = existing ? existing.quantity : 0;
             const totalQty = currentQty + qty;
 
-            // ✨ NOVO: Validação de estoque via Excel
             if (totalQty <= (found.available_quantity || 0)) {
               if (existing) existing.quantity = totalQty;
               else formatted.push({ product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, quantity: qty });
@@ -268,7 +263,6 @@ export default function TravelReconciliation() {
 
   // --- EXPORTAÇÃO ---
   const generateReport = (order: TravelOrder, format: 'pdf' | 'excel') => {
-    // ... (Código de exportação mantido intacto)
     const tableData = order.items.map(item => {
       const qOut = Number(item.quantity_out);
       const qRet = Number(item.quantity_returned);
@@ -301,7 +295,7 @@ export default function TravelReconciliation() {
   };
 
   // ============================================================================
-  // RENDERIZAÇÃO DAS TELAS (Refatoradas para Dark Mode)
+  // RENDERIZAÇÃO DAS TELAS
   // ============================================================================
 
   if (viewMode === 'list') {
@@ -309,7 +303,6 @@ export default function TravelReconciliation() {
       <div className="space-y-6 pb-20 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-              {/* ✨ NOVO: text-foreground em vez de cores fixas escuras */}
               <h1 className="text-3xl font-bold flex items-center gap-2 text-foreground">
                   <Scale className="h-8 w-8 text-blue-600 dark:text-blue-400" /> Controle de Viagens
               </h1>
@@ -320,7 +313,6 @@ export default function TravelReconciliation() {
           </Button>
         </div>
 
-        {/* ✨ NOVO: Adicionado bg-card text-card-foreground ao Card */}
         <Card className="shadow-sm bg-card text-card-foreground">
           <Table>
             <TableHeader className="bg-muted/50 dark:bg-muted/20">
@@ -401,7 +393,6 @@ export default function TravelReconciliation() {
             </div>
         </div>
 
-        {/* ✨ NOVO: Ajuste de border e background para o Card no dark mode */}
         <Card className="shadow-sm border-blue-200 dark:border-blue-900 bg-card">
           <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 pb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -423,7 +414,6 @@ export default function TravelReconciliation() {
               </TabsList>
               
               <TabsContent value="manual">
-                {/* ✨ NOVO: Ajuste do painel manual para dark mode */}
                 <div className="flex flex-wrap gap-2 items-end bg-muted/30 p-4 rounded-lg border border-border">
                   <div className="grid gap-1 w-32">
                     <Label className="text-xs">SKU</Label>
@@ -432,7 +422,6 @@ export default function TravelReconciliation() {
                   <div className="grid gap-1 flex-1 min-w-[150px]">
                     <Label className="text-xs flex justify-between">
                       Produto
-                      {/* ✨ NOVO: Feedback visual do estoque disponível */}
                       {manualOutbound.product_id && (
                         <span className={`font-semibold ${manualOutbound.available_stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
                           Disp: {manualOutbound.available_stock} {manualOutbound.unit}
@@ -564,7 +553,6 @@ export default function TravelReconciliation() {
                   const ret = Number(item.returnedQuantity);
                   const missing = out - ret;
                   
-                  // ✨ NOVO: Cores de background dinâmicas que respeitam Dark Mode
                   let rowClass = "hover:bg-muted/30 transition-colors";
                   if (missing > 0) rowClass = "bg-red-50/50 dark:bg-red-950/20 hover:bg-red-100/50 dark:hover:bg-red-900/30";
                   if (missing < 0) rowClass = "bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30";
