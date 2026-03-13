@@ -179,7 +179,7 @@ export default function TravelReconciliation() {
         if (item.product_id === productId) {
            const freshProduct = productsDictionary.get(item.sku);
            const currentStock = getAvailableStock(freshProduct);
-           // Assume zero se o input estiver vazio ('')
+           
            const currentQty = item.quantity === '' ? 0 : Number(item.quantity);
            const newQty = currentQty + delta;
            
@@ -195,7 +195,7 @@ export default function TravelReconciliation() {
     });
   };
 
-  // NOVO HANDLER: Atualização manual digitada do Carrinho
+  // NOVO: Adicionar valor escrito manualmente sem quebrar estado
   const handleDirectQuantityChange = (productId: string, value: string) => {
     setOutboundList(prev => {
       return prev.map(item => {
@@ -203,32 +203,25 @@ export default function TravelReconciliation() {
            const freshProduct = productsDictionary.get(item.sku);
            const currentStock = getAvailableStock(freshProduct);
            
-           // Se o utilizador apagar tudo, permitimos o estado vazio temporariamente
            if (value === '') {
              return { ...item, quantity: '', available_stock: currentStock };
            }
 
            const newQty = parseInt(value, 10);
            
-           // Bloqueia letras ou negativos
            if (isNaN(newQty) || newQty < 0) return item;
 
-           // Remove se for zero
-           if (newQty === 0) return null;
-
-           // Bloqueia se furar o estoque
            if (newQty > currentStock) {
              toast.error(`Limite máximo! Só tens ${currentStock}x ${item.unit} de ${item.name}.`);
-             return { ...item, quantity: currentStock, available_stock: currentStock }; // Força o valor máximo
+             return { ...item, quantity: currentStock, available_stock: currentStock }; 
            }
 
            return { ...item, quantity: newQty, available_stock: currentStock };
         }
         return item;
-      }).filter(Boolean) as TravelItemInput[];
+      });
     });
   };
-
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'outbound' | 'reconcile') => {
     const file = e.target.files?.[0];
@@ -306,9 +299,9 @@ export default function TravelReconciliation() {
     if (!technicians || !city) return toast.warning("Preencha o Destino e a Equipa.");
     if (outboundList.length === 0) return toast.warning("Adicione pelo menos um material à viagem.");
 
-    // Verifica se algum item ficou com o input vazio antes de enviar
+    // Bloqueia envios se algum item ficou vazio ' ' no input
     const hasEmptyQuantities = outboundList.some(i => i.quantity === '' || i.quantity === 0);
-    if (hasEmptyQuantities) return toast.warning("Verifique o carrinho, existem itens com quantidade zero ou vazia.");
+    if (hasEmptyQuantities) return toast.warning("Tem itens com quantidade inválida. Verifique o carrinho.");
 
     for (const item of outboundList) {
       const freshProduct = products.find(p => p.id === item.product_id);
@@ -369,10 +362,8 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'list') {
     return (
-      // AUMENTADO DE max-w-5xl PARA max-w-7xl
       <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto xl:px-8">
         
-        {/* Header Elegante */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Viagens</h1>
@@ -383,7 +374,6 @@ export default function TravelReconciliation() {
           </Button>
         </div>
 
-        {/* Pílulas de Resumo */}
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <div className="bg-card border border-border rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Total</p>
@@ -399,7 +389,6 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
-        {/* Lista Estilo Feed de Transações */}
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-foreground ml-2">Histórico de Viagens</h2>
           
@@ -419,27 +408,24 @@ export default function TravelReconciliation() {
                   onClick={() => openReconcile(order, order.status === 'pending' ? 'reconcile' : 'view')}
                   className="bg-card hover:bg-muted/30 rounded-3xl p-4 md:p-5 border border-border shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
                 >
-                  <div className="flex items-center gap-4 md:gap-6">
-                    {/* Ícone de Status */}
+                  <div className="flex items-center gap-4 md:gap-6 min-w-0">
                     <div className={`h-14 w-14 rounded-full flex items-center justify-center shrink-0 border ${order.status === 'pending' ? 'bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800' : 'bg-muted border-border text-muted-foreground'}`}>
                       <Car className="h-7 w-7" />
                     </div>
                     
-                    {/* Info Central */}
-                    <div className="flex flex-col justify-center">
-                      <h3 className="font-extrabold text-foreground text-lg leading-tight md:text-xl mb-1">{order.city}</h3>
+                    <div className="flex flex-col justify-center flex-1 min-w-0">
+                      <h3 className="font-extrabold text-foreground text-lg leading-tight md:text-xl mb-1 truncate">{order.city}</h3>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-muted-foreground">
-                        <span className="flex items-center gap-1"><HardHat className="h-4 w-4" /> {order.technicians}</span>
-                        <span className="hidden md:inline text-border">•</span>
-                        <span className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
-                        <span className="hidden md:inline text-border">•</span>
-                        <span className="font-mono bg-muted px-2 py-0.5 rounded-lg text-xs">{order.items?.length || 0} iten(s)</span>
+                        <span className="flex items-center gap-1 truncate"><HardHat className="h-4 w-4 shrink-0" /> {order.technicians}</span>
+                        <span className="hidden md:inline text-border shrink-0">•</span>
+                        <span className="flex items-center gap-1 shrink-0"><CalendarDays className="h-4 w-4" /> {new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
+                        <span className="hidden md:inline text-border shrink-0">•</span>
+                        <span className="font-mono bg-muted px-2 py-0.5 rounded-lg text-xs shrink-0">{order.items?.length || 0} iten(s)</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Lado Direito (Badges e Seta) */}
-                  <div className="flex items-center gap-4 pl-2">
+                  <div className="flex items-center gap-4 pl-2 shrink-0">
                     <div className="hidden sm:block">
                       {order.status === 'pending' ? (
                         <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-400 px-3 py-1 text-sm border-0">Em Andamento</Badge>
@@ -465,7 +451,6 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'new') {
     return (
-      // AUMENTADO PARA max-w-5xl
       <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
@@ -477,7 +462,6 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
-        {/* Card Informações App-like */}
         <div className="bg-card p-6 md:p-8 rounded-3xl border border-border shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2.5">
@@ -506,7 +490,6 @@ export default function TravelReconciliation() {
             <Input id="upload-excel" type="file" accept=".xlsx" className="hidden" onChange={e => handleExcelUpload(e, 'outbound')} />
           </div>
 
-          {/* Busca Global */}
           <div className="relative z-10">
             <div className="relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
@@ -518,7 +501,6 @@ export default function TravelReconciliation() {
               />
             </div>
 
-            {/* Float Menu de Busca */}
             {searchTerm && searchResults.length > 0 && (
               <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4">
                 {searchResults.map(product => {
@@ -552,46 +534,46 @@ export default function TravelReconciliation() {
             )}
           </div>
 
-          {/* Itens do Carrinho - COM INPUT MANUAL CORRIGIDO */}
           {outboundList.length > 0 ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
               {outboundList.map((item) => (
-                <div key={item.product_id} className="bg-card p-5 rounded-3xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5 group transition-all hover:border-border/80">
-                   <div className="flex items-center gap-5">
-                      <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center shrink-0 border border-border group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
-                        <Package className="h-7 w-7 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
+                <div key={item.product_id} className="bg-card p-4 sm:p-5 rounded-3xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 group transition-all hover:border-border/80 w-full">
+                   
+                   <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                      <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-muted/50 flex items-center justify-center shrink-0 border border-border group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
+                        <Package className="h-6 w-6 sm:h-7 sm:w-7 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-foreground text-lg leading-tight">{item.name}</h3>
-                        <p className="text-sm font-medium text-muted-foreground mt-1">
-                          {item.sku} <span className="mx-2 opacity-50">•</span> Disp: {item.available_stock}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-foreground text-base sm:text-lg leading-tight truncate">{item.name}</h3>
+                        <p className="text-xs sm:text-sm font-medium text-muted-foreground mt-0.5 sm:mt-1 truncate">
+                          {item.sku} <span className="mx-1.5 opacity-50">•</span> Disp: {item.available_stock} {item.unit}
                         </p>
                       </div>
                    </div>
 
-                   <div className="flex items-center gap-3 self-end sm:self-auto">
-                      <div className="flex items-center bg-muted/40 rounded-2xl border border-border overflow-hidden h-14 shadow-inner">
-                         <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
-                           <Minus className="h-5 w-5" />
+                   <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end mt-2 sm:mt-0">
+                      <div className="flex items-center bg-muted/40 rounded-2xl border border-border overflow-hidden h-12 sm:h-14 shadow-inner">
+                         <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-12 sm:w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted shrink-0">
+                           <Minus className="h-4 w-4 sm:h-5 sm:w-5" />
                          </button>
-                         {/* INPUT MANUAL AQUI */}
-                         <div className="w-16 h-full bg-background border-x border-border/50">
+                         <div className="w-14 sm:w-16 h-full bg-background border-x border-border/50">
                            <Input 
                               type="number"
                               min="1"
                               value={item.quantity}
                               onChange={(e) => handleDirectQuantityChange(item.product_id, e.target.value)}
-                              className="h-full w-full border-0 text-center font-black text-xl px-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent rounded-none"
+                              className="h-full w-full border-0 text-center font-black text-lg sm:text-xl px-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                            />
                          </div>
-                         <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
-                           <Plus className="h-5 w-5" />
+                         <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-12 sm:w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted shrink-0">
+                           <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
                          </button>
                       </div>
-                      <button onClick={() => updateItemQuantity(item.product_id, -Number(item.quantity))} className="h-14 w-14 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all active:scale-90">
-                        <Trash2 className="h-6 w-6" />
+                      <button onClick={() => setOutboundList(prev => prev.filter(i => i.product_id !== item.product_id))} className="h-12 w-12 sm:h-14 sm:w-14 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all active:scale-90 shrink-0">
+                        <Trash2 className="h-5 w-5 sm:h-6 sm:w-6" />
                       </button>
                    </div>
+
                 </div>
               ))}
             </div>
@@ -606,7 +588,6 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* Rodapé Floating (Finalizar) */}
         <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
           <div className="max-w-5xl mx-auto flex gap-4">
              <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
@@ -631,10 +612,8 @@ export default function TravelReconciliation() {
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
-      // AUMENTADO PARA max-w-6xl
       <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8">
         
-        {/* Header App-like */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
@@ -661,7 +640,6 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* Resumo Estilo Recibo Nubank */}
         <div className="bg-card rounded-[2rem] border border-border shadow-sm overflow-hidden">
           <div className="p-6 md:p-8 bg-muted/20 border-b border-dashed border-border/80">
              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
@@ -681,8 +659,7 @@ export default function TravelReconciliation() {
           </div>
 
           <div className="p-2 md:p-6 lg:p-8">
-            {/* Linhas de Acerto GRID */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {reconcileItems.map((item) => {
                 const out = Number(item.quantity_out);
                 const ret = Number(item.returnedQuantity);
@@ -693,16 +670,16 @@ export default function TravelReconciliation() {
                 if (missing < 0) diffBadge = <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 font-bold border-0 px-3 py-1">Sobrou {Math.abs(missing)}</Badge>;
 
                 return (
-                  <div key={item.product_id} className="p-5 rounded-3xl bg-muted/10 hover:bg-muted/30 border border-border/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div key={item.product_id} className="p-4 sm:p-5 rounded-3xl bg-muted/10 hover:bg-muted/30 border border-border/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
                     
-                    <div className="flex-1">
-                      <h4 className="font-bold text-lg text-foreground">{item.name}</h4>
-                      <p className="text-sm font-medium text-muted-foreground mt-0.5 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-lg text-foreground truncate">{item.name}</h4>
+                      <p className="text-sm font-medium text-muted-foreground mt-0.5 flex items-center gap-2 truncate">
                         <span>Levou: <strong className="text-foreground">{out}</strong> {item.unit}</span>
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto bg-muted/10 sm:bg-transparent p-3 sm:p-0 rounded-xl">
+                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto bg-muted/10 sm:bg-transparent p-3 sm:p-0 rounded-xl shrink-0">
                       <span className="text-sm font-bold text-muted-foreground sm:hidden">Retornou:</span>
                       
                       {isViewing ? (
@@ -715,11 +692,11 @@ export default function TravelReconciliation() {
                            <Input 
                             type="number" 
                             min="0" 
-                            className="h-14 w-24 text-center text-2xl font-black bg-background border-2 border-border focus:border-emerald-500 focus:ring-emerald-500/20 rounded-2xl transition-all shadow-inner" 
+                            className="h-14 w-24 text-center text-2xl font-black bg-background border-2 border-border focus:border-emerald-500 focus:ring-emerald-500/20 rounded-2xl transition-all shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                             value={item.returnedQuantity === 0 && item.quantity_out === 0 ? '' : item.returnedQuantity} 
                             onChange={(e) => updateReturnedQuantity(item.product_id, parseFloat(e.target.value) || 0)}
                           />
-                          <div className="w-24 text-right hidden lg:block">{diffBadge}</div>
+                          <div className="w-24 text-right hidden sm:block">{diffBadge}</div>
                         </div>
                       )}
                     </div>
@@ -731,7 +708,6 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
-        {/* Rodapé CTA Acerto */}
         {!isViewing && (
           <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
             <div className="max-w-6xl mx-auto flex gap-4">
