@@ -7,12 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { 
   AlertTriangle, ArrowLeft, Upload, FileSpreadsheet, Plus, Trash2,
-  ArrowRightLeft, FileText, Download, Scale, MapPin, Users, Eye
+  ArrowRightLeft, FileText, Download, Scale, MapPin, Users, Eye, Search, Minus, Package, PackageSearch
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,7 +35,7 @@ interface Product {
 }
 
 interface TravelItemInput {
-  product_id: string; sku: string; name: string; quantity: number; unit: string;
+  product_id: string; sku: string; name: string; quantity: number; unit: string; available_stock: number;
 }
 
 interface TravelOrderItem {
@@ -63,7 +62,7 @@ export default function TravelReconciliation() {
   const [technicians, setTechnicians] = useState("");
   const [city, setCity] = useState("");
   const [outboundList, setOutboundList] = useState<TravelItemInput[]>([]);
-  const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
+  const [searchTerm, setSearchTerm] = useState(""); // Estado para a busca inteligente
 
   // Estados Acerto (Volta)
   const [reconcileItems, setReconcileItems] = useState<any[]>([]);
@@ -81,13 +80,22 @@ export default function TravelReconciliation() {
     return map;
   }, [products]);
 
+  // Busca Inteligente
+  const searchResults = useMemo(() => {
+    if (!searchTerm) return [];
+    const lower = searchTerm.toLowerCase();
+    return products.filter(p =>
+      p.name.toLowerCase().includes(lower) ||
+      p.sku.toLowerCase().includes(lower)
+    ).slice(0, 5); // Mostra até 5 resultados
+  }, [searchTerm, products]);
+
   // 2. DADOS: Buscar Viagens
   const { data: travelOrders = [], isLoading: isLoadingOrders } = useQuery<TravelOrder[]>({
     queryKey: ["travel-orders"],
     queryFn: async () => (await api.get("/travel-orders")).data,
   });
 
-  // Atualização em Tempo Real
   useEffect(() => {
     if (!socket) return;
     const handleUpdate = () => queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
@@ -117,44 +125,47 @@ export default function TravelReconciliation() {
 
   // --- HANDLERS: NOVA VIAGEM ---
   const resetNewTripForm = () => {
-    setTechnicians(""); setCity(""); setOutboundList([]);
-    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
+    setTechnicians(""); setCity(""); setOutboundList([]); setSearchTerm("");
   };
 
-  const handleSkuChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const sku = e.target.value;
-    const found = productsDictionary.get(sku);
-    setManualOutbound({
-      ...manualOutbound, 
-      sku,
-      name: found?.name || "", 
-      unit: found?.unit || "un", 
-      product_id: found?.id || "",
-      available_stock: found?.available_quantity || 0
-    });
-  };
-
-  const addManualItem = () => {
-    const qtd = parseFloat(manualOutbound.quantity);
-    if (!manualOutbound.product_id) return toast.warning("Produto não encontrado na base de dados.");
-    if (qtd <= 0 || isNaN(qtd)) return toast.warning("Quantidade inválida.");
-
-    const existingItem = outboundList.find(i => i.product_id === manualOutbound.product_id);
-    const quantityAlreadyInList = existingItem ? existingItem.quantity : 0;
-    const totalDesiredQuantity = quantityAlreadyInList + qtd;
-
-    if (totalDesiredQuantity > manualOutbound.available_stock) {
-      return toast.error(`Estoque insuficiente! Disponível: ${manualOutbound.available_stock} ${manualOutbound.unit}. Já tens ${quantityAlreadyInList} na lista.`);
-    }
-
+  // Adicionar ao clicar na busca inteligente
+  const handleAddFromSearch = (product: Product) => {
     setOutboundList(prev => {
-      if (existingItem) {
-        return prev.map(i => i.product_id === manualOutbound.product_id ? { ...i, quantity: totalDesiredQuantity } : i);
+      const existing = prev.find(i => i.product_id === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+
+      if (currentQty + 1 > product.available_quantity) {
+        toast.error(`Estoque insuficiente. Restam apenas ${product.available_quantity} unidades.`);
+        return prev;
       }
-      return [...prev, { ...manualOutbound, quantity: qtd } as TravelItemInput];
+
+      if (existing) {
+        return prev.map(i => i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [{
+        product_id: product.id, sku: product.sku, name: product.name, unit: product.unit,
+        quantity: 1, available_stock: product.available_quantity
+      }, ...prev];
     });
-    
-    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
+    setSearchTerm("");
+  };
+
+  // Atualizar quantidade no Carrinho (+ e -)
+  const updateItemQuantity = (productId: string, delta: number) => {
+    setOutboundList(prev => {
+      return prev.map(item => {
+        if (item.product_id === productId) {
+           const newQty = item.quantity + delta;
+           if (newQty <= 0) return null; 
+           if (newQty > item.available_stock) {
+             toast.error(`Limite atingido. Disponível: ${item.available_stock} ${item.unit}.`);
+             return item;
+           }
+           return { ...item, quantity: newQty };
+        }
+        return item;
+      }).filter(Boolean) as TravelItemInput[];
+    });
   };
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'outbound' | 'reconcile') => {
@@ -184,18 +195,19 @@ export default function TravelReconciliation() {
 
             if (totalQty <= (found.available_quantity || 0)) {
               if (existing) existing.quantity = totalQty;
-              else formatted.push({ product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, quantity: qty });
+              else formatted.push({ 
+                product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, 
+                quantity: qty, available_stock: found.available_quantity 
+              });
             } else {
               skippedItems++;
             }
           }
         });
         
-        setOutboundList(formatted);
-        toast.success(`${formatted.length} itens reconhecidos da planilha.`);
-        if (skippedItems > 0) {
-           toast.warning(`${skippedItems} itens ignorados ou ajustados por falta de estoque suficiente.`);
-        }
+        setOutboundList(prev => [...prev, ...formatted]);
+        toast.success(`${formatted.length} itens adicionados via planilha.`);
+        if (skippedItems > 0) toast.warning(`${skippedItems} itens ignorados por falta de estoque.`);
       } 
       else if (target === 'reconcile') {
         let updatedItems = [...reconcileItems];
@@ -203,21 +215,17 @@ export default function TravelReconciliation() {
           const sku = String(row['sku'] || row['SKU'] || row['Codigo'] || "");
           const qty = Number(row['quantity'] || row['qtd'] || row['Qtd'] || 0);
           const found = productsDictionary.get(sku);
-          
           if (found) {
             const existingIdx = updatedItems.findIndex(i => i.product_id === found.id);
-            if (existingIdx >= 0) {
-              updatedItems[existingIdx].returnedQuantity += qty;
-            } else {
-               updatedItems.push({
+            if (existingIdx >= 0) updatedItems[existingIdx].returnedQuantity += qty;
+            else updatedItems.push({
                  product_id: found.id, sku: found.sku, name: found.name, unit: found.unit,
                  quantity_out: 0, returnedQuantity: qty
-               });
-            }
+            });
           }
         });
         setReconcileItems(updatedItems);
-        toast.success("Planilha de retorno lida com sucesso!");
+        toast.success("Planilha lida com sucesso!");
       }
       e.target.value = '';
     };
@@ -226,38 +234,28 @@ export default function TravelReconciliation() {
 
   const handleCreateTrip = () => {
     if (!technicians || !city) return toast.warning("Preencha os Técnicos e a Cidade.");
-    if (outboundList.length === 0) return toast.warning("Adicione itens à viagem.");
+    if (outboundList.length === 0) return toast.warning("O carrinho de viagem está vazio.");
     createOrderMutation.mutate({ technicians, city, items: outboundList });
   };
 
-  // --- HANDLERS: ACERTO (VOLTA) ---
+  // --- HANDLERS: ACERTO ---
   const openReconcile = (order: TravelOrder, mode: 'reconcile' | 'view') => {
     setSelectedOrder(order);
     const initialItems = order.items.map(item => ({
-      product_id: item.product_id,
-      sku: item.products?.sku || 'N/A',
-      name: item.products?.name || 'N/A',
-      unit: item.products?.unit || 'un',
-      quantity_out: Number(item.quantity_out),
-      returnedQuantity: mode === 'view' ? Number(item.quantity_returned) : 0, 
-      status: item.status
+      product_id: item.product_id, sku: item.products?.sku || 'N/A', name: item.products?.name || 'N/A', unit: item.products?.unit || 'un',
+      quantity_out: Number(item.quantity_out), returnedQuantity: mode === 'view' ? Number(item.quantity_returned) : 0, status: item.status
     }));
     setReconcileItems(initialItems);
     setViewMode(mode);
   };
 
   const updateReturnedQuantity = (product_id: string, qty: number) => {
-    setReconcileItems(prev => prev.map(item => 
-      item.product_id === product_id ? { ...item, returnedQuantity: Math.max(0, qty) } : item
-    ));
+    setReconcileItems(prev => prev.map(item => item.product_id === product_id ? { ...item, returnedQuantity: Math.max(0, qty) } : item));
   };
 
   const handleConfirmReconcile = () => {
     if (!selectedOrder) return;
-    const returnedPayload = reconcileItems
-      .filter(item => item.returnedQuantity >= 0)
-      .map(item => ({ product_id: item.product_id, returnedQuantity: item.returnedQuantity }));
-    
+    const returnedPayload = reconcileItems.filter(item => item.returnedQuantity >= 0).map(item => ({ product_id: item.product_id, returnedQuantity: item.returnedQuantity }));
     reconcileOrderMutation.mutate({ id: selectedOrder.id, data: { returnedItems: returnedPayload } });
   };
 
@@ -298,75 +296,60 @@ export default function TravelReconciliation() {
   // RENDERIZAÇÃO DAS TELAS
   // ============================================================================
 
+  // ------------------------- VISTA 1: LISTA (DASHBOARD) -------------------------
   if (viewMode === 'list') {
     return (
       <div className="space-y-6 pb-20 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
               <h1 className="text-3xl font-bold flex items-center gap-2 text-foreground">
-                  <Scale className="h-8 w-8 text-blue-600 dark:text-blue-400" /> Controle de Viagens
+                  <Scale className="h-8 w-8 text-emerald-600 dark:text-emerald-400" /> Controle de Viagens
               </h1>
               <p className="text-muted-foreground">Registe saídas, faça acertos de material e monitorize reservas.</p>
           </div>
-          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="mr-2 h-4 w-4" /> Nova Viagem (Ida)
+          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-600/20 px-6 h-12 text-md">
+            <Plus className="mr-2 h-5 w-5" /> Nova Viagem
           </Button>
         </div>
 
-        <Card className="shadow-sm bg-card text-card-foreground">
+        <Card className="shadow-sm bg-card text-card-foreground border-border rounded-2xl overflow-hidden">
           <Table>
             <TableHeader className="bg-muted/50 dark:bg-muted/20">
               <TableRow>
-                <TableHead>Data da Viagem</TableHead>
+                <TableHead>Data</TableHead>
                 <TableHead>Técnicos</TableHead>
                 <TableHead>Destino</TableHead>
-                <TableHead className="text-center">Itens Únicos</TableHead>
+                <TableHead className="text-center">Itens</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoadingOrders ? (
-                 <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground">Carregando viagens...</TableCell></TableRow>
+                 <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : travelOrders.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground">Nenhuma viagem registrada.</TableCell></TableRow>
               ) : travelOrders.map((order) => (
                 <TableRow key={order.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">{new Date(order.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" /> {order.technicians}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" /> {order.city}
-                    </div>
-                  </TableCell>
+                  <TableCell><div className="flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" /> {order.technicians}</div></TableCell>
+                  <TableCell><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /> {order.city}</div></TableCell>
                   <TableCell className="text-center font-mono">{order.items?.length || 0}</TableCell>
                   <TableCell>
-                    {order.status === 'pending' ? (
-                      <Badge variant="outline" className="bg-amber-100/50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Em Viagem</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-emerald-100/50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">Acerto Concluído</Badge>
-                    )}
+                    {order.status === 'pending' ? <Badge variant="outline" className="bg-amber-100/50 text-amber-700 border-amber-300">Em Viagem</Badge> : <Badge variant="outline" className="bg-emerald-100/50 text-emerald-700 border-emerald-300">Acerto Concluído</Badge>}
                   </TableCell>
                   <TableCell className="text-right">
                     {order.status === 'pending' ? (
-                      <Button variant="default" size="sm" onClick={() => openReconcile(order, 'reconcile')} className="bg-amber-600 hover:bg-amber-700 text-white">
-                        <ArrowRightLeft className="h-4 w-4 mr-2" /> Fazer Acerto
+                      <Button variant="default" size="sm" onClick={() => openReconcile(order, 'reconcile')} className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg">
+                        <ArrowRightLeft className="h-4 w-4 mr-2" /> Acerto
                       </Button>
                     ) : (
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => openReconcile(order, 'view')}>
-                          <Eye className="h-4 w-4 mr-2" /> Ver Detalhes
-                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openReconcile(order, 'view')}><Eye className="h-4 w-4" /></Button>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm"><Download className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
+                          <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><Download className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => generateReport(order, 'excel')}><FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Excel (.xlsx)</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => generateReport(order, 'excel')}><FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Excel</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => generateReport(order, 'pdf')}><FileText className="h-4 w-4 mr-2 text-red-600" /> PDF</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -382,114 +365,148 @@ export default function TravelReconciliation() {
     );
   }
 
+  // ------------------------- VISTA 2: NOVA VIAGEM (NOVO DESIGN COM PESQUISA) -------------------------
   if (viewMode === 'new') {
     return (
-      <div className="space-y-6 pb-20 animate-in fade-in duration-500 max-w-4xl mx-auto">
+      <div className="max-w-3xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="shrink-0"><ArrowLeft className="h-5 w-5" /></Button>
-            <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground"><Upload className="h-6 w-6 text-blue-600 dark:text-blue-400" /> Registrar Ida (Nova Viagem)</h1>
-                <p className="text-muted-foreground">O material adicionado aqui ficará como "Reservado" no seu estoque.</p>
-            </div>
+          <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="rounded-full bg-muted/50 hover:bg-muted shrink-0">
+            <ArrowLeft className="h-5 w-5 text-foreground" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Nova Viagem</h1>
+            <p className="text-sm text-muted-foreground">Preencha os dados e monte o carrinho de materiais.</p>
+          </div>
         </div>
 
-        <Card className="shadow-sm border-blue-200 dark:border-blue-900 bg-card">
-          <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="tecnicos">Técnicos <span className="text-red-500">*</span></Label>
-                    <Input id="tecnicos" placeholder="Ex: João e Maria" value={technicians} onChange={(e) => setTechnicians(e.target.value)} className="bg-background" />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="cidade">Cidade / Destino <span className="text-red-500">*</span></Label>
-                    <Input id="cidade" placeholder="Ex: Porto" value={city} onChange={(e) => setCity(e.target.value)} className="bg-background" />
-                </div>
+        <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+          <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 block">Destino e Equipe</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input placeholder="Para onde vão?" value={city} onChange={e => setCity(e.target.value)} className="pl-12 h-14 rounded-2xl bg-muted/40 border-transparent focus:bg-background focus:border-emerald-500 text-lg transition-all" />
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="manual" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="manual">Adicionar Manualmente</TabsTrigger>
-                <TabsTrigger value="upload">Importar Planilha (Excel)</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="manual">
-                <div className="flex flex-wrap gap-2 items-end bg-muted/30 p-4 rounded-lg border border-border">
-                  <div className="grid gap-1 w-32">
-                    <Label className="text-xs">SKU</Label>
-                    <Input className="h-9 bg-background" placeholder="Bipar..." value={manualOutbound.sku} onChange={handleSkuChange} autoFocus />
-                  </div>
-                  <div className="grid gap-1 flex-1 min-w-[150px]">
-                    <Label className="text-xs flex justify-between">
-                      Produto
-                      {manualOutbound.product_id && (
-                        <span className={`font-semibold ${manualOutbound.available_stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                          Disp: {manualOutbound.available_stock} {manualOutbound.unit}
-                        </span>
-                      )}
-                    </Label>
-                    <Input className="h-9 bg-muted cursor-not-allowed text-muted-foreground" readOnly value={manualOutbound.name} placeholder="Automático" />
-                  </div>
-                  <div className="grid gap-1 w-24">
-                    <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-9 font-bold bg-background" type="number" min="1" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
-                  </div>
-                  <Button onClick={addManualItem} className="h-9 w-12 shrink-0"><Plus className="h-4 w-4" /></Button>
-                </div>
-              </TabsContent>
+            <div className="relative">
+              <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input placeholder="Quem vai viajar?" value={technicians} onChange={e => setTechnicians(e.target.value)} className="pl-12 h-14 rounded-2xl bg-muted/40 border-transparent focus:bg-background focus:border-emerald-500 text-lg transition-all" />
+            </div>
+          </div>
+        </div>
 
-              <TabsContent value="upload">
-                <div className="bg-muted/10 hover:bg-muted/30 transition-colors p-6 rounded-lg border-2 border-dashed border-border text-center">
-                  <Label htmlFor="outbound-file" className="cursor-pointer block">
-                    <FileSpreadsheet className="h-10 w-10 text-blue-500 mx-auto mb-2" />
-                    <span className="text-sm font-medium text-foreground">Clique para carregar lista em .xlsx</span>
-                    <span className="text-xs text-muted-foreground block mt-1">Obrigatório colunas: SKU, Quantidade</span>
-                  </Label>
-                  <Input id="outbound-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleExcelUpload(e, 'outbound')} />
-                </div>
-              </TabsContent>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-xl font-bold text-foreground">Materiais</h2>
+            <Label htmlFor="upload-excel" className="cursor-pointer inline-flex items-center gap-2 text-sm font-medium text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full hover:bg-emerald-200 transition-colors w-max">
+              <FileSpreadsheet className="h-4 w-4" /> Importar de Excel
+            </Label>
+            <Input id="upload-excel" type="file" accept=".xlsx" className="hidden" onChange={e => handleExcelUpload(e, 'outbound')} />
+          </div>
 
-              {outboundList.length > 0 && (
-                <div className="mt-6 border border-border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="w-[100px]">SKU</TableHead>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="text-right">Qtd. a levar</TableHead>
-                        <TableHead className="w-12"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {outboundList.map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-xs text-muted-foreground">{item.sku}</TableCell>
-                          <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                          <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">{item.quantity} {item.unit}</TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30" onClick={() => setOutboundList(prev => prev.filter((_, i) => i !== idx))}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+          {/* BARRA DE PESQUISA INTELIGENTE */}
+          <div className="relative z-10">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+              <Input
+                placeholder="Busque por nome ou SKU..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-14 h-16 rounded-2xl border-border shadow-sm text-lg focus-visible:ring-emerald-500/30 focus-visible:border-emerald-500 transition-all bg-card"
+              />
+            </div>
+
+            {/* Resultados Flutuantes da Busca */}
+            {searchTerm && searchResults.length > 0 && (
+              <Card className="absolute top-full left-0 right-0 mt-2 p-2 shadow-2xl border-border rounded-2xl bg-card animate-in fade-in slide-in-from-top-2">
+                {searchResults.map(product => (
+                   <button
+                     key={product.id}
+                     onClick={() => handleAddFromSearch(product)}
+                     className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors text-left border border-transparent hover:border-border"
+                   >
+                      <div>
+                        <p className="font-bold text-foreground">{product.name}</p>
+                        <p className="text-sm text-muted-foreground font-mono">{product.sku}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className={`${product.available_quantity > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          {product.available_quantity} {product.unit} disp.
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">Toque para add</p>
+                      </div>
+                   </button>
+                ))}
+              </Card>
+            )}
+            
+            {searchTerm && searchResults.length === 0 && (
+               <Card className="absolute top-full left-0 right-0 mt-2 p-6 text-center shadow-xl border-border rounded-2xl bg-card text-muted-foreground">
+                 Nenhum produto encontrado.
+               </Card>
+            )}
+          </div>
+
+          {/* Carrinho UI */}
+          {outboundList.length > 0 ? (
+            <div className="space-y-3 mt-6">
+              {outboundList.map((item) => (
+                <div key={item.product_id} className="bg-card p-4 rounded-2xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                   <div className="flex items-start gap-4">
+                      <div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100">
+                        <Package className="h-7 w-7 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-foreground text-lg leading-tight">{item.name}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{item.sku}</span>
+                          <span className="mx-2">•</span> 
+                          Disp: {item.available_stock} {item.unit}
+                        </p>
+                      </div>
+                   </div>
+
+                   <div className="flex items-center gap-3 self-end sm:self-auto">
+                      <div className="flex items-center bg-muted/40 rounded-2xl border border-border overflow-hidden h-12">
+                         <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-12 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:scale-95">
+                           <Minus className="h-5 w-5" />
+                         </button>
+                         <span className="w-10 text-center font-extrabold text-foreground text-lg">{item.quantity}</span>
+                         <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-12 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:scale-95">
+                           <Plus className="h-5 w-5" />
+                         </button>
+                      </div>
+                      <button onClick={() => updateItemQuantity(item.product_id, -item.quantity)} className="h-12 w-12 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all">
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                   </div>
                 </div>
-              )}
-            </Tabs>
-          </CardContent>
-          <CardFooter className="bg-muted/20 p-4 border-t border-border flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setViewMode('list')}>Cancelar</Button>
-             <Button onClick={handleCreateTrip} disabled={outboundList.length === 0 || createOrderMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
-               {createOrderMutation.isPending ? "A Reservar..." : "Registrar Saída e Reservar Estoque"}
-             </Button>
-          </CardFooter>
-        </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 px-4 border-2 border-dashed border-border rounded-3xl bg-muted/10 mt-6">
+               <PackageSearch className="h-14 w-14 mx-auto text-muted-foreground/30 mb-4" />
+               <p className="text-foreground font-bold text-lg">O carrinho está vazio</p>
+               <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">Use a barra de pesquisa acima para encontrar materiais e adicionar à viagem.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé Fixo */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
+          <div className="max-w-3xl mx-auto">
+            <Button
+              onClick={handleCreateTrip}
+              disabled={outboundList.length === 0 || createOrderMutation.isPending}
+              className="w-full h-16 text-xl font-extrabold rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:shadow-none"
+            >
+              {createOrderMutation.isPending ? "A Reservar..." : `Confirmar Viagem (${outboundList.length} itens)`}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // ------------------------- VISTA 3: ACERTO DE CONTAS -------------------------
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
@@ -523,13 +540,13 @@ export default function TravelReconciliation() {
 
           <CardContent className="p-0">
             {!isViewing && (
-              <div className="bg-amber-50/50 dark:bg-amber-950/30 p-4 border-b border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                 <span className="text-sm text-amber-800 dark:text-amber-400 flex items-center gap-2">
-                   <AlertTriangle className="h-4 w-4 shrink-0" /> Tem uma planilha de retorno? Carregue aqui para preencher as devoluções automaticamente.
+              <div className="bg-amber-50/50 p-4 border-b border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                 <span className="text-sm text-amber-800 flex items-center gap-2">
+                   <AlertTriangle className="h-4 w-4 shrink-0" /> Tem uma planilha de retorno? Carregue aqui para preencher.
                  </span>
                  <Label htmlFor="reconcile-file" className="cursor-pointer shrink-0">
-                    <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
-                      <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600 dark:text-green-500" /> Ler Excel
+                    <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
+                      <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Ler Excel
                     </div>
                  </Label>
                  <Input id="reconcile-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleExcelUpload(e, 'reconcile')} />
@@ -541,8 +558,8 @@ export default function TravelReconciliation() {
                 <TableRow>
                   <TableHead className="w-[100px]">SKU</TableHead>
                   <TableHead>Produto</TableHead>
-                  <TableHead className="text-center text-blue-700 dark:text-blue-400">Levaram</TableHead>
-                  <TableHead className="text-center text-amber-700 dark:text-amber-500 w-32">{isViewing ? "Devolveram" : "Devolvido (Input)"}</TableHead>
+                  <TableHead className="text-center text-blue-700">Levaram</TableHead>
+                  <TableHead className="text-center text-amber-700 w-32">{isViewing ? "Devolveram" : "Devolvido (Input)"}</TableHead>
                   <TableHead className="text-center">Dif.</TableHead>
                   {isViewing && <TableHead className="text-center">Status</TableHead>}
                 </TableRow>
@@ -554,15 +571,15 @@ export default function TravelReconciliation() {
                   const missing = out - ret;
                   
                   let rowClass = "hover:bg-muted/30 transition-colors";
-                  if (missing > 0) rowClass = "bg-red-50/50 dark:bg-red-950/20 hover:bg-red-100/50 dark:hover:bg-red-900/30";
-                  if (missing < 0) rowClass = "bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30";
+                  if (missing > 0) rowClass = "bg-red-50/50 hover:bg-red-100/50";
+                  if (missing < 0) rowClass = "bg-blue-50/50 hover:bg-blue-100/50";
 
                   return (
                     <TableRow key={item.product_id} className={rowClass}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{item.sku}</TableCell>
                       <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                      <TableCell className="text-center font-bold text-blue-600 dark:text-blue-400">{out} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></TableCell>
-                      <TableCell className="text-center bg-amber-50/30 dark:bg-amber-900/10">
+                      <TableCell className="text-center font-bold text-blue-600">{out} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></TableCell>
+                      <TableCell className="text-center bg-amber-50/30">
                         {isViewing ? (
                           <span className="font-bold text-foreground">{ret}</span>
                         ) : (
@@ -574,15 +591,15 @@ export default function TravelReconciliation() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`font-bold ${missing > 0 ? "text-red-500 dark:text-red-400" : missing < 0 ? "text-blue-500 dark:text-blue-400" : "text-green-500 dark:text-green-400"}`}>
+                        <span className={`font-bold ${missing > 0 ? "text-red-500" : missing < 0 ? "text-blue-500" : "text-green-500"}`}>
                           {missing > 0 ? `Faltou ${missing}` : missing < 0 ? `Sobrou ${Math.abs(missing)}` : "OK"}
                         </span>
                       </TableCell>
                       {isViewing && (
                         <TableCell className="text-center">
-                          {item.status === 'ok' && <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">OK</Badge>}
+                          {item.status === 'ok' && <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           {item.status === 'missing' && <Badge variant="destructive">FALTA</Badge>}
-                          {item.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">EXTRA</Badge>}
+                          {item.status === 'extra' && <Badge className="bg-blue-100 text-blue-700">EXTRA</Badge>}
                         </TableCell>
                       )}
                     </TableRow>
