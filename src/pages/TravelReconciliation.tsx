@@ -362,14 +362,14 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'list') {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto xl:px-8">
+      <div className="space-y-8 animate-in fade-in duration-500 pb-[120px] md:pb-24 max-w-7xl mx-auto xl:px-8 relative min-h-screen">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Viagens</h1>
             <p className="text-muted-foreground mt-1 font-medium">Controle saídas e retornos de material da equipa.</p>
           </div>
-          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-600/20 px-8 h-14 text-lg font-bold w-full md:w-auto transition-all active:scale-[0.98]">
+          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-600/20 px-8 h-14 text-lg font-bold hidden md:flex transition-all active:scale-[0.98]">
             <Plus className="mr-2 h-6 w-6" /> Registar Saída
           </Button>
         </div>
@@ -442,6 +442,13 @@ export default function TravelReconciliation() {
             </div>
           )}
         </div>
+
+        {/* FAB apenas para Mobile na vista List */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40 md:hidden flex justify-center pointer-events-none">
+           <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl shadow-emerald-600/30 px-8 h-14 text-lg font-bold pointer-events-auto transition-all active:scale-[0.98]">
+            <Plus className="mr-2 h-6 w-6" /> Nova Viagem
+          </Button>
+        </div>
       </div>
     );
   }
@@ -451,7 +458,7 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'new') {
     return (
-      <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8">
+      <div className="max-w-5xl mx-auto space-y-8 pb-[140px] md:pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8 relative min-h-screen">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
             <ArrowLeft className="h-6 w-6 text-foreground" />
@@ -502,7 +509,7 @@ export default function TravelReconciliation() {
             </div>
 
             {searchTerm && searchResults.length > 0 && (
-              <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4">
+              <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4 z-50">
                 {searchResults.map(product => {
                    const available = getAvailableStock(product);
                    return (
@@ -527,7 +534,7 @@ export default function TravelReconciliation() {
             )}
             
             {searchTerm && searchResults.length === 0 && (
-               <Card className="absolute top-[105%] left-0 right-0 p-8 text-center shadow-xl border-border rounded-3xl bg-card text-muted-foreground">
+               <Card className="absolute top-[105%] left-0 right-0 p-8 text-center shadow-xl border-border rounded-3xl bg-card text-muted-foreground z-50">
                  <PackageSearch className="h-10 w-10 mx-auto mb-3 opacity-20" />
                  <span className="font-bold text-lg">Produto não encontrado.</span>
                </Card>
@@ -588,9 +595,10 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
+        {/* Rodapé fixo - Ajustado com padding extra para iOS Safari e posicionamento seguro */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
           <div className="max-w-5xl mx-auto flex gap-4">
-             <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
+             <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex bg-background shadow-sm hover:bg-muted">
                Cancelar
              </Button>
              <Button
@@ -612,7 +620,7 @@ export default function TravelReconciliation() {
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
-      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8">
+      <div className="space-y-8 pb-[140px] md:pb-32 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8 relative min-h-screen">
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -708,10 +716,11 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
+        {/* Rodapé fixo com pb-safe para lidar com barra do iPhone */}
         {!isViewing && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
+          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background/95 to-transparent z-40">
             <div className="max-w-6xl mx-auto flex gap-4">
-               <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
+               <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex bg-background shadow-sm hover:bg-muted">
                  Cancelar
                </Button>
                <Button 
