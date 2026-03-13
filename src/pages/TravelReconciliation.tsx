@@ -195,6 +195,7 @@ export default function TravelReconciliation() {
     });
   };
 
+  // NOVO: Adicionar valor escrito manualmente sem quebrar estado
   const handleDirectQuantityChange = (productId: string, value: string) => {
     setOutboundList(prev => {
       return prev.map(item => {
@@ -298,6 +299,7 @@ export default function TravelReconciliation() {
     if (!technicians || !city) return toast.warning("Preencha o Destino e a Equipa.");
     if (outboundList.length === 0) return toast.warning("Adicione pelo menos um material à viagem.");
 
+    // Bloqueia envios se algum item ficou vazio ' ' no input
     const hasEmptyQuantities = outboundList.some(i => i.quantity === '' || i.quantity === 0);
     if (hasEmptyQuantities) return toast.warning("Tem itens com quantidade inválida. Verifique o carrinho.");
 
@@ -360,8 +362,7 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'list') {
     return (
-      // ADICIONADO pb-32 para margem extra no fundo
-      <div className="space-y-8 animate-in fade-in duration-500 pb-32 max-w-7xl mx-auto xl:px-8">
+      <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto xl:px-8">
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -450,8 +451,7 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'new') {
     return (
-      // ADICIONADO pb-40 para que os itens do carrinho não fiquem debaixo do botão sticky
-      <div className="max-w-5xl mx-auto space-y-8 pb-40 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8">
+      <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
             <ArrowLeft className="h-6 w-6 text-foreground" />
@@ -502,7 +502,7 @@ export default function TravelReconciliation() {
             </div>
 
             {searchTerm && searchResults.length > 0 && (
-              <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4 z-50">
+              <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4">
                 {searchResults.map(product => {
                    const available = getAvailableStock(product);
                    return (
@@ -527,7 +527,7 @@ export default function TravelReconciliation() {
             )}
             
             {searchTerm && searchResults.length === 0 && (
-               <Card className="absolute top-[105%] left-0 right-0 p-8 text-center shadow-xl border-border rounded-3xl bg-card text-muted-foreground z-50">
+               <Card className="absolute top-[105%] left-0 right-0 p-8 text-center shadow-xl border-border rounded-3xl bg-card text-muted-foreground">
                  <PackageSearch className="h-10 w-10 mx-auto mb-3 opacity-20" />
                  <span className="font-bold text-lg">Produto não encontrado.</span>
                </Card>
@@ -588,8 +588,7 @@ export default function TravelReconciliation() {
           )}
         </div>
 
-        {/* CORREÇÃO: pb-safe para lidar com barra do iPhone e z-50 */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background/90 backdrop-blur-xl border-t border-border z-40">
+        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
           <div className="max-w-5xl mx-auto flex gap-4">
              <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                Cancelar
@@ -613,8 +612,7 @@ export default function TravelReconciliation() {
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
-      // ADICIONADO pb-40 para que os itens do carrinho não fiquem debaixo do botão sticky
-      <div className="space-y-8 pb-40 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8">
+      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8">
         
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -710,9 +708,8 @@ export default function TravelReconciliation() {
           </div>
         </div>
 
-        {/* CORREÇÃO: pb-safe para lidar com barra do iPhone e z-50 */}
         {!isViewing && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background/90 backdrop-blur-xl border-t border-border z-40">
+          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
             <div className="max-w-6xl mx-auto flex gap-4">
                <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                  Cancelar
