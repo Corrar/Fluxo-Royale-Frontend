@@ -28,7 +28,14 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 // --- TIPAGENS ---
-interface Product { id: string; sku: string; name: string; unit: string; }
+// ✨ NOVO: Adicionado 'available_quantity' para controle de estoque
+interface Product { 
+  id: string; 
+  sku: string; 
+  name: string; 
+  unit: string; 
+  available_quantity: number; // Certifique-se que o backend envia isso!
+}
 
 interface TravelItemInput {
   product_id: string; sku: string; name: string; quantity: number; unit: string;
@@ -58,12 +65,13 @@ export default function TravelReconciliation() {
   const [technicians, setTechnicians] = useState("");
   const [city, setCity] = useState("");
   const [outboundList, setOutboundList] = useState<TravelItemInput[]>([]);
-  const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "", product_id: "" });
+  // ✨ NOVO: Adicionado available_stock no estado manual para mostrar na tela
+  const [manualOutbound, setManualOutbound] = useState({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
 
   // Estados Acerto (Volta)
   const [reconcileItems, setReconcileItems] = useState<any[]>([]);
 
-  // 1. DADOS: Buscar Produtos (Para Auto-Complete e validação)
+  // 1. DADOS: Buscar Produtos
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
@@ -113,29 +121,44 @@ export default function TravelReconciliation() {
   // --- HANDLERS: NOVA VIAGEM ---
   const resetNewTripForm = () => {
     setTechnicians(""); setCity(""); setOutboundList([]);
-    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "" });
+    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
   };
 
   const handleSkuChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sku = e.target.value;
     const found = productsDictionary.get(sku);
     setManualOutbound({
-      ...manualOutbound, sku,
-      name: found?.name || "", unit: found?.unit || "un", product_id: found?.id || ""
+      ...manualOutbound, 
+      sku,
+      name: found?.name || "", 
+      unit: found?.unit || "un", 
+      product_id: found?.id || "",
+      available_stock: found?.available_quantity || 0 // ✨ Puxa o estoque
     });
   };
 
   const addManualItem = () => {
     const qtd = parseFloat(manualOutbound.quantity);
     if (!manualOutbound.product_id) return toast.warning("Produto não encontrado na base de dados.");
-    if (qtd <= 0) return toast.warning("Quantidade inválida.");
+    if (qtd <= 0 || isNaN(qtd)) return toast.warning("Quantidade inválida.");
+
+    // ✨ NOVO: Lógica restritiva de estoque
+    const existingItem = outboundList.find(i => i.product_id === manualOutbound.product_id);
+    const quantityAlreadyInList = existingItem ? existingItem.quantity : 0;
+    const totalDesiredQuantity = quantityAlreadyInList + qtd;
+
+    if (totalDesiredQuantity > manualOutbound.available_stock) {
+      return toast.error(`Estoque insuficiente! Disponível: ${manualOutbound.available_stock} ${manualOutbound.unit}. Já tens ${quantityAlreadyInList} na lista.`);
+    }
 
     setOutboundList(prev => {
-      const existing = prev.find(i => i.product_id === manualOutbound.product_id);
-      if (existing) return prev.map(i => i.product_id === manualOutbound.product_id ? { ...i, quantity: i.quantity + qtd } : i);
+      if (existingItem) {
+        return prev.map(i => i.product_id === manualOutbound.product_id ? { ...i, quantity: totalDesiredQuantity } : i);
+      }
       return [...prev, { ...manualOutbound, quantity: qtd } as TravelItemInput];
     });
-    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "" });
+    
+    setManualOutbound({ sku: "", name: "", quantity: "", unit: "", product_id: "", available_stock: 0 });
   };
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'outbound' | 'reconcile') => {
@@ -151,21 +174,35 @@ export default function TravelReconciliation() {
 
       if (target === 'outbound') {
         const formatted: TravelItemInput[] = [];
+        let skippedItems = 0; // ✨ NOVO: Contador para itens com estoque insuficiente
+
         data.forEach(row => {
           const sku = String(row['sku'] || row['SKU'] || row['Codigo'] || "");
           const qty = Number(row['quantity'] || row['qtd'] || row['Qtd'] || 0);
           const found = productsDictionary.get(sku);
+          
           if (found && qty > 0) {
             const existing = formatted.find(i => i.product_id === found.id);
-            if (existing) existing.quantity += qty;
-            else formatted.push({ product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, quantity: qty });
+            const currentQty = existing ? existing.quantity : 0;
+            const totalQty = currentQty + qty;
+
+            // ✨ NOVO: Validação de estoque via Excel
+            if (totalQty <= (found.available_quantity || 0)) {
+              if (existing) existing.quantity = totalQty;
+              else formatted.push({ product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, quantity: qty });
+            } else {
+              skippedItems++;
+            }
           }
         });
+        
         setOutboundList(formatted);
         toast.success(`${formatted.length} itens reconhecidos da planilha.`);
+        if (skippedItems > 0) {
+           toast.warning(`${skippedItems} itens ignorados ou ajustados por falta de estoque suficiente.`);
+        }
       } 
       else if (target === 'reconcile') {
-        // Se carregar excel na volta, preenche os retornos automaticamente!
         let updatedItems = [...reconcileItems];
         data.forEach(row => {
           const sku = String(row['sku'] || row['SKU'] || row['Codigo'] || "");
@@ -177,7 +214,6 @@ export default function TravelReconciliation() {
             if (existingIdx >= 0) {
               updatedItems[existingIdx].returnedQuantity += qty;
             } else {
-               // Item extra que não estava na ida
                updatedItems.push({
                  product_id: found.id, sku: found.sku, name: found.name, unit: found.unit,
                  quantity_out: 0, returnedQuantity: qty
@@ -202,14 +238,13 @@ export default function TravelReconciliation() {
   // --- HANDLERS: ACERTO (VOLTA) ---
   const openReconcile = (order: TravelOrder, mode: 'reconcile' | 'view') => {
     setSelectedOrder(order);
-    // Prepara a lista baseada no que levaram
     const initialItems = order.items.map(item => ({
       product_id: item.product_id,
       sku: item.products?.sku || 'N/A',
       name: item.products?.name || 'N/A',
       unit: item.products?.unit || 'un',
       quantity_out: Number(item.quantity_out),
-      returnedQuantity: mode === 'view' ? Number(item.quantity_returned) : 0, // Se for ver, mostra o que devolveram. Se for acertar, começa no zero.
+      returnedQuantity: mode === 'view' ? Number(item.quantity_returned) : 0, 
       status: item.status
     }));
     setReconcileItems(initialItems);
@@ -225,8 +260,6 @@ export default function TravelReconciliation() {
   const handleConfirmReconcile = () => {
     if (!selectedOrder) return;
     const returnedPayload = reconcileItems
-      // Para o acerto, enviaremos apenas o que ele de fato DEVOLVEU > 0.
-      // O que for 0 ou negativo, enviamos como 0 para o backend saber que faltou tudo.
       .filter(item => item.returnedQuantity >= 0)
       .map(item => ({ product_id: item.product_id, returnedQuantity: item.returnedQuantity }));
     
@@ -235,6 +268,7 @@ export default function TravelReconciliation() {
 
   // --- EXPORTAÇÃO ---
   const generateReport = (order: TravelOrder, format: 'pdf' | 'excel') => {
+    // ... (Código de exportação mantido intacto)
     const tableData = order.items.map(item => {
       const qOut = Number(item.quantity_out);
       const qRet = Number(item.quantity_returned);
@@ -267,28 +301,29 @@ export default function TravelReconciliation() {
   };
 
   // ============================================================================
-  // RENDERIZAÇÃO DAS TELAS
+  // RENDERIZAÇÃO DAS TELAS (Refatoradas para Dark Mode)
   // ============================================================================
 
-  // ------------------------- VISTA 1: LISTA (DASHBOARD) -------------------------
   if (viewMode === 'list') {
     return (
       <div className="space-y-6 pb-20 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              {/* ✨ NOVO: text-foreground em vez de cores fixas escuras */}
+              <h1 className="text-3xl font-bold flex items-center gap-2 text-foreground">
                   <Scale className="h-8 w-8 text-blue-600 dark:text-blue-400" /> Controle de Viagens
               </h1>
               <p className="text-muted-foreground">Registe saídas, faça acertos de material e monitorize reservas.</p>
           </div>
-          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="mr-2 h-4 w-4" /> Nova Viagem (Ida)
           </Button>
         </div>
 
-        <Card className="shadow-sm">
+        {/* ✨ NOVO: Adicionado bg-card text-card-foreground ao Card */}
+        <Card className="shadow-sm bg-card text-card-foreground">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader className="bg-muted/50 dark:bg-muted/20">
               <TableRow>
                 <TableHead>Data da Viagem</TableHead>
                 <TableHead>Técnicos</TableHead>
@@ -304,29 +339,29 @@ export default function TravelReconciliation() {
               ) : travelOrders.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground">Nenhuma viagem registrada.</TableCell></TableRow>
               ) : travelOrders.map((order) => (
-                <TableRow key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <TableRow key={order.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">{new Date(order.created_at).toLocaleDateString('pt-BR')}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-slate-400" /> {order.technicians}
+                      <Users className="h-4 w-4 text-muted-foreground" /> {order.technicians}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-slate-400" /> {order.city}
+                      <MapPin className="h-4 w-4 text-muted-foreground" /> {order.city}
                     </div>
                   </TableCell>
                   <TableCell className="text-center font-mono">{order.items?.length || 0}</TableCell>
                   <TableCell>
                     {order.status === 'pending' ? (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">Em Viagem (Pendente)</Badge>
+                      <Badge variant="outline" className="bg-amber-100/50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Em Viagem</Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200">Acerto Concluído</Badge>
+                      <Badge variant="outline" className="bg-emerald-100/50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">Acerto Concluído</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
                     {order.status === 'pending' ? (
-                      <Button variant="default" size="sm" onClick={() => openReconcile(order, 'reconcile')} className="bg-amber-600 hover:bg-amber-700">
+                      <Button variant="default" size="sm" onClick={() => openReconcile(order, 'reconcile')} className="bg-amber-600 hover:bg-amber-700 text-white">
                         <ArrowRightLeft className="h-4 w-4 mr-2" /> Fazer Acerto
                       </Button>
                     ) : (
@@ -355,28 +390,28 @@ export default function TravelReconciliation() {
     );
   }
 
-  // ------------------------- VISTA 2: NOVA VIAGEM (IDA) -------------------------
   if (viewMode === 'new') {
     return (
       <div className="space-y-6 pb-20 animate-in fade-in duration-500 max-w-4xl mx-auto">
         <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="shrink-0"><ArrowLeft className="h-5 w-5" /></Button>
             <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2"><Upload className="h-6 w-6 text-blue-600" /> Registrar Ida (Nova Viagem)</h1>
+                <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground"><Upload className="h-6 w-6 text-blue-600 dark:text-blue-400" /> Registrar Ida (Nova Viagem)</h1>
                 <p className="text-muted-foreground">O material adicionado aqui ficará como "Reservado" no seu estoque.</p>
             </div>
         </div>
 
-        <Card className="shadow-sm border-blue-200">
-          <CardHeader className="bg-blue-50/50 pb-4">
+        {/* ✨ NOVO: Ajuste de border e background para o Card no dark mode */}
+        <Card className="shadow-sm border-blue-200 dark:border-blue-900 bg-card">
+          <CardHeader className="bg-blue-50/50 dark:bg-blue-950/20 pb-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="tecnicos">Técnicos <span className="text-red-500">*</span></Label>
-                    <Input id="tecnicos" placeholder="Ex: João e Maria" value={technicians} onChange={(e) => setTechnicians(e.target.value)} />
+                    <Input id="tecnicos" placeholder="Ex: João e Maria" value={technicians} onChange={(e) => setTechnicians(e.target.value)} className="bg-background" />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="cidade">Cidade / Destino <span className="text-red-500">*</span></Label>
-                    <Input id="cidade" placeholder="Ex: Porto" value={city} onChange={(e) => setCity(e.target.value)} />
+                    <Input id="cidade" placeholder="Ex: Porto" value={city} onChange={(e) => setCity(e.target.value)} className="bg-background" />
                 </div>
             </div>
           </CardHeader>
@@ -388,28 +423,37 @@ export default function TravelReconciliation() {
               </TabsList>
               
               <TabsContent value="manual">
-                <div className="flex gap-2 items-end bg-slate-50 p-4 rounded-lg border">
+                {/* ✨ NOVO: Ajuste do painel manual para dark mode */}
+                <div className="flex flex-wrap gap-2 items-end bg-muted/30 p-4 rounded-lg border border-border">
                   <div className="grid gap-1 w-32">
                     <Label className="text-xs">SKU</Label>
-                    <Input className="h-9" placeholder="Bipar Código..." value={manualOutbound.sku} onChange={handleSkuChange} autoFocus />
+                    <Input className="h-9 bg-background" placeholder="Bipar..." value={manualOutbound.sku} onChange={handleSkuChange} autoFocus />
                   </div>
-                  <div className="grid gap-1 flex-1">
-                    <Label className="text-xs">Produto</Label>
-                    <Input className="h-9 bg-slate-100" readOnly value={manualOutbound.name} placeholder="Preenchimento automático" />
+                  <div className="grid gap-1 flex-1 min-w-[150px]">
+                    <Label className="text-xs flex justify-between">
+                      Produto
+                      {/* ✨ NOVO: Feedback visual do estoque disponível */}
+                      {manualOutbound.product_id && (
+                        <span className={`font-semibold ${manualOutbound.available_stock > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                          Disp: {manualOutbound.available_stock} {manualOutbound.unit}
+                        </span>
+                      )}
+                    </Label>
+                    <Input className="h-9 bg-muted cursor-not-allowed text-muted-foreground" readOnly value={manualOutbound.name} placeholder="Automático" />
                   </div>
                   <div className="grid gap-1 w-24">
                     <Label className="text-xs">Qtd.</Label>
-                    <Input className="h-9 font-bold" type="number" min="0" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
+                    <Input className="h-9 font-bold bg-background" type="number" min="1" placeholder="0" value={manualOutbound.quantity} onChange={e => setManualOutbound({...manualOutbound, quantity: e.target.value})} />
                   </div>
-                  <Button onClick={addManualItem} className="h-9"><Plus className="h-4 w-4" /></Button>
+                  <Button onClick={addManualItem} className="h-9 w-12 shrink-0"><Plus className="h-4 w-4" /></Button>
                 </div>
               </TabsContent>
 
               <TabsContent value="upload">
-                <div className="bg-muted/30 p-6 rounded-lg border-2 border-dashed border-slate-300 text-center">
+                <div className="bg-muted/10 hover:bg-muted/30 transition-colors p-6 rounded-lg border-2 border-dashed border-border text-center">
                   <Label htmlFor="outbound-file" className="cursor-pointer block">
                     <FileSpreadsheet className="h-10 w-10 text-blue-500 mx-auto mb-2" />
-                    <span className="text-sm font-medium">Clique para carregar lista em .xlsx</span>
+                    <span className="text-sm font-medium text-foreground">Clique para carregar lista em .xlsx</span>
                     <span className="text-xs text-muted-foreground block mt-1">Obrigatório colunas: SKU, Quantidade</span>
                   </Label>
                   <Input id="outbound-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleExcelUpload(e, 'outbound')} />
@@ -417,24 +461,24 @@ export default function TravelReconciliation() {
               </TabsContent>
 
               {outboundList.length > 0 && (
-                <div className="mt-6 border rounded-lg overflow-hidden">
+                <div className="mt-6 border border-border rounded-lg overflow-hidden">
                   <Table>
-                    <TableHeader className="bg-slate-100">
+                    <TableHeader className="bg-muted/50">
                       <TableRow>
                         <TableHead className="w-[100px]">SKU</TableHead>
                         <TableHead>Produto</TableHead>
-                        <TableHead className="text-right">Qtd que vão levar</TableHead>
+                        <TableHead className="text-right">Qtd. a levar</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {outboundList.map((item, idx) => (
-                        <TableRow key={idx}>
+                        <TableRow key={idx} className="hover:bg-muted/30">
                           <TableCell className="font-mono text-xs text-muted-foreground">{item.sku}</TableCell>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell className="text-right font-bold text-blue-600">{item.quantity} {item.unit}</TableCell>
+                          <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                          <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">{item.quantity} {item.unit}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600" onClick={() => setOutboundList(prev => prev.filter((_, i) => i !== idx))}>
+                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30" onClick={() => setOutboundList(prev => prev.filter((_, i) => i !== idx))}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -446,9 +490,9 @@ export default function TravelReconciliation() {
               )}
             </Tabs>
           </CardContent>
-          <CardFooter className="bg-muted/20 p-4 border-t flex justify-end gap-3">
+          <CardFooter className="bg-muted/20 p-4 border-t border-border flex justify-end gap-3">
              <Button variant="outline" onClick={() => setViewMode('list')}>Cancelar</Button>
-             <Button onClick={handleCreateTrip} disabled={outboundList.length === 0 || createOrderMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+             <Button onClick={handleCreateTrip} disabled={outboundList.length === 0 || createOrderMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
                {createOrderMutation.isPending ? "A Reservar..." : "Registrar Saída e Reservar Estoque"}
              </Button>
           </CardFooter>
@@ -457,7 +501,6 @@ export default function TravelReconciliation() {
     );
   }
 
-  // ------------------------- VISTA 3: ACERTO DE CONTAS (VOLTA) E DETALHES -------------------------
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
@@ -465,8 +508,8 @@ export default function TravelReconciliation() {
         <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="shrink-0"><ArrowLeft className="h-5 w-5" /></Button>
             <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                  {isViewing ? <Eye className="h-6 w-6 text-slate-500" /> : <ArrowRightLeft className="h-6 w-6 text-amber-600" />}
+                <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
+                  {isViewing ? <Eye className="h-6 w-6 text-muted-foreground" /> : <ArrowRightLeft className="h-6 w-6 text-amber-600 dark:text-amber-500" />}
                   {isViewing ? "Detalhes do Acerto" : "Fazer Acerto de Contas (Volta)"}
                 </h1>
                 <p className="text-muted-foreground">
@@ -475,15 +518,15 @@ export default function TravelReconciliation() {
             </div>
         </div>
 
-        <Card className="shadow-md overflow-hidden">
-          <div className={`p-4 text-white flex justify-between items-center ${isViewing ? 'bg-slate-700' : 'bg-amber-600'}`}>
+        <Card className="shadow-md overflow-hidden border-border bg-card">
+          <div className={`p-4 text-white flex justify-between items-center ${isViewing ? 'bg-slate-700 dark:bg-slate-800' : 'bg-amber-600 dark:bg-amber-700'}`}>
              <div className="flex gap-6">
                 <div><span className="text-sm opacity-80 block">Técnicos</span><span className="font-bold">{selectedOrder?.technicians}</span></div>
                 <div><span className="text-sm opacity-80 block">Destino</span><span className="font-bold">{selectedOrder?.city}</span></div>
                 <div><span className="text-sm opacity-80 block">Data de Saída</span><span className="font-bold">{selectedOrder && new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}</span></div>
              </div>
              {isViewing && (
-               <Button variant="outline" size="sm" onClick={() => generateReport(selectedOrder!, 'pdf')} className="text-slate-800 bg-white hover:bg-slate-100">
+               <Button variant="outline" size="sm" onClick={() => generateReport(selectedOrder!, 'pdf')} className="text-foreground bg-background hover:bg-muted border-border">
                  <FileText className="h-4 w-4 mr-2" /> Relatório PDF
                </Button>
              )}
@@ -491,13 +534,13 @@ export default function TravelReconciliation() {
 
           <CardContent className="p-0">
             {!isViewing && (
-              <div className="bg-amber-50/50 p-4 border-b flex items-center justify-between">
-                 <span className="text-sm text-amber-800 flex items-center gap-2">
-                   <AlertTriangle className="h-4 w-4" /> Tem uma planilha de retorno? Carregue aqui para preencher as devoluções automaticamente.
+              <div className="bg-amber-50/50 dark:bg-amber-950/30 p-4 border-b border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                 <span className="text-sm text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                   <AlertTriangle className="h-4 w-4 shrink-0" /> Tem uma planilha de retorno? Carregue aqui para preencher as devoluções automaticamente.
                  </span>
-                 <Label htmlFor="reconcile-file" className="cursor-pointer">
-                    <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
-                      <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Ler Excel
+                 <Label htmlFor="reconcile-file" className="cursor-pointer shrink-0">
+                    <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
+                      <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600 dark:text-green-500" /> Ler Excel
                     </div>
                  </Label>
                  <Input id="reconcile-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleExcelUpload(e, 'reconcile')} />
@@ -505,12 +548,12 @@ export default function TravelReconciliation() {
             )}
 
             <Table>
-              <TableHeader className="bg-slate-50">
+              <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="w-[100px]">SKU</TableHead>
                   <TableHead>Produto</TableHead>
-                  <TableHead className="text-center text-blue-700">Levaram</TableHead>
-                  <TableHead className="text-center text-amber-700 w-32">{isViewing ? "Devolveram" : "Devolvido (Input)"}</TableHead>
+                  <TableHead className="text-center text-blue-700 dark:text-blue-400">Levaram</TableHead>
+                  <TableHead className="text-center text-amber-700 dark:text-amber-500 w-32">{isViewing ? "Devolveram" : "Devolvido (Input)"}</TableHead>
                   <TableHead className="text-center">Dif.</TableHead>
                   {isViewing && <TableHead className="text-center">Status</TableHead>}
                 </TableRow>
@@ -521,32 +564,37 @@ export default function TravelReconciliation() {
                   const ret = Number(item.returnedQuantity);
                   const missing = out - ret;
                   
+                  // ✨ NOVO: Cores de background dinâmicas que respeitam Dark Mode
+                  let rowClass = "hover:bg-muted/30 transition-colors";
+                  if (missing > 0) rowClass = "bg-red-50/50 dark:bg-red-950/20 hover:bg-red-100/50 dark:hover:bg-red-900/30";
+                  if (missing < 0) rowClass = "bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30";
+
                   return (
-                    <TableRow key={item.product_id} className={missing > 0 ? 'bg-red-50/30' : missing < 0 ? 'bg-blue-50/30' : ''}>
+                    <TableRow key={item.product_id} className={rowClass}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{item.sku}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-center font-bold text-blue-600">{out} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></TableCell>
-                      <TableCell className="text-center bg-amber-50/30">
+                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                      <TableCell className="text-center font-bold text-blue-600 dark:text-blue-400">{out} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></TableCell>
+                      <TableCell className="text-center bg-amber-50/30 dark:bg-amber-900/10">
                         {isViewing ? (
-                          <span className="font-bold">{ret}</span>
+                          <span className="font-bold text-foreground">{ret}</span>
                         ) : (
                           <Input 
-                            type="number" min="0" className="h-8 w-20 mx-auto text-center font-bold" 
-                            value={item.returnedQuantity === 0 && item.quantity_out === 0 ? '' : item.returnedQuantity} // Clear visual UX for extras
+                            type="number" min="0" className="h-8 w-20 mx-auto text-center font-bold bg-background" 
+                            value={item.returnedQuantity === 0 && item.quantity_out === 0 ? '' : item.returnedQuantity} 
                             onChange={(e) => updateReturnedQuantity(item.product_id, parseFloat(e.target.value) || 0)}
                           />
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`font-bold ${missing > 0 ? "text-red-500" : missing < 0 ? "text-blue-500" : "text-green-500"}`}>
+                        <span className={`font-bold ${missing > 0 ? "text-red-500 dark:text-red-400" : missing < 0 ? "text-blue-500 dark:text-blue-400" : "text-green-500 dark:text-green-400"}`}>
                           {missing > 0 ? `Faltou ${missing}` : missing < 0 ? `Sobrou ${Math.abs(missing)}` : "OK"}
                         </span>
                       </TableCell>
                       {isViewing && (
                         <TableCell className="text-center">
-                          {item.status === 'ok' && <Badge className="bg-green-100 text-green-700">OK</Badge>}
+                          {item.status === 'ok' && <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">OK</Badge>}
                           {item.status === 'missing' && <Badge variant="destructive">FALTA</Badge>}
-                          {item.status === 'extra' && <Badge className="bg-blue-100 text-blue-700">EXTRA</Badge>}
+                          {item.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">EXTRA</Badge>}
                         </TableCell>
                       )}
                     </TableRow>
@@ -557,7 +605,7 @@ export default function TravelReconciliation() {
           </CardContent>
           
           {!isViewing && (
-            <CardFooter className="bg-slate-50 p-4 border-t flex justify-end gap-3">
+            <CardFooter className="bg-muted/20 p-4 border-t border-border flex justify-end gap-3">
                <Button variant="outline" onClick={() => setViewMode('list')}>Cancelar</Button>
                <Button onClick={handleConfirmReconcile} disabled={reconcileOrderMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg text-base h-12 px-8">
                  {reconcileOrderMutation.isPending ? "Processando..." : "Concluir Acerto Definitivo"}
