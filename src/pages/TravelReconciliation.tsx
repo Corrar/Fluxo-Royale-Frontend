@@ -25,13 +25,16 @@ import { exportToExcel } from "@/utils/exportUtils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// --- TIPAGENS ---
+// --- TIPAGENS AJUSTADAS PARA O FORMATO DO BACKEND ---
 interface Product { 
   id: string; 
   sku: string; 
   name: string; 
   unit: string; 
-  available_quantity: number; 
+  stock?: {
+    quantity_on_hand: number;
+    quantity_reserved: number;
+  };
 }
 
 interface TravelItemInput {
@@ -49,6 +52,13 @@ interface TravelOrder {
 }
 
 type ViewMode = 'list' | 'new' | 'reconcile' | 'view';
+
+// ✨ NOVO: Função para calcular o estoque disponível real com base no retorno do backend
+const getAvailableStock = (product?: Product) => {
+  if (!product || !product.stock) return 0;
+  // Math.max evita números negativos. Subtrai o que já está reservado do que existe fisicamente.
+  return Math.max(0, Number(product.stock.quantity_on_hand) - Number(product.stock.quantity_reserved));
+};
 
 export default function TravelReconciliation() {
   const navigate = useNavigate();
@@ -71,8 +81,7 @@ export default function TravelReconciliation() {
   const { data: products = [], refetch: refetchProducts } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
-    // ✨ TRAVA 1: Reduzido o tempo de cache. O React Query deve trazer o estoque real quase em tempo real.
-    staleTime: 1000 * 15, // 15 segundos no máximo.
+    staleTime: 1000 * 15, // 15 segundos para garantir dados frescos
   });
 
   const productsDictionary = useMemo(() => {
@@ -97,15 +106,14 @@ export default function TravelReconciliation() {
     queryFn: async () => (await api.get("/travel-orders")).data,
   });
 
-  // Atualizações em Tempo Real via Sockets
   useEffect(() => {
     if (!socket) return;
     const handleUpdate = () => {
       queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] }); // Atualiza estoque caso a alteração venha de outro lugar
+      queryClient.invalidateQueries({ queryKey: ["products"] }); 
     };
     socket.on("travel_orders_update", handleUpdate);
-    socket.on("stock_update", handleUpdate); // Se o teu backend tiver esse evento, ele já o apanha
+    socket.on("stock_update", handleUpdate); 
     return () => { 
       socket.off("travel_orders_update", handleUpdate); 
       socket.off("stock_update", handleUpdate);
@@ -116,7 +124,6 @@ export default function TravelReconciliation() {
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => await api.post('/travel-orders', data),
     onSuccess: () => {
-      // ✨ TRAVA 2: Invalidação FORÇADA do cache ao criar viagem
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
       
@@ -124,13 +131,12 @@ export default function TravelReconciliation() {
       resetNewTripForm();
       setViewMode('list');
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao registrar viagem. O estoque pode não ser suficiente no servidor.")
+    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao registrar viagem.")
   });
 
   const reconcileOrderMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string, data: any }) => await api.post(`/travel-orders/${id}/reconcile`, data),
     onSuccess: () => {
-      // Ao concluir acerto, os itens voltam pro estoque. Precisamos atualizar!
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
       
@@ -149,9 +155,12 @@ export default function TravelReconciliation() {
     setOutboundList(prev => {
       const existing = prev.find(i => i.product_id === product.id);
       const currentQty = existing ? existing.quantity : 0;
+      
+      // ✨ Usamos a função para pegar o estoque real
+      const available = getAvailableStock(product);
 
-      if (currentQty + 1 > product.available_quantity) {
-        toast.error(`Estoque insuficiente de ${product.name}. Restam apenas ${product.available_quantity} unidades.`);
+      if (currentQty + 1 > available) {
+        toast.error(`Estoque insuficiente de ${product.name}. Restam apenas ${available} unidades.`);
         return prev;
       }
 
@@ -160,7 +169,7 @@ export default function TravelReconciliation() {
       }
       return [{
         product_id: product.id, sku: product.sku, name: product.name, unit: product.unit,
-        quantity: 1, available_stock: product.available_quantity
+        quantity: 1, available_stock: available
       }, ...prev];
     });
     setSearchTerm("");
@@ -171,7 +180,9 @@ export default function TravelReconciliation() {
       return prev.map(item => {
         if (item.product_id === productId) {
            const freshProduct = productsDictionary.get(item.sku);
-           const currentStock = freshProduct?.available_quantity || 0;
+           
+           // ✨ Avaliamos novamente contra os dados mais recentes do cache
+           const currentStock = getAvailableStock(freshProduct);
            
            const newQty = item.quantity + delta;
            if (newQty <= 0) return null; 
@@ -214,11 +225,13 @@ export default function TravelReconciliation() {
             const currentQty = (existingInCart?.quantity || 0) + (existingInFormatted?.quantity || 0);
             const totalQty = currentQty + qty;
 
-            if (totalQty <= (found.available_quantity || 0)) {
+            const available = getAvailableStock(found);
+
+            if (totalQty <= available) {
               if (existingInFormatted) existingInFormatted.quantity += qty;
               else formatted.push({ 
                 product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, 
-                quantity: qty, available_stock: found.available_quantity 
+                quantity: qty, available_stock: available 
               });
             } else {
               skippedItems++;
@@ -227,7 +240,6 @@ export default function TravelReconciliation() {
         });
         
         setOutboundList(prev => {
-           // Mescla as listas atualizando quantidades
            const newList = [...prev];
            formatted.forEach(newItem => {
                const existing = newList.find(i => i.product_id === newItem.product_id);
@@ -266,16 +278,15 @@ export default function TravelReconciliation() {
     if (!technicians || !city) return toast.warning("Preencha os Técnicos e a Cidade.");
     if (outboundList.length === 0) return toast.warning("O carrinho de viagem está vazio.");
 
-    // ✨ TRAVA 3: Double-Check / Pre-flight check.
-    // Confirma uma última vez contra a array de 'products' mais recente se houve furo antes de bater no servidor.
+    // ✨ Pre-flight check validando a propriedade aninhada
     for (const item of outboundList) {
       const freshProduct = products.find(p => p.id === item.product_id);
-      const currentAvailable = freshProduct?.available_quantity || 0;
+      const currentAvailable = getAvailableStock(freshProduct);
       
       if (item.quantity > currentAvailable) {
         toast.error(`Bloqueado: O estoque de ${item.name} sofreu alterações! Disponível agora: ${currentAvailable}. Ajuste o carrinho.`);
-        refetchProducts(); // Força baixar tudo de novo
-        return; // Interrompe a criação
+        refetchProducts(); 
+        return; 
       }
     }
 
@@ -457,24 +468,27 @@ export default function TravelReconciliation() {
 
             {searchTerm && searchResults.length > 0 && (
               <Card className="absolute top-full left-0 right-0 mt-2 p-2 shadow-2xl border-border rounded-2xl bg-card animate-in fade-in slide-in-from-top-2">
-                {searchResults.map(product => (
-                   <button
-                     key={product.id}
-                     onClick={() => handleAddFromSearch(product)}
-                     className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors text-left border border-transparent hover:border-border"
-                   >
-                      <div>
-                        <p className="font-bold text-foreground">{product.name}</p>
-                        <p className="text-sm text-muted-foreground font-mono">{product.sku}</p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="secondary" className={`${product.available_quantity > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                          {product.available_quantity} {product.unit} disp.
-                        </Badge>
-                        <p className="text-xs text-muted-foreground mt-1">Toque para add</p>
-                      </div>
-                   </button>
-                ))}
+                {searchResults.map(product => {
+                   const available = getAvailableStock(product);
+                   return (
+                     <button
+                       key={product.id}
+                       onClick={() => handleAddFromSearch(product)}
+                       className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors text-left border border-transparent hover:border-border"
+                     >
+                        <div>
+                          <p className="font-bold text-foreground">{product.name}</p>
+                          <p className="text-sm text-muted-foreground font-mono">{product.sku}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="secondary" className={`${available > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {available} {product.unit} disp.
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-1">Toque para add</p>
+                        </div>
+                     </button>
+                   );
+                })}
               </Card>
             )}
             
