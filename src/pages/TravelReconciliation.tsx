@@ -38,7 +38,7 @@ interface Product {
 }
 
 interface TravelItemInput {
-  product_id: string; sku: string; name: string; quantity: number; unit: string; available_stock: number;
+  product_id: string; sku: string; name: string; quantity: number | string; unit: string; available_stock: number;
 }
 
 interface TravelOrderItem {
@@ -154,7 +154,7 @@ export default function TravelReconciliation() {
   const handleAddFromSearch = (product: Product) => {
     setOutboundList(prev => {
       const existing = prev.find(i => i.product_id === product.id);
-      const currentQty = existing ? existing.quantity : 0;
+      const currentQty = existing ? Number(existing.quantity) : 0;
       const available = getAvailableStock(product);
 
       if (currentQty + 1 > available) {
@@ -163,7 +163,7 @@ export default function TravelReconciliation() {
       }
 
       if (existing) {
-        return prev.map(i => i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return prev.map(i => i.product_id === product.id ? { ...i, quantity: currentQty + 1 } : i);
       }
       return [{
         product_id: product.id, sku: product.sku, name: product.name, unit: product.unit,
@@ -179,7 +179,9 @@ export default function TravelReconciliation() {
         if (item.product_id === productId) {
            const freshProduct = productsDictionary.get(item.sku);
            const currentStock = getAvailableStock(freshProduct);
-           const newQty = item.quantity + delta;
+           // Assume zero se o input estiver vazio ('')
+           const currentQty = item.quantity === '' ? 0 : Number(item.quantity);
+           const newQty = currentQty + delta;
            
            if (newQty <= 0) return null; 
            if (newQty > currentStock) {
@@ -192,6 +194,41 @@ export default function TravelReconciliation() {
       }).filter(Boolean) as TravelItemInput[];
     });
   };
+
+  // NOVO HANDLER: Atualização manual digitada do Carrinho
+  const handleDirectQuantityChange = (productId: string, value: string) => {
+    setOutboundList(prev => {
+      return prev.map(item => {
+        if (item.product_id === productId) {
+           const freshProduct = productsDictionary.get(item.sku);
+           const currentStock = getAvailableStock(freshProduct);
+           
+           // Se o utilizador apagar tudo, permitimos o estado vazio temporariamente
+           if (value === '') {
+             return { ...item, quantity: '', available_stock: currentStock };
+           }
+
+           const newQty = parseInt(value, 10);
+           
+           // Bloqueia letras ou negativos
+           if (isNaN(newQty) || newQty < 0) return item;
+
+           // Remove se for zero
+           if (newQty === 0) return null;
+
+           // Bloqueia se furar o estoque
+           if (newQty > currentStock) {
+             toast.error(`Limite máximo! Só tens ${currentStock}x ${item.unit} de ${item.name}.`);
+             return { ...item, quantity: currentStock, available_stock: currentStock }; // Força o valor máximo
+           }
+
+           return { ...item, quantity: newQty, available_stock: currentStock };
+        }
+        return item;
+      }).filter(Boolean) as TravelItemInput[];
+    });
+  };
+
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'outbound' | 'reconcile') => {
     const file = e.target.files?.[0];
@@ -216,12 +253,12 @@ export default function TravelReconciliation() {
           if (found && qty > 0) {
             const existingInCart = outboundList.find(i => i.product_id === found.id);
             const existingInFormatted = formatted.find(i => i.product_id === found.id);
-            const currentQty = (existingInCart?.quantity || 0) + (existingInFormatted?.quantity || 0);
+            const currentQty = (existingInCart?.quantity ? Number(existingInCart.quantity) : 0) + (existingInFormatted?.quantity ? Number(existingInFormatted.quantity) : 0);
             const totalQty = currentQty + qty;
             const available = getAvailableStock(found);
 
             if (totalQty <= available) {
-              if (existingInFormatted) existingInFormatted.quantity += qty;
+              if (existingInFormatted) existingInFormatted.quantity = Number(existingInFormatted.quantity) + qty;
               else formatted.push({ 
                 product_id: found.id, sku: found.sku, name: found.name, unit: found.unit, 
                 quantity: qty, available_stock: available 
@@ -234,7 +271,7 @@ export default function TravelReconciliation() {
            const newList = [...prev];
            formatted.forEach(newItem => {
                const existing = newList.find(i => i.product_id === newItem.product_id);
-               if (existing) existing.quantity += newItem.quantity;
+               if (existing) existing.quantity = Number(existing.quantity) + Number(newItem.quantity);
                else newList.push(newItem);
            });
            return newList;
@@ -269,10 +306,14 @@ export default function TravelReconciliation() {
     if (!technicians || !city) return toast.warning("Preencha o Destino e a Equipa.");
     if (outboundList.length === 0) return toast.warning("Adicione pelo menos um material à viagem.");
 
+    // Verifica se algum item ficou com o input vazio antes de enviar
+    const hasEmptyQuantities = outboundList.some(i => i.quantity === '' || i.quantity === 0);
+    if (hasEmptyQuantities) return toast.warning("Verifique o carrinho, existem itens com quantidade zero ou vazia.");
+
     for (const item of outboundList) {
       const freshProduct = products.find(p => p.id === item.product_id);
       const currentAvailable = getAvailableStock(freshProduct);
-      if (item.quantity > currentAvailable) {
+      if (Number(item.quantity) > currentAvailable) {
         toast.error(`Espera! O estoque de ${item.name} foi alterado por alguém. Só restam ${currentAvailable}x.`);
         refetchProducts(); 
         return; 
@@ -328,7 +369,8 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'list') {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-5xl mx-auto">
+      // AUMENTADO DE max-w-5xl PARA max-w-7xl
+      <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-7xl mx-auto xl:px-8">
         
         {/* Header Elegante */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -345,15 +387,15 @@ export default function TravelReconciliation() {
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
           <div className="bg-card border border-border rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Total</p>
-            <h3 className="text-3xl font-black text-foreground">{stats.total}</h3>
+            <h3 className="text-3xl xl:text-4xl font-black text-foreground">{stats.total}</h3>
           </div>
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><Clock className="h-4 w-4" /> Na Rua</p>
-            <h3 className="text-3xl font-black text-amber-700 dark:text-amber-400">{stats.pending}</h3>
+            <h3 className="text-3xl xl:text-4xl font-black text-amber-700 dark:text-amber-400">{stats.pending}</h3>
           </div>
           <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Acertadas</p>
-            <h3 className="text-3xl font-black text-emerald-700 dark:text-emerald-400">{stats.reconciled}</h3>
+            <h3 className="text-3xl xl:text-4xl font-black text-emerald-700 dark:text-emerald-400">{stats.reconciled}</h3>
           </div>
         </div>
 
@@ -370,7 +412,7 @@ export default function TravelReconciliation() {
               <p className="text-muted-foreground mt-2">Clique em "Registar Saída" para começar.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {travelOrders.map((order) => (
                 <div 
                   key={order.id} 
@@ -423,7 +465,8 @@ export default function TravelReconciliation() {
   // ============================================================================
   if (viewMode === 'new') {
     return (
-      <div className="max-w-3xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      // AUMENTADO PARA max-w-5xl
+      <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 xl:px-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
             <ArrowLeft className="h-6 w-6 text-foreground" />
@@ -509,9 +552,9 @@ export default function TravelReconciliation() {
             )}
           </div>
 
-          {/* Itens do Carrinho */}
+          {/* Itens do Carrinho - COM INPUT MANUAL CORRIGIDO */}
           {outboundList.length > 0 ? (
-            <div className="space-y-4 pt-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pt-4">
               {outboundList.map((item) => (
                 <div key={item.product_id} className="bg-card p-5 rounded-3xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5 group transition-all hover:border-border/80">
                    <div className="flex items-center gap-5">
@@ -531,14 +574,21 @@ export default function TravelReconciliation() {
                          <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
                            <Minus className="h-5 w-5" />
                          </button>
-                         <div className="w-12 h-full bg-background flex items-center justify-center font-black text-foreground text-xl border-x border-border/50">
-                           {item.quantity}
+                         {/* INPUT MANUAL AQUI */}
+                         <div className="w-16 h-full bg-background border-x border-border/50">
+                           <Input 
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleDirectQuantityChange(item.product_id, e.target.value)}
+                              className="h-full w-full border-0 text-center font-black text-xl px-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent rounded-none"
+                           />
                          </div>
                          <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
                            <Plus className="h-5 w-5" />
                          </button>
                       </div>
-                      <button onClick={() => updateItemQuantity(item.product_id, -item.quantity)} className="h-14 w-14 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all active:scale-90">
+                      <button onClick={() => updateItemQuantity(item.product_id, -Number(item.quantity))} className="h-14 w-14 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all active:scale-90">
                         <Trash2 className="h-6 w-6" />
                       </button>
                    </div>
@@ -558,7 +608,7 @@ export default function TravelReconciliation() {
 
         {/* Rodapé Floating (Finalizar) */}
         <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
-          <div className="max-w-3xl mx-auto flex gap-4">
+          <div className="max-w-5xl mx-auto flex gap-4">
              <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                Cancelar
              </Button>
@@ -581,7 +631,8 @@ export default function TravelReconciliation() {
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
-      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-4xl mx-auto">
+      // AUMENTADO PARA max-w-6xl
+      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-6xl mx-auto xl:px-8">
         
         {/* Header App-like */}
         <div className="flex items-center justify-between">
@@ -629,9 +680,9 @@ export default function TravelReconciliation() {
              </div>
           </div>
 
-          <div className="p-2 md:p-4">
-            {/* Linhas de Acerto */}
-            <div className="flex flex-col gap-2">
+          <div className="p-2 md:p-6 lg:p-8">
+            {/* Linhas de Acerto GRID */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               {reconcileItems.map((item) => {
                 const out = Number(item.quantity_out);
                 const ret = Number(item.returnedQuantity);
@@ -642,7 +693,7 @@ export default function TravelReconciliation() {
                 if (missing < 0) diffBadge = <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 font-bold border-0 px-3 py-1">Sobrou {Math.abs(missing)}</Badge>;
 
                 return (
-                  <div key={item.product_id} className="p-4 rounded-2xl hover:bg-muted/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div key={item.product_id} className="p-5 rounded-3xl bg-muted/10 hover:bg-muted/30 border border-border/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     
                     <div className="flex-1">
                       <h4 className="font-bold text-lg text-foreground">{item.name}</h4>
@@ -651,8 +702,8 @@ export default function TravelReconciliation() {
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto bg-muted/10 md:bg-transparent p-3 md:p-0 rounded-xl">
-                      <span className="text-sm font-bold text-muted-foreground md:hidden">Retornou:</span>
+                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto bg-muted/10 sm:bg-transparent p-3 sm:p-0 rounded-xl">
+                      <span className="text-sm font-bold text-muted-foreground sm:hidden">Retornou:</span>
                       
                       {isViewing ? (
                         <div className="flex items-center gap-4">
@@ -668,7 +719,7 @@ export default function TravelReconciliation() {
                             value={item.returnedQuantity === 0 && item.quantity_out === 0 ? '' : item.returnedQuantity} 
                             onChange={(e) => updateReturnedQuantity(item.product_id, parseFloat(e.target.value) || 0)}
                           />
-                          <div className="w-24 text-right hidden sm:block">{diffBadge}</div>
+                          <div className="w-24 text-right hidden lg:block">{diffBadge}</div>
                         </div>
                       )}
                     </div>
@@ -683,7 +734,7 @@ export default function TravelReconciliation() {
         {/* Rodapé CTA Acerto */}
         {!isViewing && (
           <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
-            <div className="max-w-4xl mx-auto flex gap-4">
+            <div className="max-w-6xl mx-auto flex gap-4">
                <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                  Cancelar
                </Button>
