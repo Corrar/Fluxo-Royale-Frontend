@@ -5,14 +5,13 @@ import { api } from "@/services/api";
 import { useSocket } from "@/contexts/SocketContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { 
   AlertTriangle, ArrowLeft, FileSpreadsheet, Plus, Trash2,
-  ArrowRightLeft, FileText, Download, MapPin, Users, Eye, Search, Minus, Package, PackageSearch,
-  CheckCircle2, Clock, Route, Car
+  FileText, Download, MapPin, Users, Search, Minus, Package, PackageSearch,
+  CheckCircle2, Clock, Car, ChevronRight, HardHat, CalendarDays, MoreVertical
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -54,7 +53,7 @@ interface TravelOrder {
 
 type ViewMode = 'list' | 'new' | 'reconcile' | 'view';
 
-// Função para calcular o estoque disponível real
+// Lógica de Estoque Disponível
 const getAvailableStock = (product?: Product) => {
   if (!product || !product.stock) return 0;
   return Math.max(0, Number(product.stock.quantity_on_hand) - Number(product.stock.quantity_reserved));
@@ -68,16 +67,14 @@ export default function TravelReconciliation() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedOrder, setSelectedOrder] = useState<TravelOrder | null>(null);
 
-  // Estados Nova Viagem (Ida)
   const [technicians, setTechnicians] = useState("");
   const [city, setCity] = useState("");
   const [outboundList, setOutboundList] = useState<TravelItemInput[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Estados Acerto (Volta)
   const [reconcileItems, setReconcileItems] = useState<any[]>([]);
 
-  // 1. DADOS: Buscar Produtos
+  // 1. DADOS
   const { data: products = [], refetch: refetchProducts } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => (await api.get("/products")).data,
@@ -90,7 +87,6 @@ export default function TravelReconciliation() {
     return map;
   }, [products]);
 
-  // Busca Inteligente
   const searchResults = useMemo(() => {
     if (!searchTerm) return [];
     const lower = searchTerm.toLowerCase();
@@ -100,13 +96,11 @@ export default function TravelReconciliation() {
     ).slice(0, 5); 
   }, [searchTerm, products]);
 
-  // 2. DADOS: Buscar Viagens
   const { data: travelOrders = [], isLoading: isLoadingOrders } = useQuery<TravelOrder[]>({
     queryKey: ["travel-orders"],
     queryFn: async () => (await api.get("/travel-orders")).data,
   });
 
-  // Cálculos para os Cards de Resumo (Dashboard)
   const stats = useMemo(() => {
     const total = travelOrders.length;
     const pending = travelOrders.filter(t => t.status === 'pending').length;
@@ -134,11 +128,11 @@ export default function TravelReconciliation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
-      toast.success("Viagem registada! Estoque reservado com sucesso.");
+      toast.success("Pronto! Viagem registada e estoque reservado. 🚗");
       resetNewTripForm();
       setViewMode('list');
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao registar viagem.")
+    onError: (err: any) => toast.error(err.response?.data?.error || "Ops! Ocorreu um erro ao registar.")
   });
 
   const reconcileOrderMutation = useMutation({
@@ -146,13 +140,13 @@ export default function TravelReconciliation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["travel-orders"] });
-      toast.success("Acerto concluído! Estoque atualizado.");
+      toast.success("Acerto concluído! Estoque perfeitamente atualizado. ✅");
       setViewMode('list');
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao fazer acerto.")
+    onError: (err: any) => toast.error(err.response?.data?.error || "Erro ao tentar fazer o acerto.")
   });
 
-  // --- HANDLERS: NOVA VIAGEM ---
+  // --- HANDLERS ---
   const resetNewTripForm = () => {
     setTechnicians(""); setCity(""); setOutboundList([]); setSearchTerm("");
   };
@@ -164,7 +158,7 @@ export default function TravelReconciliation() {
       const available = getAvailableStock(product);
 
       if (currentQty + 1 > available) {
-        toast.error(`Estoque insuficiente. Restam ${available} unidades de ${product.name}.`);
+        toast.error(`Sem estoque suficiente! Só tens ${available}x ${product.unit} de ${product.name}.`);
         return prev;
       }
 
@@ -189,7 +183,7 @@ export default function TravelReconciliation() {
            
            if (newQty <= 0) return null; 
            if (newQty > currentStock) {
-             toast.error(`Limite atingido para ${item.name}. Disponível: ${currentStock} ${item.unit}.`);
+             toast.error(`Limite máximo! Só tens ${currentStock}x ${item.unit} de ${item.name}.`);
              return item;
            }
            return { ...item, quantity: newQty, available_stock: currentStock };
@@ -200,7 +194,6 @@ export default function TravelReconciliation() {
   };
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'outbound' | 'reconcile') => {
-    // Lógica idêntica mantida para segurança
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -246,8 +239,8 @@ export default function TravelReconciliation() {
            });
            return newList;
         });
-        toast.success(`${formatted.length} itens importados.`);
-        if (skippedItems > 0) toast.warning(`${skippedItems} itens ignorados por excederem o estoque!`);
+        toast.success(`Foram adicionados ${formatted.length} itens via planilha.`);
+        if (skippedItems > 0) toast.warning(`${skippedItems} itens ignorados por falta de estoque.`);
       } 
       else if (target === 'reconcile') {
         let updatedItems = [...reconcileItems];
@@ -273,15 +266,14 @@ export default function TravelReconciliation() {
   };
 
   const handleCreateTrip = () => {
-    if (!technicians || !city) return toast.warning("Preencha os Técnicos e a Cidade.");
-    if (outboundList.length === 0) return toast.warning("O carrinho de viagem está vazio.");
+    if (!technicians || !city) return toast.warning("Preencha o Destino e a Equipa.");
+    if (outboundList.length === 0) return toast.warning("Adicione pelo menos um material à viagem.");
 
-    // Pre-flight check
     for (const item of outboundList) {
       const freshProduct = products.find(p => p.id === item.product_id);
       const currentAvailable = getAvailableStock(freshProduct);
       if (item.quantity > currentAvailable) {
-        toast.error(`Bloqueado: O estoque de ${item.name} mudou! Disponível: ${currentAvailable}. Ajuste o carrinho.`);
+        toast.error(`Espera! O estoque de ${item.name} foi alterado por alguém. Só restam ${currentAvailable}x.`);
         refetchProducts(); 
         return; 
       }
@@ -289,7 +281,6 @@ export default function TravelReconciliation() {
     createOrderMutation.mutate({ technicians, city, items: outboundList });
   };
 
-  // --- HANDLERS: ACERTO ---
   const openReconcile = (order: TravelOrder, mode: 'reconcile' | 'view') => {
     setSelectedOrder(order);
     const initialItems = order.items.map(item => ({
@@ -323,235 +314,186 @@ export default function TravelReconciliation() {
     });
 
     const fileName = `Viagem_${order.city.replace(/\s/g, '_')}_${new Date(order.created_at).toLocaleDateString('pt-BR')}`;
-    if (format === 'excel') {
-      exportToExcel(tableData, fileName);
-    } else {
+    if (format === 'excel') exportToExcel(tableData, fileName);
+    else {
       const doc = new jsPDF();
-      doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text("Relatório de Acerto de Viagem", 14, 20);
-      doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(100); 
-      doc.text(`Cidade: ${order.city}  |  Técnicos: ${order.technicians}`, 14, 28);
-      doc.text(`Data Ida: ${new Date(order.created_at).toLocaleDateString('pt-BR')}  |  Data Volta: ${new Date(order.updated_at).toLocaleDateString('pt-BR')}`, 14, 34);
-
-      autoTable(doc, {
-          head: [["SKU", "Produto", "Saída", "Retorno", "Dif.", "Status"]],
-          body: tableData.map(d => [String(d.SKU), String(d.Produto), String(d.Saída), String(d.Retorno), String(d.Diferença), String(d.Status)]),
-          startY: 40, styles: { fontSize: 8 }, headStyles: { fillColor: [71, 85, 105] },
-      });
+      doc.setFontSize(16); doc.text("Relatório de Acerto", 14, 20);
+      autoTable(doc, { head: [["SKU", "Produto", "Saída", "Retorno", "Dif.", "Status"]], body: tableData.map(d => [String(d.SKU), String(d.Produto), String(d.Saída), String(d.Retorno), String(d.Diferença), String(d.Status)]), startY: 30 });
       doc.save(`${fileName}.pdf`);
     }
   };
 
   // ============================================================================
-  // RENDERIZAÇÃO DAS TELAS
+  // UI 1: DASHBOARD (NOVO ESTILO APP)
   // ============================================================================
-
-  // ------------------------- VISTA 1: DASHBOARD (LISTA) -------------------------
   if (viewMode === 'list') {
     return (
-      <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+      <div className="space-y-8 animate-in fade-in duration-500 pb-24 max-w-5xl mx-auto">
         
-        {/* Cabeçalho da Página */}
+        {/* Header Elegante */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-              <h1 className="text-3xl font-extrabold flex items-center gap-3 text-foreground">
-                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-                    <Car className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  Gestão de Viagens
-              </h1>
-              <p className="text-muted-foreground mt-1 text-sm md:text-base">Controle saídas, retornos e reconciliações de material.</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">Viagens</h1>
+            <p className="text-muted-foreground mt-1 font-medium">Controle saídas e retornos de material da equipa.</p>
           </div>
-          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-600/20 px-6 h-12 font-bold w-full md:w-auto transition-transform active:scale-95">
-            <Plus className="mr-2 h-5 w-5" /> Nova Viagem
+          <Button onClick={() => { resetNewTripForm(); setViewMode('new'); }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-600/20 px-8 h-14 text-lg font-bold w-full md:w-auto transition-all active:scale-[0.98]">
+            <Plus className="mr-2 h-6 w-6" /> Registar Saída
           </Button>
         </div>
 
-        {/* Cards de Métricas (UX Upgrade) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-card border-border shadow-sm rounded-2xl">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400"><Route className="h-6 w-6"/></div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Viagens</p>
-                <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border shadow-sm rounded-2xl">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400"><Clock className="h-6 w-6"/></div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Em Andamento</p>
-                <h3 className="text-2xl font-bold text-foreground">{stats.pending}</h3>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-card border-border shadow-sm rounded-2xl">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-6 w-6"/></div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Acertos Concluídos</p>
-                <h3 className="text-2xl font-bold text-foreground">{stats.reconciled}</h3>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Pílulas de Resumo */}
+        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="bg-card border border-border rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Total</p>
+            <h3 className="text-3xl font-black text-foreground">{stats.total}</h3>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><Clock className="h-4 w-4" /> Na Rua</p>
+            <h3 className="text-3xl font-black text-amber-700 dark:text-amber-400">{stats.pending}</h3>
+          </div>
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 rounded-3xl p-5 min-w-[160px] flex-1 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mb-1 flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Acertadas</p>
+            <h3 className="text-3xl font-black text-emerald-700 dark:text-emerald-400">{stats.reconciled}</h3>
+          </div>
         </div>
 
-        {/* Lista de Viagens */}
-        <Card className="shadow-sm bg-card border-border rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-12">Data de Saída</TableHead>
-                  <TableHead>Equipe</TableHead>
-                  <TableHead>Destino</TableHead>
-                  <TableHead className="text-center">Itens</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingOrders ? (
-                   <TableRow><TableCell colSpan={6} className="text-center h-32 text-muted-foreground">A carregar...</TableCell></TableRow>
-                ) : travelOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-48 text-center">
-                      <div className="flex flex-col items-center justify-center text-muted-foreground">
-                        <Route className="h-12 w-12 mb-3 text-muted-foreground/30" />
-                        <p className="text-lg font-medium text-foreground">Nenhuma viagem encontrada</p>
-                        <p className="text-sm mt-1">Crie a primeira viagem para começar a monitorizar o estoque externo.</p>
+        {/* Lista Estilo Feed de Transações */}
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-foreground ml-2">Histórico de Viagens</h2>
+          
+          {isLoadingOrders ? (
+            <div className="text-center py-20 text-muted-foreground animate-pulse font-medium">Carregando viagens...</div>
+          ) : travelOrders.length === 0 ? (
+            <div className="text-center py-24 px-4 bg-muted/20 border-2 border-dashed border-border rounded-3xl">
+              <Car className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
+              <p className="text-foreground font-bold text-xl">Nenhuma viagem registada</p>
+              <p className="text-muted-foreground mt-2">Clique em "Registar Saída" para começar.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {travelOrders.map((order) => (
+                <div 
+                  key={order.id} 
+                  onClick={() => openReconcile(order, order.status === 'pending' ? 'reconcile' : 'view')}
+                  className="bg-card hover:bg-muted/30 rounded-3xl p-4 md:p-5 border border-border shadow-sm flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] group"
+                >
+                  <div className="flex items-center gap-4 md:gap-6">
+                    {/* Ícone de Status */}
+                    <div className={`h-14 w-14 rounded-full flex items-center justify-center shrink-0 border ${order.status === 'pending' ? 'bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800' : 'bg-muted border-border text-muted-foreground'}`}>
+                      <Car className="h-7 w-7" />
+                    </div>
+                    
+                    {/* Info Central */}
+                    <div className="flex flex-col justify-center">
+                      <h3 className="font-extrabold text-foreground text-lg leading-tight md:text-xl mb-1">{order.city}</h3>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-muted-foreground">
+                        <span className="flex items-center gap-1"><HardHat className="h-4 w-4" /> {order.technicians}</span>
+                        <span className="hidden md:inline text-border">•</span>
+                        <span className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
+                        <span className="hidden md:inline text-border">•</span>
+                        <span className="font-mono bg-muted px-2 py-0.5 rounded-lg text-xs">{order.items?.length || 0} iten(s)</span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : travelOrders.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-muted/30 transition-colors group">
-                    <TableCell className="font-medium">{new Date(order.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                    <TableCell><div className="flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" /> {order.technicians}</div></TableCell>
-                    <TableCell><div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /> {order.city}</div></TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary" className="font-mono bg-muted/50">{order.items?.length || 0}</Badge>
-                    </TableCell>
-                    <TableCell>
+                    </div>
+                  </div>
+
+                  {/* Lado Direito (Badges e Seta) */}
+                  <div className="flex items-center gap-4 pl-2">
+                    <div className="hidden sm:block">
                       {order.status === 'pending' ? (
-                        <Badge variant="outline" className="bg-amber-100/50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 gap-1.5 py-1">
-                          <Clock className="h-3 w-3" /> Em Viagem
-                        </Badge>
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-400 px-3 py-1 text-sm border-0">Em Andamento</Badge>
                       ) : (
-                        <Badge variant="outline" className="bg-emerald-100/50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 gap-1.5 py-1">
-                          <CheckCircle2 className="h-3 w-3" /> Concluído
-                        </Badge>
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-400 px-3 py-1 text-sm border-0">Concluído</Badge>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {order.status === 'pending' ? (
-                        <Button variant="default" size="sm" onClick={() => openReconcile(order, 'reconcile')} className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-sm transition-all active:scale-95">
-                          <ArrowRightLeft className="h-4 w-4 mr-2" /> Fazer Acerto
-                        </Button>
-                      ) : (
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openReconcile(order, 'view')} className="rounded-xl text-muted-foreground hover:text-foreground">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="rounded-xl border-border"><Download className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem onClick={() => generateReport(order, 'excel')} className="cursor-pointer"><FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Exportar Excel</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => generateReport(order, 'pdf')} className="cursor-pointer"><FileText className="h-4 w-4 mr-2 text-red-500" /> Exportar PDF</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-transparent group-hover:bg-background border border-transparent group-hover:border-border flex items-center justify-center transition-all shadow-sm">
+                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  // ------------------------- VISTA 2: NOVA VIAGEM (A IDA) -------------------------
+  // ============================================================================
+  // UI 2: NOVA VIAGEM (A IDA)
+  // ============================================================================
   if (viewMode === 'new') {
     return (
-      <div className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-3xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
-            <ArrowLeft className="h-5 w-5 text-foreground" />
+          <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
+            <ArrowLeft className="h-6 w-6 text-foreground" />
           </Button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">Registar Saída</h1>
-            <p className="text-sm text-muted-foreground">Preencha os dados e adicione os materiais que a equipa vai levar.</p>
+            <h1 className="text-3xl font-black tracking-tight text-foreground">Registar Saída</h1>
+            <p className="text-sm font-medium text-muted-foreground mt-1">O que a equipa vai levar para a obra?</p>
           </div>
         </div>
 
-        <div className="bg-card p-6 md:p-8 rounded-3xl border border-border shadow-sm transition-all hover:shadow-md">
-          <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 block flex items-center gap-2">
-            <Route className="h-4 w-4" /> Informações da Viagem
-          </Label>
+        {/* Card Informações App-like */}
+        <div className="bg-card p-6 md:p-8 rounded-3xl border border-border shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-foreground">Para onde vão?</Label>
+            <div className="space-y-2.5">
+              <Label className="text-foreground font-bold ml-1">Destino da Viagem</Label>
               <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input placeholder="Ex: Obra Centro" value={city} onChange={e => setCity(e.target.value)} className="pl-12 h-14 rounded-2xl bg-muted/30 border-border focus:bg-background focus:ring-emerald-500/20 focus:border-emerald-500 text-lg transition-all" />
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+                <Input placeholder="Ex: Obra Centro" value={city} onChange={e => setCity(e.target.value)} className="pl-14 h-16 rounded-2xl bg-muted/30 border-2 border-transparent focus:bg-background focus:ring-emerald-500/20 focus:border-emerald-500 text-lg font-medium transition-all shadow-inner" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-foreground">Quem vai viajar?</Label>
+            <div className="space-y-2.5">
+              <Label className="text-foreground font-bold ml-1">Equipa / Técnicos</Label>
               <div className="relative">
-                <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input placeholder="Ex: João e Maria" value={technicians} onChange={e => setTechnicians(e.target.value)} className="pl-12 h-14 rounded-2xl bg-muted/30 border-border focus:bg-background focus:ring-emerald-500/20 focus:border-emerald-500 text-lg transition-all" />
+                <HardHat className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+                <Input placeholder="Ex: João e Maria" value={technicians} onChange={e => setTechnicians(e.target.value)} className="pl-14 h-16 rounded-2xl bg-muted/30 border-2 border-transparent focus:bg-background focus:ring-emerald-500/20 focus:border-emerald-500 text-lg font-medium transition-all shadow-inner" />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Package className="h-5 w-5 text-emerald-600" /> Materiais (Carrinho)
-            </h2>
-            <Label htmlFor="upload-excel" className="cursor-pointer inline-flex items-center justify-center gap-2 text-sm font-medium text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 px-5 py-2.5 rounded-xl hover:bg-emerald-200 transition-colors w-full sm:w-max">
-              <FileSpreadsheet className="h-4 w-4" /> Importar Planilha
+            <h2 className="text-2xl font-black text-foreground">Carrinho</h2>
+            <Label htmlFor="upload-excel" className="cursor-pointer inline-flex items-center justify-center gap-2 text-sm font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 px-5 py-3 rounded-2xl hover:bg-emerald-200 transition-colors w-full sm:w-max active:scale-95">
+              <FileSpreadsheet className="h-5 w-5" /> Importar Planilha
             </Label>
             <Input id="upload-excel" type="file" accept=".xlsx" className="hidden" onChange={e => handleExcelUpload(e, 'outbound')} />
           </div>
 
+          {/* Busca Global */}
           <div className="relative z-10">
             <div className="relative group">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
               <Input
-                placeholder="Busque um produto por nome ou SKU para adicionar..."
+                placeholder="Busque por produto ou SKU..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="pl-14 h-16 rounded-2xl border-2 border-border shadow-sm text-lg focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 transition-all bg-card"
+                className="pl-16 h-20 rounded-3xl border-2 border-border shadow-sm text-xl font-medium focus-visible:ring-emerald-500/20 focus-visible:border-emerald-500 transition-all bg-card"
               />
             </div>
 
+            {/* Float Menu de Busca */}
             {searchTerm && searchResults.length > 0 && (
-              <Card className="absolute top-full left-0 right-0 mt-2 p-2 shadow-2xl border-border rounded-2xl bg-card animate-in fade-in slide-in-from-top-2">
+              <Card className="absolute top-[105%] left-0 right-0 p-2 shadow-2xl border-border rounded-3xl bg-card animate-in fade-in slide-in-from-top-4">
                 {searchResults.map(product => {
                    const available = getAvailableStock(product);
                    return (
                      <button
                        key={product.id}
                        onClick={() => handleAddFromSearch(product)}
-                       className="w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors text-left border border-transparent hover:border-border group"
+                       className="w-full flex items-center justify-between p-4 hover:bg-muted/60 rounded-2xl transition-all text-left group active:bg-muted"
                      >
                         <div>
-                          <p className="font-bold text-foreground text-lg group-hover:text-emerald-600 transition-colors">{product.name}</p>
-                          <p className="text-sm text-muted-foreground font-mono mt-0.5">{product.sku}</p>
+                          <p className="font-extrabold text-foreground text-lg group-hover:text-emerald-600 transition-colors">{product.name}</p>
+                          <p className="text-sm font-medium text-muted-foreground mt-0.5">{product.sku}</p>
                         </div>
-                        <div className="text-right flex flex-col items-end">
-                          <Badge variant="secondary" className={`text-sm py-1 px-3 ${available > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700'}`}>
+                        <div className="text-right">
+                          <Badge variant="secondary" className={`text-sm py-1.5 px-3 rounded-xl border-0 font-bold ${available > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-red-100 text-red-700'}`}>
                             {available} {product.unit} disp.
                           </Badge>
-                          <span className="text-xs text-muted-foreground mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Toque para adicionar</span>
                         </div>
                      </button>
                    );
@@ -560,72 +502,72 @@ export default function TravelReconciliation() {
             )}
             
             {searchTerm && searchResults.length === 0 && (
-               <Card className="absolute top-full left-0 right-0 mt-2 p-8 text-center shadow-xl border-border rounded-2xl bg-card text-muted-foreground flex flex-col items-center">
-                 <Search className="h-8 w-8 mb-2 opacity-20" />
-                 Nenhum produto encontrado.
+               <Card className="absolute top-[105%] left-0 right-0 p-8 text-center shadow-xl border-border rounded-3xl bg-card text-muted-foreground">
+                 <PackageSearch className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                 <span className="font-bold text-lg">Produto não encontrado.</span>
                </Card>
             )}
           </div>
 
+          {/* Itens do Carrinho */}
           {outboundList.length > 0 ? (
-            <div className="space-y-3 mt-6">
+            <div className="space-y-4 pt-4">
               {outboundList.map((item) => (
-                <div key={item.product_id} className="bg-card p-5 rounded-2xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5 group hover:border-emerald-200 dark:hover:border-emerald-900/50 transition-colors">
-                   <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center shrink-0 border border-border group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
-                        <Package className="h-6 w-6 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
+                <div key={item.product_id} className="bg-card p-5 rounded-3xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5 group transition-all hover:border-border/80">
+                   <div className="flex items-center gap-5">
+                      <div className="h-14 w-14 rounded-2xl bg-muted/50 flex items-center justify-center shrink-0 border border-border group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
+                        <Package className="h-7 w-7 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
                       </div>
                       <div>
                         <h3 className="font-bold text-foreground text-lg leading-tight">{item.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="font-mono text-xs text-muted-foreground">{item.sku}</Badge>
-                          <span className="text-xs text-muted-foreground">Disp: {item.available_stock} {item.unit}</span>
-                        </div>
+                        <p className="text-sm font-medium text-muted-foreground mt-1">
+                          {item.sku} <span className="mx-2 opacity-50">•</span> Disp: {item.available_stock}
+                        </p>
                       </div>
                    </div>
 
                    <div className="flex items-center gap-3 self-end sm:self-auto">
-                      <div className="flex items-center bg-muted/40 rounded-xl border border-border overflow-hidden h-12 shadow-inner">
-                         <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-12 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
-                           <Minus className="h-4 w-4" />
+                      <div className="flex items-center bg-muted/40 rounded-2xl border border-border overflow-hidden h-14 shadow-inner">
+                         <button onClick={() => updateItemQuantity(item.product_id, -1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
+                           <Minus className="h-5 w-5" />
                          </button>
-                         <div className="w-12 h-full bg-background flex items-center justify-center font-extrabold text-foreground text-lg border-x border-border/50">
+                         <div className="w-12 h-full bg-background flex items-center justify-center font-black text-foreground text-xl border-x border-border/50">
                            {item.quantity}
                          </div>
-                         <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-12 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
-                           <Plus className="h-4 w-4" />
+                         <button onClick={() => updateItemQuantity(item.product_id, 1)} className="w-14 h-full flex items-center justify-center hover:bg-muted/80 text-foreground transition-colors active:bg-muted">
+                           <Plus className="h-5 w-5" />
                          </button>
                       </div>
-                      <button onClick={() => updateItemQuantity(item.product_id, -item.quantity)} className="h-12 w-12 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-100">
-                        <Trash2 className="h-5 w-5" />
+                      <button onClick={() => updateItemQuantity(item.product_id, -item.quantity)} className="h-14 w-14 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all active:scale-90">
+                        <Trash2 className="h-6 w-6" />
                       </button>
                    </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 px-4 border-2 border-dashed border-border rounded-3xl bg-muted/10 mt-6 flex flex-col items-center justify-center">
-               <div className="h-20 w-20 bg-background rounded-full shadow-sm flex items-center justify-center mb-4 border border-border">
-                 <PackageSearch className="h-10 w-10 text-muted-foreground/40" />
+            <div className="text-center py-24 px-4 bg-muted/10 border-2 border-dashed border-border/50 rounded-3xl mt-8">
+               <div className="h-24 w-24 bg-card rounded-full shadow-sm flex items-center justify-center mx-auto mb-5 border border-border">
+                 <PackageSearch className="h-12 w-12 text-muted-foreground/30" />
                </div>
-               <p className="text-foreground font-bold text-xl">O carrinho está vazio</p>
-               <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">Procure os materiais na barra acima para adicioná-los à viagem.</p>
+               <p className="text-foreground font-black text-2xl">O carrinho está vazio</p>
+               <p className="text-base font-medium text-muted-foreground mt-2">Usa a busca para adicionar os materiais.</p>
             </div>
           )}
         </div>
 
-        {/* Rodapé Flutuante CTA */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/80 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row gap-4">
-             <Button variant="outline" onClick={() => setViewMode('list')} className="h-14 sm:w-32 rounded-2xl text-base font-bold hidden sm:flex">
+        {/* Rodapé Floating (Finalizar) */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
+          <div className="max-w-3xl mx-auto flex gap-4">
+             <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                Cancelar
              </Button>
              <Button
                onClick={handleCreateTrip}
                disabled={outboundList.length === 0 || createOrderMutation.isPending}
-               className="flex-1 h-14 text-lg font-extrabold rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:active:scale-100"
+               className="flex-1 h-16 text-xl font-black rounded-3xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl shadow-emerald-600/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:active:scale-100"
              >
-               {createOrderMutation.isPending ? "A Reservar Estoque..." : `Confirmar Viagem • ${outboundList.length} iten(s)`}
+               {createOrderMutation.isPending ? "A Reservar..." : `Confirmar Viagem (${outboundList.length})`}
              </Button>
           </div>
         </div>
@@ -633,161 +575,102 @@ export default function TravelReconciliation() {
     );
   }
 
-  // ------------------------- VISTA 3: ACERTO (A VOLTA) -------------------------
+  // ============================================================================
+  // UI 3: ACERTO (A VOLTA)
+  // ============================================================================
   if (viewMode === 'reconcile' || viewMode === 'view') {
     const isViewing = viewMode === 'view';
     return (
-      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-300 max-w-5xl mx-auto">
+      <div className="space-y-8 pb-32 animate-in slide-in-from-right-4 duration-400 max-w-4xl mx-auto">
         
+        {/* Header App-like */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="rounded-full bg-muted/50 hover:bg-muted shrink-0">
-                <ArrowLeft className="h-5 w-5 text-foreground" />
+              <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className="h-12 w-12 rounded-full bg-muted/50 hover:bg-muted shrink-0 transition-colors">
+                <ArrowLeft className="h-6 w-6 text-foreground" />
               </Button>
               <div>
-                  <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-3 text-foreground">
-                    {isViewing ? "Detalhes do Acerto" : "Fazer Acerto de Contas"}
+                  <h1 className="text-3xl font-black tracking-tight text-foreground">
+                    {isViewing ? "Detalhes da Viagem" : "Acerto de Contas"}
                   </h1>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {isViewing ? "Resumo do que foi levado vs devolvido." : "Valide o material devolvido para atualizar o estoque."}
-                  </p>
               </div>
           </div>
           {isViewing && (
-            <Button variant="outline" size="sm" onClick={() => generateReport(selectedOrder!, 'pdf')} className="rounded-xl font-bold hidden md:flex border-border shadow-sm hover:bg-accent">
-              <FileText className="h-4 w-4 mr-2" /> Gerar Relatório
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="rounded-full h-12 w-12 border-border shadow-sm">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-2xl p-2 font-medium">
+                <DropdownMenuItem onClick={() => generateReport(selectedOrder!, 'pdf')} className="p-3 text-base cursor-pointer rounded-xl"><FileText className="h-5 w-5 mr-3 text-red-500" /> Exportar PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => generateReport(selectedOrder!, 'excel')} className="p-3 text-base cursor-pointer rounded-xl"><FileSpreadsheet className="h-5 w-5 mr-3 text-green-600" /> Exportar Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
-        {/* Card Resumo Viagem */}
-        <Card className={`border-0 shadow-lg rounded-3xl overflow-hidden ${isViewing ? 'bg-slate-800 text-white' : 'bg-amber-600 text-white'}`}>
-           <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                {isViewing ? <CheckCircle2 className="h-32 w-32" /> : <ArrowRightLeft className="h-32 w-32" />}
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-8 relative z-10 w-full">
-                 <div>
-                   <p className="text-white/70 text-sm font-medium mb-1 flex items-center gap-2"><Users className="h-4 w-4"/> Equipe</p>
-                   <p className="font-bold text-xl">{selectedOrder?.technicians}</p>
-                 </div>
-                 <div>
-                   <p className="text-white/70 text-sm font-medium mb-1 flex items-center gap-2"><MapPin className="h-4 w-4"/> Destino</p>
-                   <p className="font-bold text-xl">{selectedOrder?.city}</p>
-                 </div>
-                 <div className="col-span-2 md:col-span-1">
-                   <p className="text-white/70 text-sm font-medium mb-1 flex items-center gap-2"><Clock className="h-4 w-4"/> Saída</p>
-                   <p className="font-bold text-xl">{selectedOrder && new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}</p>
-                 </div>
-              </div>
-           </div>
-        </Card>
-
-        {/* Upload Excel Card */}
-        {!isViewing && (
-          <Card className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 shadow-none rounded-2xl">
-            <CardContent className="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 text-amber-800 dark:text-amber-400">
-                <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-full shrink-0">
-                  <AlertTriangle className="h-5 w-5" />
+        {/* Resumo Estilo Recibo Nubank */}
+        <div className="bg-card rounded-[2rem] border border-border shadow-sm overflow-hidden">
+          <div className="p-6 md:p-8 bg-muted/20 border-b border-dashed border-border/80">
+             <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-1">Equipa</p>
+                  <p className="font-extrabold text-xl text-foreground">{selectedOrder?.technicians}</p>
                 </div>
-                <p className="text-sm font-medium">Tem uma planilha com as devoluções? Carregue aqui para preencher a lista automaticamente.</p>
-              </div>
-              <Label htmlFor="reconcile-file" className="cursor-pointer shrink-0 w-full sm:w-auto">
-                <div className="flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-bold bg-white dark:bg-background border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors h-11 px-6">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Ler Excel de Retorno
+                <div>
+                  <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-1">Destino</p>
+                  <p className="font-extrabold text-xl text-foreground">{selectedOrder?.city}</p>
                 </div>
-              </Label>
-              <Input id="reconcile-file" type="file" accept=".xlsx, .xls" className="hidden" onChange={(e) => handleExcelUpload(e, 'reconcile')} />
-            </CardContent>
-          </Card>
-        )}
+                <div className="col-span-2 md:col-span-1">
+                  <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-1">Data</p>
+                  <p className="font-extrabold text-xl text-foreground">{selectedOrder && new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}</p>
+                </div>
+             </div>
+          </div>
 
-        {/* Lista de Acerto Dinâmica */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold px-1">Itens da Viagem</h2>
-          
-          <div className="bg-card border border-border rounded-3xl shadow-sm overflow-hidden">
-            {/* Header Falso para manter estrutura em telas grandes */}
-            <div className="hidden md:grid grid-cols-12 gap-4 p-4 bg-muted/40 border-b border-border text-sm font-bold text-muted-foreground uppercase tracking-wider">
-              <div className="col-span-5 pl-2">Produto</div>
-              <div className="col-span-2 text-center text-blue-600 dark:text-blue-400">Levaram</div>
-              <div className="col-span-3 text-center text-amber-600 dark:text-amber-500">{isViewing ? "Devolvido" : "Quantidade Devolvida"}</div>
-              <div className="col-span-2 text-right pr-4">Resultado</div>
-            </div>
-
-            <div className="divide-y divide-border">
+          <div className="p-2 md:p-4">
+            {/* Linhas de Acerto */}
+            <div className="flex flex-col gap-2">
               {reconcileItems.map((item) => {
                 const out = Number(item.quantity_out);
                 const ret = Number(item.returnedQuantity);
                 const missing = out - ret;
                 
-                // Lógica de Cores Modernas
-                let statusColor = "bg-transparent";
-                let diffText = "Bateu Certo";
-                let diffColor = "text-emerald-500 dark:text-emerald-400";
-                
-                if (missing > 0) {
-                  statusColor = "bg-red-50/30 dark:bg-red-950/10";
-                  diffText = `Falta ${missing}`;
-                  diffColor = "text-red-500 dark:text-red-400";
-                } else if (missing < 0) {
-                  statusColor = "bg-blue-50/30 dark:bg-blue-950/10";
-                  diffText = `Sobrou ${Math.abs(missing)}`;
-                  diffColor = "text-blue-500 dark:text-blue-400";
-                }
+                let diffBadge = <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 font-bold border-0 px-3 py-1">Tudo Certo</Badge>;
+                if (missing > 0) diffBadge = <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 font-bold border-0 px-3 py-1">Falta {missing}</Badge>;
+                if (missing < 0) diffBadge = <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 font-bold border-0 px-3 py-1">Sobrou {Math.abs(missing)}</Badge>;
 
                 return (
-                  <div key={item.product_id} className={`p-4 md:p-5 flex flex-col md:grid md:grid-cols-12 gap-4 items-center transition-colors hover:bg-muted/20 ${statusColor}`}>
+                  <div key={item.product_id} className="p-4 rounded-2xl hover:bg-muted/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
                     
-                    {/* Produto Info */}
-                    <div className="col-span-5 w-full flex flex-col justify-center">
-                      <p className="font-bold text-foreground text-base leading-tight">{item.name}</p>
-                      <p className="text-xs font-mono text-muted-foreground mt-1">{item.sku}</p>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-lg text-foreground">{item.name}</h4>
+                      <p className="text-sm font-medium text-muted-foreground mt-0.5 flex items-center gap-2">
+                        <span>Levou: <strong className="text-foreground">{out}</strong> {item.unit}</span>
+                      </p>
                     </div>
 
-                    {/* Quantidade Levada */}
-                    <div className="col-span-2 w-full md:w-auto flex justify-between md:justify-center items-center">
-                      <span className="md:hidden text-sm font-medium text-muted-foreground">Levaram:</span>
-                      <Badge variant="outline" className="text-base py-1 px-3 border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
-                        {out} <span className="text-xs font-normal ml-1 opacity-70">{item.unit}</span>
-                      </Badge>
-                    </div>
-
-                    {/* Quantidade Devolvida (Input/View) */}
-                    <div className="col-span-3 w-full flex justify-between md:justify-center items-center">
-                      <span className="md:hidden text-sm font-medium text-muted-foreground">Devolveram:</span>
+                    <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto bg-muted/10 md:bg-transparent p-3 md:p-0 rounded-xl">
+                      <span className="text-sm font-bold text-muted-foreground md:hidden">Retornou:</span>
+                      
                       {isViewing ? (
-                        <span className="font-extrabold text-xl px-4 py-1 rounded-xl bg-muted/50 border border-border">{ret}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="font-black text-2xl text-foreground">{ret}</span>
+                          <div className="w-24 text-right">{diffBadge}</div>
+                        </div>
                       ) : (
-                        <div className="relative group/input">
-                          <Input 
+                        <div className="flex items-center gap-4">
+                           <Input 
                             type="number" 
                             min="0" 
-                            className="h-12 w-28 text-center text-xl font-extrabold bg-background border-2 border-border focus:border-amber-500 focus:ring-amber-500/20 rounded-xl transition-all shadow-inner" 
+                            className="h-14 w-24 text-center text-2xl font-black bg-background border-2 border-border focus:border-emerald-500 focus:ring-emerald-500/20 rounded-2xl transition-all shadow-inner" 
                             value={item.returnedQuantity === 0 && item.quantity_out === 0 ? '' : item.returnedQuantity} 
                             onChange={(e) => updateReturnedQuantity(item.product_id, parseFloat(e.target.value) || 0)}
                           />
+                          <div className="w-24 text-right hidden sm:block">{diffBadge}</div>
                         </div>
                       )}
-                    </div>
-
-                    {/* Diferença/Resultado */}
-                    <div className="col-span-2 w-full flex justify-between md:justify-end items-center md:pr-2">
-                      <span className="md:hidden text-sm font-medium text-muted-foreground">Resultado:</span>
-                      <div className="text-right">
-                        <span className={`font-bold text-lg ${diffColor}`}>
-                          {diffText}
-                        </span>
-                        {isViewing && (
-                          <div className="mt-1">
-                            {item.status === 'ok' && <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 border-0">OK</Badge>}
-                            {item.status === 'missing' && <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 border-0">FALTA</Badge>}
-                            {item.status === 'extra' && <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 border-0">EXTRA</Badge>}
-                          </div>
-                        )}
-                      </div>
                     </div>
                     
                   </div>
@@ -796,20 +679,20 @@ export default function TravelReconciliation() {
             </div>
           </div>
         </div>
-        
+
         {/* Rodapé CTA Acerto */}
         {!isViewing && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/80 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
-            <div className="max-w-5xl mx-auto flex flex-col sm:flex-row gap-4 justify-end">
-               <Button variant="outline" onClick={() => setViewMode('list')} className="h-14 sm:w-32 rounded-2xl text-base font-bold hidden sm:flex">
+          <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-background/90 backdrop-blur-xl border-t border-border z-40 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:p-0 sm:mt-8">
+            <div className="max-w-4xl mx-auto flex gap-4">
+               <Button variant="outline" onClick={() => setViewMode('list')} className="h-16 w-32 rounded-3xl text-lg font-bold border-2 border-border hidden sm:flex">
                  Cancelar
                </Button>
                <Button 
                   onClick={handleConfirmReconcile} 
                   disabled={reconcileOrderMutation.isPending} 
-                  className="w-full sm:w-auto h-14 text-lg font-extrabold rounded-2xl bg-amber-600 hover:bg-amber-700 text-white shadow-xl shadow-amber-600/20 px-10 transition-all active:scale-[0.98] disabled:opacity-50"
+                  className="flex-1 h-16 text-xl font-black rounded-3xl bg-amber-500 hover:bg-amber-600 text-white shadow-2xl shadow-amber-500/30 transition-all active:scale-[0.98] disabled:opacity-50"
                 >
-                 {reconcileOrderMutation.isPending ? "A Processar..." : "Concluir Acerto Definitivo"}
+                 {reconcileOrderMutation.isPending ? "A Processar..." : "Fechar Acerto"}
                </Button>
             </div>
           </div>
