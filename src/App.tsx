@@ -411,7 +411,7 @@ const App = () => {
                     <Route
                       path="/producao-3d"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute pageKey="producao_3d">
                           <Store3DProvider>
                             <Layout><Dashboard3D /></Layout>
                           </Store3DProvider>
@@ -421,7 +421,7 @@ const App = () => {
                     <Route
                       path="/producao-3d/catalogo"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute pageKey="producao_3d">
                           <Store3DProvider>
                             <Layout><Catalogo3D /></Layout>
                           </Store3DProvider>
@@ -431,7 +431,7 @@ const App = () => {
                     <Route
                       path="/producao-3d/demandas"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute pageKey="producao_3d">
                           <Store3DProvider>
                             <Layout><Demandas3D /></Layout>
                           </Store3DProvider>
