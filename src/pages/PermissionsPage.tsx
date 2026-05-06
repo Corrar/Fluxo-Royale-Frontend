@@ -18,7 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 // --- TIPAGEM ---
-type PermissionCategory = "Geral" | "Gestão" | "Movimentação" | "Relatórios" | "Administração";
+// ADICIONADA A CATEGORIA "Produção" AQUI
+type PermissionCategory = "Geral" | "Gestão" | "Movimentação" | "Produção" | "Relatórios" | "Administração";
 type ActionType = "view" | "add" | "edit" | "delete";
 
 interface PermissionItem {
@@ -58,6 +59,10 @@ const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "solicitacoes", label: "Gestão Solicitações", category: "Movimentação", description: "Aprovar pedidos", actions: ["view", "edit", "delete"] },
   { key: "minhas_solicitacoes", label: "Meus Pedidos", category: "Movimentação", description: "Criar próprios pedidos", actions: ["view", "add", "delete"] },
   { key: "separacoes", label: "Separações", category: "Movimentação", description: "Fila do almoxarifado", actions: ["view", "edit"] },
+  
+  // ---> MÓDULO DE PRODUÇÃO 3D ADICIONADO AQUI <---
+  { key: "producao_3d", label: "Módulo Produção 3D", category: "Produção", description: "Acesso à Fábrica 3D", actions: ["view", "add", "edit", "delete"] },
+  
   { key: "relatorios", label: "Relatórios BI", category: "Relatórios", description: "Gráficos gerenciais", actions: ["view"] },
   { key: "clientes", label: "Clientes e OPs", category: "Administração", description: "Cadastros base", actions: ["view", "add", "edit", "delete"] },
   { key: "usuarios", label: "Usuários", category: "Administração", description: "Gestão de acessos", actions: ["view", "add", "edit", "delete"] },
