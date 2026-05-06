@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   Home, Package, ShoppingCart, FileText, Users, BarChart3, LogOut, 
   Calculator, Eye, ClipboardList, Bell, ChevronLeft, ChevronRight,
   AlertTriangle, ShieldCheck, Lock, Sparkles, Kanban, Zap, ChevronDown, Search, ArrowUpCircle,
-  Briefcase, RefreshCw, ArchiveRestore, Terminal, Building2
+  Briefcase, RefreshCw, ArchiveRestore, Terminal, Building2,
+  Printer, ArrowLeftRight // <-- Novos ícones para o Módulo 3D
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -91,10 +92,24 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
   const { profile, signOut, canAccess } = useAuth();
   const { unreadCount } = useSocket(); 
   const location = useLocation();
+  const navigate = useNavigate(); // <-- Instanciado para podermos trocar de módulo
 
   // Papéis Base (Algumas rotas dependem da Home principal e ferramentas de admin puro)
   const isAdmin = profile?.role === "admin";
   const isSetor = profile?.role === "setor";
+
+  // --- LÓGICA DE CONTROLE DE MÓDULOS (ESTOQUE vs 3D) ---
+  const has3DAccess = isAdmin || profile?.role === "prototipo" || profile?.role === "engenharia";
+  const is3DModuleActive = location.pathname.startsWith('/producao-3d');
+
+  const toggleModule = () => {
+    if (is3DModuleActive) {
+       navigate('/inicio'); // Volta para o ERP
+    } else {
+       navigate('/producao-3d'); // Vai para a Fábrica 3D
+    }
+  };
+  // -----------------------------------------------------
 
   // Agrupamentos dinâmicos (Verificam se há pelo menos uma permissão para mostrar o bloco todo)
   const showEstoqueGroup = canAccess('produtos') || canAccess('estoque') || canAccess('consultar');
@@ -220,99 +235,150 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
         </div>
       )}
 
+      {/* --- BOTÃO TOGGLE DE MÓDULO --- */}
+      {has3DAccess && (
+        <div className={`px-4 mt-2 mb-2 ${isCollapsed && !isMobileMenu ? "flex justify-center px-2" : ""}`}>
+           <button
+             onClick={toggleModule}
+             title={is3DModuleActive ? "Ir para Estoque ERP" : "Ir para Produção 3D"}
+             className={`flex items-center border border-emerald-200 dark:border-emerald-500/30 transition-all duration-200 active:scale-95 shadow-sm 
+               ${is3DModuleActive ? "bg-emerald-50 dark:bg-emerald-500/10" : "bg-white dark:bg-[#1A1A1A] hover:bg-emerald-50 dark:hover:bg-white/5"}
+               ${isCollapsed && !isMobileMenu ? "w-12 h-12 justify-center rounded-[16px]" : "w-full justify-between p-3 rounded-[16px]"}
+             `}
+           >
+             <div className="flex items-center gap-3">
+               {is3DModuleActive ? (
+                 <Printer className="text-emerald-600 dark:text-emerald-400 h-5 w-5" strokeWidth={2.5} />
+               ) : (
+                 <Package className="text-emerald-600 dark:text-emerald-400 h-5 w-5" strokeWidth={2.5} />
+               )}
+               
+               {!isCollapsed && !isMobileMenu && (
+                 <span className="font-bold text-[13px] text-emerald-700 dark:text-emerald-400">
+                    {is3DModuleActive ? 'Módulo: Produção 3D' : 'Módulo: Estoque ERP'}
+                 </span>
+               )}
+             </div>
+             {!isCollapsed && !isMobileMenu && (
+                <ArrowLeftRight className="h-4 w-4 text-emerald-500 opacity-60" strokeWidth={2.5} />
+             )}
+           </button>
+        </div>
+      )}
+
       {/* NAVEGAÇÃO INTERNA */}
       <ScrollArea className={`flex-1 custom-scrollbar ${isMobileMenu ? "px-0 w-full" : "py-4 px-3"}`}>
         <nav className="flex flex-col gap-1 pb-10 w-full box-border">
           
-          {/* ACESSO RÁPIDO (Apenas Mobile) */}
-          {isMobileMenu && (
-            <div className="mb-6 mt-2 w-full">
-              <span className="text-[13px] font-black text-slate-500 dark:text-slate-400 mb-4 block px-6 tracking-tight uppercase">Acesso Rápido</span>
-              <div className="grid grid-cols-2 gap-3 px-5">
-                {canAccess('produtos') && <QuickAccessCard to="/products" icon={<Package className="h-8 w-8"/>} label="Produtos" onClick={onItemClick} />}
-                {(canAccess('solicitacoes') || canAccess('minhas_solicitacoes')) && <QuickAccessCard to="/requests" icon={<FileText className="h-8 w-8"/>} label="Pedidos" onClick={onItemClick} />}
-                {isAdmin && <QuickAccessCard to="/dev-dashboard" icon={<Terminal className="h-8 w-8 text-blue-500"/>} label="Painel TI" onClick={onItemClick} />}
-                {canAccess('dashboard') && <QuickAccessCard to="/tasks" icon={<Sparkles className="h-8 w-8"/>} label="Tarefas" onClick={onItemClick} />}
-              </div>
-            </div>
-          )}
+          {!is3DModuleActive ? (
+            /* ========================================== */
+            /* MÓDULO: ESTOQUE E ERP PRINCIPAL            */
+            /* ========================================== */
+            <>
+              {/* ACESSO RÁPIDO (Apenas Mobile) */}
+              {isMobileMenu && (
+                <div className="mb-6 mt-2 w-full">
+                  <span className="text-[13px] font-black text-slate-500 dark:text-slate-400 mb-4 block px-6 tracking-tight uppercase">Acesso Rápido</span>
+                  <div className="grid grid-cols-2 gap-3 px-5">
+                    {canAccess('produtos') && <QuickAccessCard to="/products" icon={<Package className="h-8 w-8"/>} label="Produtos" onClick={onItemClick} />}
+                    {(canAccess('solicitacoes') || canAccess('minhas_solicitacoes')) && <QuickAccessCard to="/requests" icon={<FileText className="h-8 w-8"/>} label="Pedidos" onClick={onItemClick} />}
+                    {isAdmin && <QuickAccessCard to="/dev-dashboard" icon={<Terminal className="h-8 w-8 text-blue-500"/>} label="Painel TI" onClick={onItemClick} />}
+                    {canAccess('dashboard') && <QuickAccessCard to="/tasks" icon={<Sparkles className="h-8 w-8"/>} label="Tarefas" onClick={onItemClick} />}
+                  </div>
+                </div>
+              )}
 
-          {/* SESSÃO PRINCIPAL */}
-          {isMobileMenu ? (
-            <NavGroup title="Principal" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
-              {renderLink(isSetor ? "/stock-view" : "/inicio", <Home className="h-6 w-6" strokeWidth={2.2} />, "Início")}
-              {canAccess('dashboard') && renderLink("/", <BarChart3 className="h-6 w-6" strokeWidth={2.2} />, "Dashboard")}
-              {canAccess('dashboard') && renderLink("/tasks", <Sparkles className="h-6 w-6" strokeWidth={2.2} />, "Quadro de Tarefas")}
-              {canAccess('tarefas_eletrica') && renderLink("/tasks-eletrica", <Zap className="h-6 w-6 text-amber-500" strokeWidth={2.2} />, "Quadro Elétrica")}
-              {canAccess('avisos') && renderLink("/reminders", <Bell className="h-6 w-6" strokeWidth={2.2} />, "Avisos")}
-              {canAccess('calculadora') && renderLink("/calculator", <Calculator className="h-6 w-6" strokeWidth={2.2} />, "Calculadora")}
-            </NavGroup>
+              {/* SESSÃO PRINCIPAL */}
+              {isMobileMenu ? (
+                <NavGroup title="Principal" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
+                  {renderLink(isSetor ? "/stock-view" : "/inicio", <Home className="h-6 w-6" strokeWidth={2.2} />, "Início")}
+                  {canAccess('dashboard') && renderLink("/", <BarChart3 className="h-6 w-6" strokeWidth={2.2} />, "Dashboard")}
+                  {canAccess('dashboard') && renderLink("/tasks", <Sparkles className="h-6 w-6" strokeWidth={2.2} />, "Quadro de Tarefas")}
+                  {canAccess('tarefas_eletrica') && renderLink("/tasks-eletrica", <Zap className="h-6 w-6 text-amber-500" strokeWidth={2.2} />, "Quadro Elétrica")}
+                  {canAccess('avisos') && renderLink("/reminders", <Bell className="h-6 w-6" strokeWidth={2.2} />, "Avisos")}
+                  {canAccess('calculadora') && renderLink("/calculator", <Calculator className="h-6 w-6" strokeWidth={2.2} />, "Calculadora")}
+                </NavGroup>
+              ) : (
+                <div className="px-2">
+                  {renderLink(isSetor ? "/stock-view" : "/inicio", <Home className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Início")}
+                  {canAccess('dashboard') && renderLink("/", <BarChart3 className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Dashboard")}
+                  {canAccess('dashboard') && renderLink("/tasks", <Sparkles className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Quadro de Tarefas")}
+                  {canAccess('tarefas_eletrica') && renderLink("/tasks-eletrica", <Zap className="h-[22px] w-[22px] text-amber-500" strokeWidth={2.2} />, "Quadro Elétrica")}
+                  {canAccess('avisos') && renderLink("/reminders", <Bell className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Avisos")}
+                  {canAccess('calculadora') && renderLink("/calculator", <Calculator className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Calculadora")}
+                </div>
+              )}
+
+              {!isCollapsed && !isMobileMenu && <div className="h-6" />}
+              {isCollapsed && !isMobileMenu && <div className="h-2" />}
+
+              {/* GESTÃO ESTOQUE */}
+              {showEstoqueGroup && (
+                <NavGroup title="Estoque" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
+                  <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
+                    {canAccess('produtos') && renderLink("/products", <Package className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Catálogo")}
+                    {canAccess('estoque') && renderLink("/stock", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Movimentação")}
+                    {canAccess('consultar') && renderLink("/stock-view", <Eye className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Visão Geral")}
+                  </div>
+                </NavGroup>
+              )}
+
+              {!isCollapsed && !isMobileMenu && showEstoqueGroup && <div className="h-2" />}
+
+              {/* OPERACIONAL */}
+              {showOperacionalGroup && (
+                <NavGroup title="Operacional" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
+                  <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
+                    {canAccess('solicitacoes') && renderLink("/requests", <FileText className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Solicitações")}
+                    {canAccess('minhas_solicitacoes') && renderLink("/my-requests", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Meus Pedidos")}
+                    {canAccess('separacoes') && renderLink("/separations", <Kanban className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Quadro Gestão")}
+                    {canAccess('reposicoes') && renderLink("/replenishments", <RefreshCw className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Reposições")}
+                    {canAccess('confronto_viagem') && renderLink("/reconciliation", <ClipboardList className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Confronto")}
+                  </div>
+                </NavGroup>
+              )}
+
+              {!isCollapsed && !isMobileMenu && showOperacionalGroup && <div className="h-2" />}
+
+              {/* ADMINISTRAÇÃO */}
+              {showAdminGroup && (
+                <NavGroup title="Gestão Admin" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
+                  <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
+                    
+                    {/* --- MENU DE CLIENTES E OPS --- */}
+                    {canAccess('clientes') && renderLink("/clientes", <Building2 className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Clientes e OPs")}
+
+                    {canAccess('office_dashboard') && renderLink("/office-exits", <Briefcase className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Controle de Saída")}
+                    {canAccess('estoque_critico') && renderLink("/low-stock", <AlertTriangle className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Críticos")}
+                    {canAccess('relatorios') && renderLink("/reports", <BarChart3 className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Relatórios")}
+                    
+                    {canAccess('usuarios') && renderLink("/users", <Users className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Usuários")}
+                    {canAccess('logs') && renderLink("/audit", <ShieldCheck className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Auditoria")}
+                    {canAccess('permissoes') && renderLink("/permissions", <Lock className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Permissões")}
+
+                    {isAdmin && (
+                      <>
+                        {renderLink("/dev-dashboard", <Terminal className={isMobileMenu ? "h-6 w-6 text-blue-500" : "h-[22px] w-[22px] text-blue-500"} strokeWidth={2.2} />, "Painel TI")}
+                        {renderLink("/produtos-arquivados", <ArchiveRestore className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Arquivo Morto")}
+                      </>
+                    )}
+                  </div>
+                </NavGroup>
+              )}
+            </>
           ) : (
-            <div className="px-2">
-              {renderLink(isSetor ? "/stock-view" : "/inicio", <Home className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Início")}
-              {canAccess('dashboard') && renderLink("/", <BarChart3 className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Dashboard")}
-              {canAccess('dashboard') && renderLink("/tasks", <Sparkles className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Quadro de Tarefas")}
-              {canAccess('tarefas_eletrica') && renderLink("/tasks-eletrica", <Zap className="h-[22px] w-[22px] text-amber-500" strokeWidth={2.2} />, "Quadro Elétrica")}
-              {canAccess('avisos') && renderLink("/reminders", <Bell className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Avisos")}
-              {canAccess('calculadora') && renderLink("/calculator", <Calculator className="h-[22px] w-[22px]" strokeWidth={2.2} />, "Calculadora")}
-            </div>
-          )}
-
-          {!isCollapsed && !isMobileMenu && <div className="h-6" />}
-          {isCollapsed && !isMobileMenu && <div className="h-2" />}
-
-          {/* GESTÃO ESTOQUE */}
-          {showEstoqueGroup && (
-            <NavGroup title="Estoque" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
-              <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
-                {canAccess('produtos') && renderLink("/products", <Package className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Catálogo")}
-                {canAccess('estoque') && renderLink("/stock", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Movimentação")}
-                {canAccess('consultar') && renderLink("/stock-view", <Eye className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Visão Geral")}
-              </div>
-            </NavGroup>
-          )}
-
-          {!isCollapsed && !isMobileMenu && showEstoqueGroup && <div className="h-2" />}
-
-          {/* OPERACIONAL */}
-          {showOperacionalGroup && (
-            <NavGroup title="Operacional" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
-              <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
-                {canAccess('solicitacoes') && renderLink("/requests", <FileText className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Solicitações")}
-                {canAccess('minhas_solicitacoes') && renderLink("/my-requests", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Meus Pedidos")}
-                {canAccess('separacoes') && renderLink("/separations", <Kanban className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Quadro Gestão")}
-                {canAccess('reposicoes') && renderLink("/replenishments", <RefreshCw className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Reposições")}
-                {canAccess('confronto_viagem') && renderLink("/reconciliation", <ClipboardList className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Confronto")}
-              </div>
-            </NavGroup>
-          )}
-
-          {!isCollapsed && !isMobileMenu && showOperacionalGroup && <div className="h-2" />}
-
-          {/* ADMINISTRAÇÃO */}
-          {showAdminGroup && (
-            <NavGroup title="Gestão Admin" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
-              <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
-                
-                {/* --- MENU DE CLIENTES E OPS --- */}
-                {canAccess('clientes') && renderLink("/clientes", <Building2 className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Clientes e OPs")}
-
-                {canAccess('office_dashboard') && renderLink("/office-exits", <Briefcase className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Controle de Saída")}
-                {canAccess('estoque_critico') && renderLink("/low-stock", <AlertTriangle className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Críticos")}
-                {canAccess('relatorios') && renderLink("/reports", <BarChart3 className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Relatórios")}
-                
-                {canAccess('usuarios') && renderLink("/users", <Users className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Usuários")}
-                {canAccess('logs') && renderLink("/audit", <ShieldCheck className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Auditoria")}
-                {canAccess('permissoes') && renderLink("/permissions", <Lock className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Permissões")}
-
-                {isAdmin && (
-                  <>
-                    {renderLink("/dev-dashboard", <Terminal className={isMobileMenu ? "h-6 w-6 text-blue-500" : "h-[22px] w-[22px] text-blue-500"} strokeWidth={2.2} />, "Painel TI")}
-                    {renderLink("/produtos-arquivados", <ArchiveRestore className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Arquivo Morto")}
-                  </>
-                )}
-              </div>
-            </NavGroup>
+            /* ========================================== */
+            /* MÓDULO: PRODUÇÃO 3D                        */
+            /* ========================================== */
+            <>
+              <NavGroup title="Fábrica 3D" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
+                <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
+                  {renderLink("/producao-3d", <BarChart3 className={isMobileMenu ? "h-6 w-6 text-emerald-500" : "h-[22px] w-[22px] text-emerald-500"} strokeWidth={2.2} />, "Dashboard Operacional")}
+                  {renderLink("/producao-3d/demandas", <Kanban className={isMobileMenu ? "h-6 w-6 text-orange-500" : "h-[22px] w-[22px] text-orange-500"} strokeWidth={2.2} />, "Quadro de Demandas")}
+                  {renderLink("/producao-3d/catalogo", <Package className={isMobileMenu ? "h-6 w-6 text-blue-500" : "h-[22px] w-[22px] text-blue-500"} strokeWidth={2.2} />, "Catálogo de Peças")}
+                </div>
+              </NavGroup>
+            </>
           )}
 
           {/* BOTÕES DE AÇÃO RODAPÉ MOBILE */}

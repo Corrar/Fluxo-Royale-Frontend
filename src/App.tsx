@@ -43,6 +43,12 @@ import UserProfile from "./pages/UserProfile";
 import DevDashboard from "./pages/DevDashboard";
 import Clients from "./pages/Clients";
 
+// === NOVAS PÁGINAS E CONTEXTO: MÓDULO 3D ===
+import { StoreProvider as Store3DProvider } from "./contexts/Store3DContext";
+import Dashboard3D from "./pages/Producao3D/Dashboard3D";
+import Catalogo3D from "./pages/Producao3D/Catalogo3D";
+import Demandas3D from "./pages/Producao3D/Demandas3D";
+
 // =====================================================================
 // 🛑 CONFIGURAÇÃO GLOBAL DO REACT QUERY - SALVAÇÃO DO NEONDB FREE TIER
 // =====================================================================
@@ -398,6 +404,41 @@ const App = () => {
                         </ProtectedRoute>
                       }
                     />
+
+                    {/* ========================================== */}
+                    {/* 🚀 MÓDULO: FÁBRICA / PRODUÇÃO 3D         */}
+                    {/* ========================================== */}
+                    <Route
+                      path="/producao-3d"
+                      element={
+                        <ProtectedRoute>
+                          <Store3DProvider>
+                            <Layout><Dashboard3D /></Layout>
+                          </Store3DProvider>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/producao-3d/catalogo"
+                      element={
+                        <ProtectedRoute>
+                          <Store3DProvider>
+                            <Layout><Catalogo3D /></Layout>
+                          </Store3DProvider>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/producao-3d/demandas"
+                      element={
+                        <ProtectedRoute>
+                          <Store3DProvider>
+                            <Layout><Demandas3D /></Layout>
+                          </Store3DProvider>
+                        </ProtectedRoute>
+                      }
+                    />
+                    {/* ========================================== */}
 
                     {/* ADMINISTRAÇÃO */}
                     <Route
