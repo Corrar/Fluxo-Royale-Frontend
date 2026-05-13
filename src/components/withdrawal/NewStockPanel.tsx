@@ -6,19 +6,17 @@ import { Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/services/api";
 
-type Item = { id: string; produto: string; quantidade: string };
+type Item = { id: string; produto: string; quantidade: string; product_id?: string };
 type Product = { id: string; name: string; sku: string };
 
-// Subcomponente de Autocompletar Inteligente
-function AutocompleteInput({ value, onChange, products, placeholder }: { value: string, onChange: (v: string) => void, products: Product[], placeholder: string }) {
+function AutocompleteInput({ value, onChange, onSelectProduct, products, placeholder }: { value: string, onChange: (v: string) => void, onSelectProduct: (id: string) => void, products: Product[], placeholder: string }) {
   const [show, setShow] = useState(false);
   
-  // Filtra produtos ignorando maiúsculas/minúsculas pelo Nome ou SKU
   const suggestions = products.filter(p => 
     value.trim().length > 0 && 
     (p.name.toLowerCase().includes(value.toLowerCase()) || 
     (p.sku && p.sku.toLowerCase().includes(value.toLowerCase())))
-  ).slice(0, 6); // Limita a 6 sugestões
+  ).slice(0, 6);
 
   return (
     <div className="relative">
@@ -30,11 +28,10 @@ function AutocompleteInput({ value, onChange, products, placeholder }: { value: 
           setShow(true);
         }}
         onFocus={() => setShow(true)}
-        onBlur={() => setTimeout(() => setShow(false), 200)} // Atraso para permitir clicar na sugestão
+        onBlur={() => setTimeout(() => setShow(false), 200)}
         className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-ring w-full"
       />
       
-      {/* Dropdown de Sugestões (Com design dark e hover dourado) */}
       {show && suggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-2xl overflow-hidden backdrop-blur-xl">
           {suggestions.map((s) => (
@@ -42,6 +39,7 @@ function AutocompleteInput({ value, onChange, products, placeholder }: { value: 
               key={s.id}
               onClick={() => {
                 onChange(s.name);
+                onSelectProduct(s.id);
                 setShow(false);
               }}
               className="px-3 py-2 cursor-pointer text-card-foreground hover:bg-primary hover:text-primary-foreground transition-colors flex justify-between items-center"
@@ -57,11 +55,10 @@ function AutocompleteInput({ value, onChange, products, placeholder }: { value: 
 }
 
 export const NewStockPanel = () => {
-  const [items, setItems] = useState<Item[]>([{ id: crypto.randomUUID(), produto: "", quantidade: "" }]);
+  const [items, setItems] = useState<Item[]>([{ id: crypto.randomUUID(), produto: "", quantidade: "", product_id: "" }]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Busca a lista de produtos reais da tua BD ao abrir o painel
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -80,7 +77,7 @@ export const NewStockPanel = () => {
   const remove = (id: string) => setItems(items.filter((i) => i.id !== id));
   
   const add = () =>
-    setItems([...items, { id: crypto.randomUUID(), produto: "", quantidade: "" }]);
+    setItems([...items, { id: crypto.randomUUID(), produto: "", quantidade: "", product_id: "" }]);
 
   const submit = async () => {
     const valid = items.filter((i) => i.produto && i.quantidade);
@@ -88,18 +85,17 @@ export const NewStockPanel = () => {
 
     setIsSubmitting(true);
     try {
-      // Formata a informação para a tua API
       const payload = valid.map(item => ({
+        product_id: item.product_id || null, // Importante: enviar ID se existir, ou nome
         product_name: item.produto, 
         quantity: Number(item.quantidade),
         type: 'ENTRADA_NFE'
       }));
 
-      // Chama a API de entradas de stock
       await api.post('/stock/entries', { entries: payload });
       
-      toast.success(`${valid.length} produto(s) novos registrados com sucesso!`);
-      setItems([{ id: crypto.randomUUID(), produto: "", quantidade: "" }]); // Limpa formulário
+      toast.success(`${valid.length} produto(s) novos registrados no estoque!`);
+      setItems([{ id: crypto.randomUUID(), produto: "", quantidade: "", product_id: "" }]); 
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao registrar a entrada na base de dados.");
     } finally {
@@ -119,6 +115,7 @@ export const NewStockPanel = () => {
                 placeholder="Nome ou SKU do produto"
                 value={item.produto}
                 onChange={(val) => update(item.id, { produto: val })}
+                onSelectProduct={(productId) => update(item.id, { product_id: productId })}
                 products={products}
               />
             </div>
@@ -159,7 +156,7 @@ export const NewStockPanel = () => {
         onClick={submit} 
         disabled={isSubmitting}
         size="lg" 
-        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg transition-all"
+        className="w-full bg-[#facc15] hover:bg-[#eab308] text-[#1e1b4b] font-bold shadow-lg transition-all"
       >
         {isSubmitting ? <Loader2 className="size-5 mr-2 animate-spin" /> : null}
         Registrar Entrada NFe
