@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type Product = { id: string; name: string; sku: string };
 type Item = { 
   id: string; 
-  product_id: string; // <-- CORREÇÃO: Faltava guardar o ID do produto!
+  product_id: string;
   produto: string; 
   sku: string; 
   quantidade: string; 
@@ -110,7 +110,7 @@ export const NewStockPanel = () => {
 
   const handleSelectProduct = (id: string, product: Product) => {
     updateItem(id, { 
-      product_id: product.id, // <-- CORREÇÃO: Agora guardamos o ID real
+      product_id: product.id, 
       produto: product.name, 
       sku: product.sku, 
       isValid: true 
@@ -130,7 +130,6 @@ export const NewStockPanel = () => {
 
     setIsSubmitting(true);
     try {
-      // CORREÇÃO: O payload agora envia o product_id para a API
       const payload = items.map(i => ({
         product_id: i.product_id, 
         product_name: i.produto,
@@ -220,7 +219,7 @@ export const NewStockPanel = () => {
           onClick={submit} 
           disabled={!canSubmit || isSubmitting}
           size="lg" 
-          className="w-full bg-[#facc15] hover:bg-[#eab308] text-[#1e1b4b] font-bold shadow-[0_10px_20px_rgba(250,204,21,0.2)] transition-all disabled:opacity-50 disabled:grayscale"
+          className="w-full bg-[#facc15] hover:bg-[#eab308] text-[#1e1b4b] font-bold shadow-[0_10px_20px_rgba(250,204,21,0.2)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <Loader2 className="size-5 animate-spin" />
