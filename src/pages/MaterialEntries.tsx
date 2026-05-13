@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ScrollParticles } from "@/components/ScrollParticles";
-import { ThemeToggle } from "@/components/ThemeToggle"; // CORRIGIDO AQUI
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,6 @@ function Hero({ active, setActive }: { active: string; setActive: (v: string) =>
       <div className="absolute -top-32 -right-32 size-96 rounded-full blur-3xl opacity-30" style={{ background: "var(--gradient-accent)" }} />
       <div className="relative max-w-6xl mx-auto px-6 py-24">
         
-        {/* CORRIGIDO AQUI - Usar ThemeToggle em vez de ModeToggle */}
         <div className="absolute top-6 right-6">
           <ThemeToggle />
         </div>
@@ -72,12 +71,14 @@ function Hero({ active, setActive }: { active: string; setActive: (v: string) =>
           </div>
         </div>
       </div>
+      
+      {/* O DEGRADÊ DE TRANSIÇÃO ESTÁ AQUI */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 -bottom-1 h-72"
         style={{
           background:
-            "linear-gradient(to bottom, transparent 0%, color-mix(in oklab, var(--background) 15%, transparent) 25%, color-mix(in oklab, var(--background) 45%, transparent) 55%, color-mix(in oklab, var(--background) 80%, transparent) 80%, var(--background) 100%)",
+            "linear-gradient(to bottom, transparent 0%, hsl(var(--background) / 0.15) 25%, hsl(var(--background) / 0.45) 55%, hsl(var(--background) / 0.8) 80%, hsl(var(--background)) 100%)",
         }}
       />
     </section>
