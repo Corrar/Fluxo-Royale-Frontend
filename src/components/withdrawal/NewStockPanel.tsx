@@ -100,7 +100,8 @@ export const NewStockPanel = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    api.get('/products').then(res => setProducts(response.data)).catch(() => {});
+    // CORRIGIDO: res.data em vez de response.data
+    api.get('/products').then(res => setProducts(res.data)).catch(() => {});
   }, []);
 
   const updateItem = (id: string, patch: Partial<Item>) => {
