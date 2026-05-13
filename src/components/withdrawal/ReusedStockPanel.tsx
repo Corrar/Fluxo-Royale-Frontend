@@ -1,14 +1,78 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Recycle } from "lucide-react";
+import { Plus, Trash2, Recycle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/services/api";
 
 type Item = { id: string; produto: string; quantidade: string };
+type Product = { id: string; name: string; sku: string };
+
+// Subcomponente de Autocompletar Inteligente
+function AutocompleteInput({ value, onChange, products, placeholder }: { value: string, onChange: (v: string) => void, products: Product[], placeholder: string }) {
+  const [show, setShow] = useState(false);
+  
+  // Filtra produtos ignorando maiúsculas/minúsculas pelo Nome ou SKU
+  const suggestions = products.filter(p => 
+    value.trim().length > 0 && 
+    (p.name.toLowerCase().includes(value.toLowerCase()) || 
+    (p.sku && p.sku.toLowerCase().includes(value.toLowerCase())))
+  ).slice(0, 6); // Limita a 6 sugestões
+
+  return (
+    <div className="relative">
+      <Input
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setShow(true);
+        }}
+        onFocus={() => setShow(true)}
+        onBlur={() => setTimeout(() => setShow(false), 200)} // Atraso para permitir clicar na sugestão
+        className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-ring w-full"
+      />
+      
+      {/* Dropdown de Sugestões */}
+      {show && suggestions.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-2xl overflow-hidden backdrop-blur-xl">
+          {suggestions.map((s) => (
+            <div
+              key={s.id}
+              onClick={() => {
+                onChange(s.name);
+                setShow(false);
+              }}
+              className="px-3 py-2 cursor-pointer text-card-foreground hover:bg-primary hover:text-primary-foreground transition-colors flex justify-between items-center"
+            >
+              <span className="font-medium text-sm truncate">{s.name}</span>
+              {s.sku && <span className="text-xs opacity-75 ml-2 shrink-0">{s.sku}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const ReusedStockPanel = () => {
   const [items, setItems] = useState<Item[]>([{ id: crypto.randomUUID(), produto: "", quantidade: "" }]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Busca a lista de produtos reais da tua BD ao abrir o painel
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await api.get('/products');
+        setProducts(response.data);
+      } catch (error) {
+        console.error("Erro ao carregar lista de produtos:", error);
+      }
+    };
+    fetchProducts();
+  }, []);
 
   const update = (id: string, patch: Partial<Item>) =>
     setItems(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
@@ -18,18 +82,36 @@ export const ReusedStockPanel = () => {
   const add = () =>
     setItems([...items, { id: crypto.randomUUID(), produto: "", quantidade: "" }]);
 
-  const submit = () => {
+  const submit = async () => {
     const valid = items.filter((i) => i.produto && i.quantidade);
-    if (!valid.length) return toast.error("Adicione ao menos um produto válido");
-    
-    // Futura integração com a tua API para Sucatas/Reaproveitamento
-    toast.success(`${valid.length} item(ns) classificados como reaproveitados no sistema`);
-    setItems([{ id: crypto.randomUUID(), produto: "", quantidade: "" }]);
+    if (!valid.length) return toast.error("Adicione ao menos um produto válido com quantidade.");
+
+    setIsSubmitting(true);
+    try {
+      // PREPARAÇÃO DO PAYLOAD E CHAMADA REAL À API
+      const payload = valid.map(item => ({
+        product_name: item.produto, 
+        quantity: Number(item.quantidade),
+        type: 'REAPROVEITAMENTO',
+        observation: 'Custo Zero'
+      }));
+
+      // Chama a API de entradas de stock
+      await api.post('/stock/entries', { entries: payload });
+      
+      toast.success(`${valid.length} item(ns) classificados como reaproveitados no sistema!`);
+      setItems([{ id: crypto.randomUUID(), produto: "", quantidade: "" }]); // Limpa formulário
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao registrar o reaproveitamento na base de dados.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-500/20 text-sm animate-in fade-in">
+      {/* Banner de Aviso (A usar as cores do tema) */}
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary border border-primary/20 text-sm animate-in fade-in">
         <Recycle className="size-5 shrink-0" />
         <p>Materiais inseridos aqui serão automaticamente classificados como <strong>Reaproveitados (Custo Zero)</strong>.</p>
       </div>
@@ -37,24 +119,27 @@ export const ReusedStockPanel = () => {
       <div className="space-y-3">
         {items.map((item, idx) => (
           <div key={item.id} className="flex gap-3 items-end animate-in fade-in slide-in-from-bottom-2 duration-300">
+            
+            {/* CAMPO DE PRODUTO COM AUTOCOMPLETE */}
             <div className="flex-1">
-              {idx === 0 && <Label className="mb-2 block text-muted-foreground">Produto Resgatado</Label>}
-              <Input
-                placeholder="Ex: Bomba de Água Usada"
+              {idx === 0 && <Label className="mb-2 block text-foreground font-medium">Produto Resgatado</Label>}
+              <AutocompleteInput
+                placeholder="Nome ou SKU do produto"
                 value={item.produto}
-                onChange={(e) => update(item.id, { produto: e.target.value })}
-                className="bg-background/50 focus:bg-background transition-colors"
+                onChange={(val) => update(item.id, { produto: val })}
+                products={products}
               />
             </div>
+
             <div className="w-32">
-              {idx === 0 && <Label className="mb-2 block text-muted-foreground">Quantidade</Label>}
+              {idx === 0 && <Label className="mb-2 block text-foreground font-medium">Quantidade</Label>}
               <Input
                 type="number"
                 min="0"
                 placeholder="0"
                 value={item.quantidade}
                 onChange={(e) => update(item.id, { quantidade: e.target.value })}
-                className="bg-background/50 focus:bg-background transition-colors"
+                className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-ring"
               />
             </div>
             <Button
@@ -62,23 +147,29 @@ export const ReusedStockPanel = () => {
               size="icon"
               onClick={() => remove(item.id)}
               disabled={items.length === 1}
-              className="hover:bg-destructive/10 hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="size-4" />
             </Button>
           </div>
         ))}
         
-        <Button variant="outline" onClick={add} className="w-full border-dashed mt-2">
+        <Button 
+          variant="outline" 
+          onClick={add} 
+          className="w-full border-input bg-transparent text-foreground hover:bg-muted hover:text-foreground mt-2"
+        >
           <Plus className="size-4 mr-2" /> Adicionar material
         </Button>
       </div>
 
       <Button 
         onClick={submit} 
+        disabled={isSubmitting}
         size="lg" 
-        className="w-full bg-[#facc15] hover:bg-[#eab308] text-[#1e1b4b] font-bold text-base shadow-lg hover:shadow-xl transition-all"
+        className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg transition-all"
       >
+        {isSubmitting ? <Loader2 className="size-5 mr-2 animate-spin" /> : null}
         Registrar Reaproveitamento
       </Button>
     </div>
