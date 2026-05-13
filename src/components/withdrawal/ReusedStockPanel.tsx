@@ -29,7 +29,7 @@ function AutocompleteInput({ value, onChange, onSelectProduct, products, placeho
         }}
         onFocus={() => setShow(true)}
         onBlur={() => setTimeout(() => setShow(false), 200)}
-        className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-ring w-full"
+        className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-[#facc15] w-full"
       />
       
       {show && suggestions.length > 0 && (
@@ -42,7 +42,8 @@ function AutocompleteInput({ value, onChange, onSelectProduct, products, placeho
                 onSelectProduct(s.id);
                 setShow(false);
               }}
-              className="px-3 py-2 cursor-pointer text-card-foreground hover:bg-primary hover:text-primary-foreground transition-colors flex justify-between items-center"
+              /* Destaque Amarelo/Preto no Autocomplete */
+              className="px-3 py-2 cursor-pointer text-card-foreground hover:bg-[#facc15] hover:text-[#1e1b4b] transition-colors flex justify-between items-center"
             >
               <span className="font-medium text-sm truncate">{s.name}</span>
               {s.sku && <span className="text-xs opacity-75 ml-2 shrink-0">{s.sku}</span>}
@@ -106,9 +107,11 @@ export const ReusedStockPanel = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary border border-primary/20 text-sm animate-in fade-in">
+      
+      {/* AVISO TOTALMENTE AMARELO AQUI */}
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-[#facc15]/10 text-[#facc15] border border-[#facc15]/20 text-sm animate-in fade-in">
         <Recycle className="size-5 shrink-0" />
-        <p>Materiais inseridos aqui serão automaticamente classificados como <strong>Reaproveitados (Custo Zero)</strong>.</p>
+        <p>Materiais inseridos aqui serão automaticamente classificados como <strong className="font-bold">Reaproveitados (Custo Zero)</strong>.</p>
       </div>
 
       <div className="space-y-3">
@@ -134,7 +137,7 @@ export const ReusedStockPanel = () => {
                 placeholder="0"
                 value={item.quantidade}
                 onChange={(e) => update(item.id, { quantidade: e.target.value })}
-                className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-ring"
+                className="border-input bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-[#facc15]"
               />
             </div>
             <Button
@@ -158,6 +161,7 @@ export const ReusedStockPanel = () => {
         </Button>
       </div>
 
+      {/* BOTÃO PRINCIPAL PRETO E AMARELO */}
       <Button 
         onClick={submit} 
         disabled={isSubmitting}
