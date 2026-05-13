@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 type Product = { id: string; name: string; sku: string };
 type Item = { 
   id: string; 
+  product_id: string; // <-- CORREÇÃO: Faltava guardar o ID do produto!
   produto: string; 
   sku: string; 
   quantidade: string; 
@@ -94,13 +95,12 @@ function AutocompleteInput({
 
 export const NewStockPanel = () => {
   const [items, setItems] = useState<Item[]>([
-    { id: crypto.randomUUID(), produto: "", sku: "", quantidade: "", isValid: false }
+    { id: crypto.randomUUID(), product_id: "", produto: "", sku: "", quantidade: "", isValid: false }
   ]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // CORRIGIDO: res.data em vez de response.data
     api.get('/products').then(res => setProducts(res.data)).catch(() => {});
   }, []);
 
@@ -110,6 +110,7 @@ export const NewStockPanel = () => {
 
   const handleSelectProduct = (id: string, product: Product) => {
     updateItem(id, { 
+      product_id: product.id, // <-- CORREÇÃO: Agora guardamos o ID real
       produto: product.name, 
       sku: product.sku, 
       isValid: true 
@@ -119,7 +120,7 @@ export const NewStockPanel = () => {
   const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
   const addItem = () => setItems([...items, { 
-    id: crypto.randomUUID(), produto: "", sku: "", quantidade: "", isValid: false 
+    id: crypto.randomUUID(), product_id: "", produto: "", sku: "", quantidade: "", isValid: false 
   }]);
 
   const canSubmit = items.every(i => i.isValid && Number(i.quantidade) > 0);
@@ -129,7 +130,9 @@ export const NewStockPanel = () => {
 
     setIsSubmitting(true);
     try {
+      // CORREÇÃO: O payload agora envia o product_id para a API
       const payload = items.map(i => ({
+        product_id: i.product_id, 
         product_name: i.produto,
         sku: i.sku,
         quantity: Number(i.quantidade),
@@ -138,7 +141,7 @@ export const NewStockPanel = () => {
 
       await api.post('/stock/entries', { entries: payload });
       toast.success("Entrada registrada com sucesso!");
-      setItems([{ id: crypto.randomUUID(), produto: "", sku: "", quantidade: "", isValid: false }]);
+      setItems([{ id: crypto.randomUUID(), product_id: "", produto: "", sku: "", quantidade: "", isValid: false }]);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro na conexão com a base de dados.");
     } finally {
@@ -158,7 +161,7 @@ export const NewStockPanel = () => {
                 placeholder="Digite o nome do material..."
                 value={item.produto}
                 isValid={item.isValid}
-                onChange={(val) => updateItem(item.id, { produto: val, isValid: false })}
+                onChange={(val) => updateItem(item.id, { produto: val, isValid: false, product_id: "" })}
                 onSelect={(p) => handleSelectProduct(item.id, p)}
                 products={products}
               />
