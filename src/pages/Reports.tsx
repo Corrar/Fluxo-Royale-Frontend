@@ -266,7 +266,7 @@ export default function Reports() {
   const [custoGarantia, setCustoGarantia] = useState<string>("0");
 
   const [searchEntradas, setSearchEntradas] = useState("");
-  const [filtroCategoriaEntrada, setFiltroCategoriaEntrada] = useState(""); // <-- NOVO FILTRO DE ENTRADAS
+  const [filtroCategoriaEntrada, setFiltroCategoriaEntrada] = useState("");
 
   const [searchSaidas, setSearchSaidas] = useState("");
   const [filtroCategoriaSaida, setFiltroCategoriaSaida] = useState("");
@@ -279,7 +279,8 @@ export default function Reports() {
       const response = await api.get("/reports/general", { params: { startDate, endDate, includeAllTimeOps: true } });
       return response.data;
     },
-    refetchOnWindowFocus: false
+    refetchOnMount: true, // 🟢 GARANTE QUE RECARREGA OS DADOS SEMPRE QUE ABRES A PÁGINA (SEM PRECISAR DE F5)
+    staleTime: 0          // 🟢 OS DADOS EXPIRAM LOGO PARA GARANTIR LEITURA FRESCA
   });
 
   const { data: travelOrders = [] } = useQuery({
@@ -322,7 +323,6 @@ export default function Reports() {
     return 'outros';
   };
 
-  // --- NOVA FUNÇÃO PARA IDENTIFICAR A ORIGEM DA ENTRADA BASEADA NO 'origem_nome' DO XML_LOGS ---
   const obterCategoriaEntrada = (item: any) => {
       const origemNome = String(item.origem_nome || item.origem || item.file_name || "").toLowerCase();
       
@@ -336,7 +336,6 @@ export default function Reports() {
           return 'viagem';
       }
       
-      // Se não for nenhum dos anteriores, assumimos que é a Entrada Manual Antiga Padrão
       return 'manual'; 
   };
 
@@ -412,8 +411,38 @@ export default function Reports() {
     const estoque = reportData.estoque || []; 
     const compMesAnterior = reportData.comparativo_mes_anterior || { entradas: 0, saidas: 0 };
 
+    const getPrecoEstoque = (produtoNome: string) => {
+        const itemEstoque = estoque.find((e:any) => 
+            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() || 
+            e.name?.trim().toLowerCase() === produtoNome?.trim().toLowerCase()
+        );
+        return Number(itemEstoque?.preco) || 0;
+    };
+
     const valorTotalEstoque = estoque.reduce((acc: number, item: any) => acc + (Number(item.quantidade_total || item.quantidade || 0) * Number(item.preco || 0)), 0);
     
+    // 🟢 MATEMÁTICA DA SEPARAÇÃO DE VALORES DE ENTRADA
+    let valorEntradasNFe = 0;
+    let valorEntradasReuso = 0;
+    let valorEntradasManuais = 0;
+
+    todasEntradas.forEach((cur: any) => {
+        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        const valTotalItem = Number(cur.quantidade) * preco;
+        const categoria = obterCategoriaEntrada(cur);
+
+        if (categoria === 'nfe') valorEntradasNFe += valTotalItem;
+        else if (categoria === 'reaproveitamento') valorEntradasReuso += valTotalItem;
+        else valorEntradasManuais += valTotalItem;
+    });
+
+    const valorTotalEntradas = valorEntradasNFe + valorEntradasReuso + valorEntradasManuais;
+
+    const valorTotalSaidas = todasSaidas.reduce((acc: number, cur: any) => {
+        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        return acc + (Number(cur.quantidade) * preco);
+    }, 0);
+
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
@@ -459,24 +488,6 @@ export default function Reports() {
         .map(([produto, count]) => ({ produto, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
-
-    const getPrecoEstoque = (produtoNome: string) => {
-        const itemEstoque = estoque.find((e:any) => 
-            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() || 
-            e.name?.trim().toLowerCase() === produtoNome?.trim().toLowerCase()
-        );
-        return Number(itemEstoque?.preco) || 0;
-    };
-
-    const valorTotalEntradas = todasEntradas.reduce((acc: number, cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
-        return acc + (Number(cur.quantidade) * preco);
-    }, 0);
-
-    const valorTotalSaidas = todasSaidas.reduce((acc: number, cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
-        return acc + (Number(cur.quantidade) * preco);
-    }, 0);
 
     const valorPorSetorMap = new Map();
     const saidasParaSetor = [...saidasSistemaPuras, ...saidasManuaisPuras];
@@ -595,6 +606,9 @@ export default function Reports() {
       opsSaidaTotal: saidasManuaisPuras.length + saidasSistemaPuras.length, 
       saidasSolicitacaoTotal: saidasSistemaPuras.length,
       saidasManuaisTotal: saidasManuaisPuras.length, 
+      valorEntradasNFe,
+      valorEntradasReuso,
+      valorEntradasManuais,
       valorTotalEntradas,
       valorTotalSaidas,   
       chartData,
@@ -953,13 +967,11 @@ export default function Reports() {
     }
   };
 
-  // --- O FILTRO APLICADO ÀS SAÍDAS ---
   const saidasExibidas = analytics?.raw.saidasFiltradas.filter((item: any) => {
     if (!filtroCategoriaSaida) return true;
     return obterCategoriaSaida(item) === filtroCategoriaSaida;
   }) || [];
 
-  // --- O FILTRO APLICADO ÀS ENTRADAS ---
   const entradasExibidas = analytics?.raw.entradasFiltradas.filter((item: any) => {
     if (!filtroCategoriaEntrada) return true;
     return obterCategoriaEntrada(item) === filtroCategoriaEntrada;
@@ -1091,18 +1103,32 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="movimentacoes" className={tabContentClass}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 🟢 OS VALORES DE ENTRADA AGORA ESTÃO SEPARADOS AQUI! */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard 
-                  title="Valor Movimentado (Entrada)" 
-                  value={formatCurrency(analytics?.valorTotalEntradas || 0)} 
-                  subtext="Custo total de produtos recebidos" 
-                  icon={ArrowDownToLine} iconColor="text-emerald-600 dark:text-emerald-400" 
-                  trend="up" trendValue="Positivo"
+                  title="Entradas NFe" 
+                  value={formatCurrency(analytics?.valorEntradasNFe || 0)} 
+                  subtext="Compras faturadas" 
+                  icon={Receipt} iconColor="text-emerald-600 dark:text-emerald-400" 
+                  trend="up" trendValue="Custo"
               />
               <KPICard 
-                  title="Valor Movimentado (Saída)" 
+                  title="Valor Poupado (Reuso)" 
+                  value={formatCurrency(analytics?.valorEntradasReuso || 0)} 
+                  subtext="Materiais reaproveitados" 
+                  icon={Recycle} iconColor="text-amber-600 dark:text-amber-500" 
+                  trend="up" trendValue="Economia"
+              />
+              <KPICard 
+                  title="Entradas Manuais" 
+                  value={formatCurrency(analytics?.valorEntradasManuais || 0)} 
+                  subtext="Outras origens" 
+                  icon={FileBox} iconColor="text-blue-600 dark:text-blue-400" 
+              />
+              <KPICard 
+                  title="Custo de Saída" 
                   value={formatCurrency(analytics?.valorTotalSaidas || 0)} 
-                  subtext="Custo total de produtos expedidos" 
+                  subtext="Materiais expedidos" 
                   icon={ArrowUpFromLine} iconColor="text-rose-600 dark:text-rose-400" 
                   trend="down" trendValue="Consumo"
               />
@@ -1110,7 +1136,6 @@ export default function Reports() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 
-                {/* 🟢 CARD DE ENTRADAS (AGORA COM FILTRO DE REUSO/NFE) */}
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
                         <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
@@ -1199,7 +1224,6 @@ export default function Reports() {
                     </CardContent>
                 </Card>
 
-                {/* 🔴 CARD DE SAÍDAS (MANTIDO) */}
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
                         <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
