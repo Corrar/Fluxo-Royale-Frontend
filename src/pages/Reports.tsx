@@ -16,7 +16,7 @@ import {
   Package, ArrowUpRight, ArrowDownRight, Archive, Calendar as CalendarIcon,
   DollarSign, Clock, BarChart3, Zap, ShieldAlert, Receipt,
   ArrowDownToLine, ArrowUpFromLine, Search, Briefcase, Construction, Layers, Plane,
-  AlertTriangle, AlertOctagon, Lock
+  AlertTriangle, AlertOctagon, Lock, Recycle, FileBox
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -40,14 +40,14 @@ const C_AMARELO_OURO: [number, number, number] = [234, 179, 8];
 const C_TEXTO_ESCURO: [number, number, number] = [51, 65, 85]; 
 
 const COLORS = {
-    entradas: '#10b981', 
-    saidas: '#6366f1',   
-    manuais: '#f59e0b',  
+  entradas: '#10b981', 
+  saidas: '#6366f1',   
+  manuais: '#f59e0b',  
 };
 
 const CHART_PALETTE = [
-    '#820ad1', '#06b6d4', '#f59e0b', '#ec4899', '#3b82f6', 
-    '#10b981', '#f43f5e', '#8b5cf6', '#14b8a6', '#f97316',
+  '#820ad1', '#06b6d4', '#f59e0b', '#ec4899', '#3b82f6', 
+  '#10b981', '#f43f5e', '#8b5cf6', '#14b8a6', '#f97316',
 ];
 
 const formatCurrency = (value: number) => {
@@ -266,6 +266,8 @@ export default function Reports() {
   const [custoGarantia, setCustoGarantia] = useState<string>("0");
 
   const [searchEntradas, setSearchEntradas] = useState("");
+  const [filtroCategoriaEntrada, setFiltroCategoriaEntrada] = useState(""); // <-- NOVO FILTRO DE ENTRADAS
+
   const [searchSaidas, setSearchSaidas] = useState("");
   const [filtroCategoriaSaida, setFiltroCategoriaSaida] = useState("");
 
@@ -318,6 +320,24 @@ export default function Reports() {
     if (item.origem_tipo === 'MANUAL') return 'manual';
 
     return 'outros';
+  };
+
+  // --- NOVA FUNÇÃO PARA IDENTIFICAR A ORIGEM DA ENTRADA BASEADA NO 'origem_nome' DO XML_LOGS ---
+  const obterCategoriaEntrada = (item: any) => {
+      const origemNome = String(item.origem_nome || item.origem || item.file_name || "").toLowerCase();
+      
+      if (origemNome.includes("reaproveitamento") || origemNome.includes("reuso") || item.origem_tipo === 'REAPROVEITAMENTO') {
+          return 'reaproveitamento';
+      }
+      if (origemNome.includes("nfe") || origemNome.includes("fatura") || item.origem_tipo === 'ENTRADA_NFE') {
+          return 'nfe';
+      }
+      if (item.origem_tipo === 'CONFRONTO') {
+          return 'viagem';
+      }
+      
+      // Se não for nenhum dos anteriores, assumimos que é a Entrada Manual Antiga Padrão
+      return 'manual'; 
   };
 
   const analytics = useMemo(() => {
@@ -591,7 +611,7 @@ export default function Reports() {
       estoqueCritico,
       top10Valor,
       top10Movimentados,
-      getPrecoEstoque, // 🟢 AQUI: Expomos a função para ser usada pelo Excel
+      getPrecoEstoque, 
       comparativo: {
           entradas: entradasPuras.length,
           saidas: saidasManuaisPuras.length + saidasSistemaPuras.length,
@@ -615,7 +635,6 @@ export default function Reports() {
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryData), "Resumo");
 
-    // 🟢 AQUI: Adicionamos as colunas de "Valor Unitário" e "Valor Total" nas Entradas
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasEntradas.map(i => {
         const preco = Number(i.preco_unitario) || analytics.getPrecoEstoque(i.produto);
         const total = Number(i.quantidade) * preco;
@@ -630,7 +649,6 @@ export default function Reports() {
         };
     })), "Entradas Completas");
     
-    // 🟢 AQUI: Adicionamos as colunas de "Valor Unitário" e "Valor Total" nas Saídas
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics.raw.todasSaidas.map(i => {
         const categoria = obterCategoriaSaida(i);
         let tipoDisplay = 'Manual';
@@ -935,9 +953,16 @@ export default function Reports() {
     }
   };
 
+  // --- O FILTRO APLICADO ÀS SAÍDAS ---
   const saidasExibidas = analytics?.raw.saidasFiltradas.filter((item: any) => {
     if (!filtroCategoriaSaida) return true;
     return obterCategoriaSaida(item) === filtroCategoriaSaida;
+  }) || [];
+
+  // --- O FILTRO APLICADO ÀS ENTRADAS ---
+  const entradasExibidas = analytics?.raw.entradasFiltradas.filter((item: any) => {
+    if (!filtroCategoriaEntrada) return true;
+    return obterCategoriaEntrada(item) === filtroCategoriaEntrada;
   }) || [];
 
   const tabContentClass = "space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-4 duration-500 ease-out";
@@ -1084,50 +1109,100 @@ export default function Reports() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                
+                {/* 🟢 CARD DE ENTRADAS (AGORA COM FILTRO DE REUSO/NFE) */}
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base flex items-center justify-between gap-4 font-bold">
+                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
                             <div className="flex items-center gap-2 shrink-0">
                                 <ArrowDownToLine className="h-4 w-4 text-emerald-500" />
                                 Entradas Registradas
                             </div>
-                            <div className="relative w-full max-w-[12rem] hidden sm:block">
-                                <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="Buscar produto..." className="pl-8 h-8 text-xs bg-white dark:bg-slate-950" value={searchEntradas} onChange={(e) => setSearchEntradas(e.target.value)} />
+                            
+                            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                <select 
+                                    value={filtroCategoriaEntrada}
+                                    onChange={(e) => setFiltroCategoriaEntrada(e.target.value)}
+                                    className="flex-1 sm:flex-none h-8 text-xs border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-slate-950 px-2 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-shadow"
+                                >
+                                    <option value="">Todas Entradas</option>
+                                    <option value="nfe">Entrada NFe</option>
+                                    <option value="reaproveitamento">Reaproveitamentos</option>
+                                    <option value="manual">Manual / Antigas</option>
+                                    <option value="viagem">Acerto Viagem</option>
+                                </select>
+                                <div className="relative flex-1 sm:flex-none max-w-[8rem] sm:max-w-[10rem]">
+                                    <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="Buscar produto..." className="pl-8 h-8 text-xs bg-white dark:bg-slate-950" value={searchEntradas} onChange={(e) => setSearchEntradas(e.target.value)} />
+                                </div>
                             </div>
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
-                        {analytics?.raw.entradasFiltradas.map((item: any, idx: number) => {
-                            const isConfronto = item.origem_tipo === 'CONFRONTO';
+                        {entradasExibidas.map((item: any, idx: number) => {
+                            const categoria = obterCategoriaEntrada(item);
+                            
+                            let corDestaque = "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40";
+                            let BadgeIcon = ArrowDownToLine;
+                            let badgeLabel = "Entrada Padrão";
+                            let badgeClasses = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+
+                            switch (categoria) {
+                                case 'reaproveitamento':
+                                    corDestaque = "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30 shadow-sm";
+                                    BadgeIcon = Recycle;
+                                    badgeLabel = "Reaproveitamento (Custo Zero)";
+                                    badgeClasses = "bg-[#facc15]/20 text-[#b45309] hover:bg-[#facc15]/30 dark:bg-[#facc15]/10 dark:text-[#facc15]";
+                                    break;
+                                case 'nfe':
+                                    corDestaque = "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/30 shadow-sm";
+                                    BadgeIcon = Receipt;
+                                    badgeLabel = "Entrada via NFe";
+                                    badgeClasses = "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300";
+                                    break;
+                                case 'viagem':
+                                    corDestaque = "bg-violet-50/80 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/30 shadow-sm";
+                                    BadgeIcon = Plane;
+                                    badgeLabel = `Acerto Viagem: ${item.detalhes_confronto?.city}`;
+                                    badgeClasses = "bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300";
+                                    break;
+                                case 'manual':
+                                    BadgeIcon = FileBox;
+                                    badgeLabel = "Entrada Manual";
+                                    break;
+                            }
+
                             return (
                                 <div key={idx} className={cn(
                                     "flex justify-between items-start text-sm border-b pb-3 mb-3 last:border-0 p-3 -mx-3 rounded-2xl transition-colors",
-                                    isConfronto ? "bg-violet-50/80 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/30 shadow-sm" : "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                                    corDestaque
                                 )}>
                                     <div className="flex flex-col gap-0.5 w-[70%]">
                                         <span className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={item.produto}>{item.produto}</span>
-                                        {isConfronto ? (
-                                            <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300 border-0 mt-1 gap-1 px-2 py-0 w-max shadow-none">
-                                                <Plane className="w-3 h-3" /> Acerto Viagem: {item.detalhes_confronto?.city}
-                                            </Badge>
-                                        ) : (
-                                            <span className="text-xs text-muted-foreground">Origem: {item.origem || 'Fornecedor'}</span>
-                                        )}
+                                        <Badge className={cn("border-0 mt-1 gap-1 px-2 py-0 w-max shadow-none", badgeClasses)}>
+                                            <BadgeIcon className="w-3 h-3" /> {badgeLabel}
+                                        </Badge>
                                     </div>
                                     <div className="flex flex-col items-end shrink-0">
                                         <span className="font-bold text-emerald-600 dark:text-emerald-400">+{item.quantidade} un.</span>
-                                        <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(item.data), 'dd/MM/yyyy HH:mm')}</span>
+                                        <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(item.data || item.created_at), 'dd/MM/yyyy HH:mm')}</span>
                                     </div>
                                 </div>
                             );
                         })}
+                        {entradasExibidas.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                <Archive className="w-8 h-8 mb-2 opacity-30" />
+                                <p className="text-sm font-medium">Nenhuma entrada encontrada nesta categoria.</p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
+                {/* 🔴 CARD DE SAÍDAS (MANTIDO) */}
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base flex flex-wrap items-center justify-between gap-4 font-bold">
+                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
                             <div className="flex items-center gap-2 shrink-0">
                                 <ArrowUpFromLine className="h-4 w-4 text-rose-500" />
                                 Saídas Registradas
@@ -1346,7 +1421,6 @@ export default function Reports() {
            </div>
         </TabsContent>
 
-        {/* 🟢 ABA: VALOR POR OP */}
         <TabsContent value="valor-op" className={tabContentClass}>
             <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
                 <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
