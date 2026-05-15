@@ -44,6 +44,8 @@ const COLORS = {
   entradas: '#10b981', // Emerald
   saidas: '#6366f1',   // Indigo
   manuais: '#f59e0b',  // Amber
+  prod3d: '#3b82f6',   // Blue
+  reposicoes: '#8b5cf6'// Purple
 };
 
 const CHART_PALETTE = [
@@ -81,6 +83,39 @@ const getBase64FromUrl = async (url: string): Promise<string> => {
 };
 
 // --- COMPONENTES UI REFINADOS ---
+
+// Tooltip Glassmorphism Premium para o Gráfico de Barras Principal
+const GlassTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 p-5 rounded-2xl shadow-2xl z-50 min-w-[220px]">
+                <p className="font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider text-[11px] pb-2 border-b border-slate-200 dark:border-slate-800">{label}</p>
+                <div className="flex flex-col gap-3">
+                    {payload.map((entry: any, index: number) => {
+                        // Extrai a cor base para evitar passar "url(#id)" para o style de background
+                        let bgColor = entry.fill;
+                        if (bgColor.includes('url(#colorEntradas)')) bgColor = COLORS.entradas;
+                        if (bgColor.includes('url(#colorSaidas)')) bgColor = COLORS.saidas;
+                        if (bgColor.includes('url(#colorManuais)')) bgColor = COLORS.manuais;
+                        if (bgColor.includes('url(#colorProd3D)')) bgColor = COLORS.prod3d;
+                        if (bgColor.includes('url(#colorReposicoes)')) bgColor = COLORS.reposicoes;
+
+                        return (
+                            <div key={index} className="flex justify-between items-center gap-6">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: bgColor }}></div>
+                                    <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">{entry.name}</span>
+                                </div>
+                                <span className="font-black text-slate-900 dark:text-white text-sm">{entry.value}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
 
 const CustomLineTooltip = ({ active, payload, label, isCurrency = true }: any) => {
     if (active && payload && payload.length) {
@@ -363,14 +398,20 @@ export default function Reports() {
     return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length };
   }, [productions3D, startDate, endDate]);
 
+  // 🟢 GSAP: ANIMAÇÕES PREMIUM PARA A ABA VISÃO GLOBAL
   useGSAP(() => {
-    if (!isLoading && reportData) {
-        gsap.from(".gsap-kpi-card", { y: 20, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power3.out", clearProps: "all" });
+    if (!isLoading && reportData && activeTab === "visao-global") {
+        gsap.fromTo(".visao-anim-item", 
+            { y: 40, opacity: 0, scale: 0.98 }, 
+            { y: 0, opacity: 1, scale: 1, duration: 0.7, stagger: 0.1, ease: "power3.out", clearProps: "all" }
+        );
     }
-  }, [isLoading, reportData]);
+  }, [isLoading, reportData, activeTab]);
 
   useGSAP(() => {
-      gsap.from(".gsap-tab-content", { y: 15, opacity: 0, duration: 0.4, ease: "power2.out", clearProps: "all" });
+      if(activeTab !== 'visao-global') {
+          gsap.from(".gsap-tab-content", { y: 15, opacity: 0, duration: 0.4, ease: "power2.out", clearProps: "all" });
+      }
   }, [activeTab]);
 
   const obterCategoriaSaida = (item: any) => {
@@ -621,6 +662,7 @@ export default function Reports() {
     // ==========================================
     const timelineMap = new Map();
     
+    // Função auxiliar para inicializar e somar
     const processDateTimeline = (dateStr: string, type: string, amount: number = 1) => {
       if (!dateStr) return;
       const dateKey = format(new Date(dateStr), 'dd/MM');
@@ -642,6 +684,7 @@ export default function Reports() {
       else if (type === 'rep') entry.reposicoes += amount;
     };
 
+    // 1. Entradas (Agrupadas: material novo, reaproveitado, devoluções) -> Usa 'todasEntradas'
     todasEntradas.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
@@ -649,6 +692,7 @@ export default function Reports() {
         }
     });
 
+    // 2. Solicitações -> Apenas as definidas/marcadas como "entregue"
     const uniqueRequestsCounted = new Set();
     saidasSistemaPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
@@ -656,6 +700,7 @@ export default function Reports() {
         const isEntregue = statusField.includes('entregue');
         
         if (d >= sDate && d <= eDate && isEntregue) {
+            // Conta solicitações únicas por dia (se tiver IDs) ou então cada ação atrelada à solicitação
             const reqId = i.request_id || i.op_code || i.order_number || i.id || Math.random().toString();
             const uniqKey = `${format(d, 'dd/MM')}-${reqId}`;
             
@@ -666,6 +711,7 @@ export default function Reports() {
         }
     });
 
+    // 3. Saída Manual -> Quantidade de ações feitas
     saidasManuaisPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
@@ -673,6 +719,7 @@ export default function Reports() {
         }
     }); 
     
+    // 4. Produção 3D -> Mostra a quantidade de PEÇAS produzidas
     productions3D.forEach((p: any) => {
         const d = new Date(p.date || p.created_at);
         if (d >= sDate && d <= eDate) {
@@ -680,6 +727,7 @@ export default function Reports() {
         }
     });
 
+    // 5. Pedidos de Reposição -> Apenas reposições marcadas como "concluido"
     replenishments.forEach((r: any) => {
         const d = new Date(r.created_at);
         if (d >= sDate && d <= eDate && String(r.status).toLowerCase() === 'concluido') {
@@ -692,6 +740,7 @@ export default function Reports() {
        const [d2, m2] = b.name.split('/').map(Number);
        return m1 - m2 || d1 - d2;
     });
+    // ==========================================
 
     const sectorTimelineMap = new Map();
     const setoresDisponiveis = sectorValueData.map(s => s.name);
@@ -1192,6 +1241,9 @@ export default function Reports() {
             </div>
         </div>
 
+        {/* ========================================================================= */}
+        {/* ===================== ABA: VISÃO GLOBAL (MODERNA) ======================= */}
+        {/* ========================================================================= */}
         <TabsContent value="visao-global" className={tabContentClass}>
           {isLoading || !analytics ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1199,61 +1251,87 @@ export default function Reports() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <KPICard title="Capital Físico" value={formatCurrencyNoDecimals(analytics.valorTotalEstoque)} subtext="Valor armazenado em estoque" icon={DollarSign} iconColor="text-indigo-600 dark:text-indigo-400" gradientClass="bg-indigo-500/20" />
-              <KPICard title="Solicitações" value={analytics.saidasSolicitacaoTotal} subtext="Pedidos processados via sistema" icon={Briefcase} iconColor="text-blue-600 dark:text-blue-400" gradientClass="bg-blue-500/20" />
-              <KPICard title="Entradas" value={analytics.opsEntrada} subtext="Lotes e acertos recebidos" icon={ArrowDownToLine} iconColor="text-emerald-600 dark:text-emerald-400" gradientClass="bg-emerald-500/20" />
-              <KPICard title="Saídas Manuais" value={analytics.saidasManuaisTotal} subtext="Retiradas avulsas registadas" icon={ArrowUpFromLine} iconColor="text-amber-600 dark:text-amber-400" gradientClass="bg-amber-500/20" />
+              <div className="visao-anim-item"><KPICard title="Capital Físico" value={formatCurrencyNoDecimals(analytics.valorTotalEstoque)} subtext="Valor armazenado em estoque" icon={DollarSign} iconColor="text-indigo-600 dark:text-indigo-400" gradientClass="bg-indigo-500/20" /></div>
+              <div className="visao-anim-item"><KPICard title="Solicitações" value={analytics.saidasSolicitacaoTotal} subtext="Pedidos processados via sistema" icon={Briefcase} iconColor="text-blue-600 dark:text-blue-400" gradientClass="bg-blue-500/20" /></div>
+              <div className="visao-anim-item"><KPICard title="Entradas" value={analytics.opsEntrada} subtext="Lotes e acertos recebidos" icon={ArrowDownToLine} iconColor="text-emerald-600 dark:text-emerald-400" gradientClass="bg-emerald-500/20" /></div>
+              <div className="visao-anim-item"><KPICard title="Saídas Manuais" value={analytics.saidasManuaisTotal} subtext="Retiradas avulsas registadas" icon={ArrowUpFromLine} iconColor="text-amber-600 dark:text-amber-400" gradientClass="bg-amber-500/20" /></div>
             </div>
           )}
 
-          <Card id="chart-flow" className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl overflow-hidden relative">
-            <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
-            <CardHeader className="pb-6 pt-8 px-8 relative z-10">
-                <CardTitle className="text-lg font-bold flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-3 uppercase tracking-widest text-sm text-slate-500 dark:text-slate-400">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><Activity className="h-5 w-5 text-indigo-500" /></div>
-                        Fluxo Temporal de Movimentação
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
-                        <Button variant={chartFilter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'all' && "bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900")}>Todas</Button>
-                        <Button variant={chartFilter === 'entradas' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('entradas')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'entradas' && "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20")}>Entradas</Button>
-                        <Button variant={chartFilter === 'solicitacoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('solicitacoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'solicitacoes' && "bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20")}>Solicitações (Entregues)</Button>
-                        <Button variant={chartFilter === 'saidas_manual' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('saidas_manual')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'saidas_manual' && "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20")}>Saída Manual</Button>
-                        <Button variant={chartFilter === 'producao_3d' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('producao_3d')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'producao_3d' && "bg-blue-500 hover:bg-blue-600 text-white shadow-md shadow-blue-500/20")}>Produção 3D (Peças)</Button>
-                        <Button variant={chartFilter === 'reposicoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('reposicoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'reposicoes' && "bg-purple-500 hover:bg-purple-600 text-white shadow-md shadow-purple-500/20")}>Reposições</Button>
-                    </div>
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[420px] w-full pt-4 pb-6 px-8 relative z-10">
-                {analytics && (
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={analytics.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" strokeOpacity={0.3} />
-                        <XAxis dataKey="name" fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 500}} dy={15} />
-                        <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 500}} dx={-10} />
-                        <Tooltip content={<CustomLineTooltip isCurrency={false} />} cursor={{fill: '#f1f5f9', opacity: 0.4}} />
-                        <Legend wrapperStyle={{ paddingTop: '30px', fontSize: '12px', fontWeight: 600 }} iconType="circle" />
-                        
-                        {(chartFilter === 'all' || chartFilter === 'entradas') && (
-                            <Bar dataKey="entradas" name="Entradas (Todas)" fill={COLORS.entradas} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                        )}
-                        {(chartFilter === 'all' || chartFilter === 'solicitacoes') && (
-                            <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill={COLORS.saidas} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                        )}
-                        {(chartFilter === 'all' || chartFilter === 'producao_3d') && (
-                            <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                        )}
-                        {(chartFilter === 'all' || chartFilter === 'reposicoes') && (
-                            <Bar dataKey="reposicoes" name="Pedidos Reposição (Concluídos)" fill="#8b5cf6" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                        )}
-                        {(chartFilter === 'all' || chartFilter === 'saidas_manual') && (
-                            <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill={COLORS.manuais} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                        )}
-                    </BarChart>
-                </ResponsiveContainer>
-                )}
-            </CardContent>
-          </Card>
+          <div className="visao-anim-item">
+              <Card id="chart-flow" className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl overflow-hidden relative">
+                <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+                <CardHeader className="pb-6 pt-8 px-8 relative z-10">
+                    <CardTitle className="text-lg font-bold flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-center gap-3 uppercase tracking-widest text-sm text-slate-500 dark:text-slate-400">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><Activity className="h-5 w-5 text-indigo-500" /></div>
+                            Fluxo Temporal de Movimentação
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                            <Button variant={chartFilter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'all' && "bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900")}>Todas</Button>
+                            <Button variant={chartFilter === 'entradas' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('entradas')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'entradas' && "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20")}>Entradas</Button>
+                            <Button variant={chartFilter === 'solicitacoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('solicitacoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'solicitacoes' && "bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20")}>Solicitações (Entregues)</Button>
+                            <Button variant={chartFilter === 'saidas_manual' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('saidas_manual')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'saidas_manual' && "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20")}>Saída Manual</Button>
+                            <Button variant={chartFilter === 'producao_3d' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('producao_3d')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'producao_3d' && "bg-blue-500 hover:bg-blue-600 text-white shadow-md shadow-blue-500/20")}>Produção 3D (Peças)</Button>
+                            <Button variant={chartFilter === 'reposicoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('reposicoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'reposicoes' && "bg-purple-500 hover:bg-purple-600 text-white shadow-md shadow-purple-500/20")}>Reposições</Button>
+                        </div>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[420px] w-full pt-4 pb-6 px-8 relative z-10">
+                    {analytics && (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analytics.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            {/* 🟢 GRADIENTES PREMIUM PARA AS BARRAS */}
+                            <defs>
+                                <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.entradas} stopOpacity={0.9}/>
+                                    <stop offset="95%" stopColor={COLORS.entradas} stopOpacity={0.4}/>
+                                </linearGradient>
+                                <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.saidas} stopOpacity={0.9}/>
+                                    <stop offset="95%" stopColor={COLORS.saidas} stopOpacity={0.4}/>
+                                </linearGradient>
+                                <linearGradient id="colorManuais" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.manuais} stopOpacity={0.9}/>
+                                    <stop offset="95%" stopColor={COLORS.manuais} stopOpacity={0.4}/>
+                                </linearGradient>
+                                <linearGradient id="colorProd3D" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.prod3d} stopOpacity={0.9}/>
+                                    <stop offset="95%" stopColor={COLORS.prod3d} stopOpacity={0.4}/>
+                                </linearGradient>
+                                <linearGradient id="colorReposicoes" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={COLORS.reposicoes} stopOpacity={0.9}/>
+                                    <stop offset="95%" stopColor={COLORS.reposicoes} stopOpacity={0.4}/>
+                                </linearGradient>
+                            </defs>
+                            
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" strokeOpacity={0.3} />
+                            <XAxis dataKey="name" fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 600}} dy={15} />
+                            <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 600}} dx={-10} />
+                            <Tooltip content={<GlassTooltip />} cursor={{fill: '#f8fafc', opacity: 0.5}} />
+                            <Legend wrapperStyle={{ paddingTop: '30px', fontSize: '12px', fontWeight: 600 }} iconType="circle" />
+                            
+                            {(chartFilter === 'all' || chartFilter === 'entradas') && (
+                                <Bar dataKey="entradas" name="Entradas (Todas)" fill="url(#colorEntradas)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                            )}
+                            {(chartFilter === 'all' || chartFilter === 'solicitacoes') && (
+                                <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill="url(#colorSaidas)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                            )}
+                            {(chartFilter === 'all' || chartFilter === 'producao_3d') && (
+                                <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="url(#colorProd3D)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                            )}
+                            {(chartFilter === 'all' || chartFilter === 'reposicoes') && (
+                                <Bar dataKey="reposicoes" name="Pedidos Reposição (Concluídos)" fill="url(#colorReposicoes)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                            )}
+                            {(chartFilter === 'all' || chartFilter === 'saidas_manual') && (
+                                <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill="url(#colorManuais)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                            )}
+                        </BarChart>
+                    </ResponsiveContainer>
+                    )}
+                </CardContent>
+              </Card>
+          </div>
         </TabsContent>
 
         {/* ... OUTRAS ABAS (Mantêm o design refinado herdado) ... */}
