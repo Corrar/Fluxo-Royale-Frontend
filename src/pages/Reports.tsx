@@ -16,7 +16,8 @@ import {
   Package, ArrowUpRight, ArrowDownRight, Archive, Calendar as CalendarIcon,
   DollarSign, Clock, BarChart3, Zap, ShieldAlert, Receipt,
   ArrowDownToLine, ArrowUpFromLine, Search, Briefcase, Construction, Layers, Plane,
-  AlertTriangle, AlertOctagon, Lock, Recycle, FileBox
+  AlertTriangle, AlertOctagon, Lock, Recycle, FileBox,
+  Printer, CheckCircle2, Truck, ListChecks // 🟢 Novos ícones adicionados
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -279,8 +280,8 @@ export default function Reports() {
       const response = await api.get("/reports/general", { params: { startDate, endDate, includeAllTimeOps: true } });
       return response.data;
     },
-    refetchOnMount: true, // 🟢 GARANTE QUE RECARREGA OS DADOS SEMPRE QUE ABRES A PÁGINA (SEM PRECISAR DE F5)
-    staleTime: 0          // 🟢 OS DADOS EXPIRAM LOGO PARA GARANTIR LEITURA FRESCA
+    refetchOnMount: true,
+    staleTime: 0
   });
 
   const { data: travelOrders = [] } = useQuery({
@@ -295,6 +296,45 @@ export default function Reports() {
       },
       refetchOnWindowFocus: false
   });
+
+  // 🟢 Novas consultas para o Dashboard Global e abas
+  const { data: productions3D = [] } = useQuery({
+    queryKey: ["productions-3d-all"],
+    queryFn: async () => (await api.get("/producao-3d/productions")).data,
+    refetchOnWindowFocus: false
+  });
+
+  const { data: replenishments = [] } = useQuery({
+    queryKey: ["replenishments-all"],
+    queryFn: async () => (await api.get("/replenishments")).data,
+    refetchOnWindowFocus: false
+  });
+
+  // 🟢 Métricas processadas para as novas abas
+  const metricsReplenishments = useMemo(() => {
+    const total = replenishments.length;
+    const pendentes = replenishments.filter((r: any) => r.status === 'pendente').length;
+    const emPreparo = replenishments.filter((r: any) => r.status === 'em_preparo').length;
+    const concluidos = replenishments.filter((r: any) => r.status === 'concluido').length;
+    
+    const valorTotalConcluido = replenishments
+      .filter((r: any) => r.status === 'concluido')
+      .reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
+
+    return { total, pendentes, emPreparo, concluidos, valorTotalConcluido };
+  }, [replenishments]);
+
+  const metrics3D = useMemo(() => {
+    const totalPieces = productions3D.reduce((acc: number, p: any) => acc + p.quantity, 0);
+    const totalFilament = productions3D.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
+    const totalTimeMinutes = productions3D.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
+    
+    const horas = Math.floor(totalTimeMinutes / 60);
+    const min = totalTimeMinutes % 60;
+    const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
+
+    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: productions3D.length };
+  }, [productions3D]);
 
   useGSAP(() => {
     if (!isLoading && reportData) {
@@ -550,19 +590,34 @@ export default function Reports() {
         }))
         .sort((a, b) => b.totalValue - a.totalValue); 
 
+    // 🟢 MAPA DA LINHA DO TEMPO ATUALIZADO
     const timelineMap = new Map();
     const processDate = (dateStr: string, type: string) => {
+      if (!dateStr) return;
       const dateKey = format(new Date(dateStr), 'dd/MM');
-      if (!timelineMap.has(dateKey)) timelineMap.set(dateKey, { name: dateKey, entradas: 0, saidas_sistema: 0, saidas_manual: 0 });
+      if (!timelineMap.has(dateKey)) {
+        timelineMap.set(dateKey, { 
+            name: dateKey, 
+            entradas: 0, 
+            saidas_sistema: 0, 
+            saidas_manual: 0,
+            producao_3d: 0, 
+            reposicoes: 0 
+        });
+      }
       const entry = timelineMap.get(dateKey);
       if (type === 'in') entry.entradas += 1;
       else if (type === 'out_sis') entry.saidas_sistema += 1;
-      else entry.saidas_manual += 1;
+      else if (type === 'out_man') entry.saidas_manual += 1;
+      else if (type === 'prod_3d') entry.producao_3d += 1;
+      else if (type === 'rep') entry.reposicoes += 1;
     };
 
     entradasPuras.forEach((i: any) => processDate(i.data, 'in'));
     saidasSistemaPuras.forEach((i: any) => processDate(i.data, 'out_sis'));
     saidasManuaisPuras.forEach((i: any) => processDate(i.data, 'out_man')); 
+    productions3D.forEach((p: any) => processDate(p.date || p.created_at, 'prod_3d'));
+    replenishments.forEach((r: any) => processDate(r.created_at, 'rep'));
 
     const chartData = Array.from(timelineMap.values()).sort((a, b) => {
        const [d1, m1] = a.name.split('/').map(Number);
@@ -633,7 +688,7 @@ export default function Reports() {
           saidasAnt: compMesAnterior.saidas,
       }
     };
-  }, [reportData, travelOrders, custoReposicao, custoGarantia, searchEntradas, searchSaidas, startDate, endDate]);
+  }, [reportData, travelOrders, custoReposicao, custoGarantia, searchEntradas, searchSaidas, startDate, endDate, productions3D, replenishments]);
 
   const handleExportExcel = () => {
     if (!analytics) return;
@@ -1053,13 +1108,16 @@ export default function Reports() {
             </Button>
         </div>
 
-        <TabsList className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 w-full h-auto p-1 gap-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl">
+        {/* 🟢 ABAS ADICIONADAS AQUI */}
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 w-full h-auto p-1 gap-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl">
             <TabsTrigger value="visao-global" className="rounded-lg text-xs md:text-sm py-2">Visão Global</TabsTrigger>
             <TabsTrigger value="movimentacoes" className="rounded-lg text-xs md:text-sm py-2">Movimentações</TabsTrigger>
             <TabsTrigger value="saude-estoque" className="rounded-lg text-xs md:text-sm py-2">Saúde do Estoque</TabsTrigger>
             <TabsTrigger value="custos-setor" className="rounded-lg text-xs md:text-sm py-2">Custos & Setores</TabsTrigger>
             <TabsTrigger value="valor-op" className="rounded-lg text-xs md:text-sm py-2">Valor por OP</TabsTrigger>
             <TabsTrigger value="reposicao-garantia" className="rounded-lg text-xs md:text-sm py-2">Reposição</TabsTrigger>
+            <TabsTrigger value="pedidos-reposicao" className="rounded-lg text-xs md:text-sm py-2">Pedidos Reposição</TabsTrigger>
+            <TabsTrigger value="producao-3d" className="rounded-lg text-xs md:text-sm py-2">Produção 3D</TabsTrigger>
         </TabsList>
 
         <TabsContent value="visao-global" className={tabContentClass}>
@@ -1092,9 +1150,15 @@ export default function Reports() {
                         <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
                         <Tooltip cursor={{fill: '#f1f5f9'}} />
                         <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '13px' }} iconType="circle" />
-                        <Bar dataKey="entradas" name="Entradas" fill={COLORS.entradas} radius={[4, 4, 0, 0]} barSize={20} />
-                        <Bar dataKey="saidas_sistema" name="Solicitações" fill={COLORS.saidas} radius={[4, 4, 0, 0]} barSize={20} />
-                        <Bar dataKey="saidas_manual" name="Saída Manual" fill={COLORS.manuais} radius={[4, 4, 0, 0]} barSize={20} />
+                        
+                        <Bar dataKey="entradas" name="Entradas" fill={COLORS.entradas} radius={[4, 4, 0, 0]} barSize={15} />
+                        <Bar dataKey="saidas_sistema" name="Solicitações" fill={COLORS.saidas} radius={[4, 4, 0, 0]} barSize={15} />
+                        
+                        {/* 🟢 BARRAS ADICIONADAS */}
+                        <Bar dataKey="producao_3d" name="Produção 3D" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={15} />
+                        <Bar dataKey="reposicoes" name="Reposições" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={15} />
+                        
+                        <Bar dataKey="saidas_manual" name="Saída Manual" fill={COLORS.manuais} radius={[4, 4, 0, 0]} barSize={15} />
                     </BarChart>
                 </ResponsiveContainer>
                 )}
@@ -1563,6 +1627,81 @@ export default function Reports() {
                     </CardContent>
                 </Card>
             </div>
+        </TabsContent>
+
+        {/* 🟢 NOVAS ABAS DE CONTEÚDO ADICIONADAS AQUI */}
+        <TabsContent value="pedidos-reposicao" className={tabContentClass}>
+          <div className="mb-4">
+             <h2 className="text-xl font-bold flex items-center gap-2">
+                 <Truck className="h-5 w-5 text-indigo-500" />
+                 Métricas de Pedidos de Reposição
+             </h2>
+             <p className="text-sm text-muted-foreground">Desempenho e status do fluxo de atendimento de reposições.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard 
+                title="Total de Pedidos" 
+                value={metricsReplenishments.total} 
+                subtext="Todos os registos" 
+                icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400" 
+            />
+            <KPICard 
+                title="Aguardando (Pendentes)" 
+                value={metricsReplenishments.pendentes} 
+                subtext="Requerem ação" 
+                icon={Clock} iconColor="text-amber-600 dark:text-amber-400" 
+            />
+            <KPICard 
+                title="Em Preparo" 
+                value={metricsReplenishments.emPreparo} 
+                subtext="Sendo separados" 
+                icon={Package} iconColor="text-blue-600 dark:text-blue-400" 
+            />
+            <KPICard 
+                title="Finalizados" 
+                value={metricsReplenishments.concluidos} 
+                subtext={`Valor: ${formatCurrency(metricsReplenishments.valorTotalConcluido)}`} 
+                icon={CheckCircle2} iconColor="text-emerald-600 dark:text-emerald-400" 
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="producao-3d" className={tabContentClass}>
+          <div className="mb-4">
+             <h2 className="text-xl font-bold flex items-center gap-2">
+                 <Printer className="h-5 w-5 text-blue-500" />
+                 Métricas de Produção 3D
+             </h2>
+             <p className="text-sm text-muted-foreground">Volume de impressões, tempo gasto e filamento consumido.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard 
+                title="Peças Impressas" 
+                value={metrics3D.totalPieces} 
+                subtext="Unidades totais" 
+                icon={Package} iconColor="text-blue-600 dark:text-blue-400" 
+            />
+            <KPICard 
+                title="Filamento Consumido" 
+                value={`${metrics3D.totalFilament}g`} 
+                subtext="Total em gramas" 
+                icon={Layers} iconColor="text-emerald-600 dark:text-emerald-400" 
+            />
+            <KPICard 
+                title="Tempo de Máquina" 
+                value={metrics3D.tempoFormatado} 
+                subtext="Horas operacionais" 
+                icon={Clock} iconColor="text-amber-600 dark:text-amber-400" 
+            />
+            <KPICard 
+                title="Ordens Finalizadas" 
+                value={metrics3D.ordensFinalizadas} 
+                subtext="Impressões concluídas" 
+                icon={CheckCircle2} iconColor="text-purple-600 dark:text-purple-400" 
+            />
+          </div>
         </TabsContent>
 
       </Tabs>
