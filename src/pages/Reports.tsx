@@ -35,15 +35,15 @@ import { useGSAP } from "@gsap/react";
 
 gsap.registerPlugin(useGSAP);
 
-// --- CONFIGURAÇÕES VISUAIS ---
+// --- CONFIGURAÇÕES VISUAIS PREMIUM ---
 const C_AZUL_ROYALE: [number, number, number] = [30, 58, 138]; 
 const C_AMARELO_OURO: [number, number, number] = [234, 179, 8]; 
 const C_TEXTO_ESCURO: [number, number, number] = [51, 65, 85]; 
 
 const COLORS = {
-  entradas: '#10b981', 
-  saidas: '#6366f1',   
-  manuais: '#f59e0b',  
+  entradas: '#10b981', // Emerald
+  saidas: '#6366f1',   // Indigo
+  manuais: '#f59e0b',  // Amber
 };
 
 const CHART_PALETTE = [
@@ -80,22 +80,24 @@ const getBase64FromUrl = async (url: string): Promise<string> => {
   }
 };
 
+// --- COMPONENTES UI REFINADOS ---
+
 const CustomLineTooltip = ({ active, payload, label, isCurrency = true }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0];
       const value = data.value;
       const name = data.dataKey;
-      const color = data.stroke;
+      const color = data.stroke || data.fill;
       
       return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-xl text-sm z-50">
-          <p className="font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider text-xs">{label}</p>
-          <div className="flex justify-between gap-6 items-center">
-              <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 p-4 rounded-[1rem] shadow-2xl text-sm z-50 ring-1 ring-black/5 dark:ring-white/5">
+          <p className="font-bold text-slate-400 dark:text-slate-500 mb-3 uppercase tracking-[0.2em] text-[10px]">{label}</p>
+          <div className="flex justify-between gap-8 items-center">
+              <span className="flex items-center gap-2.5 font-semibold text-slate-700 dark:text-slate-300">
+                  <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: color }}></span>
                   {name === 'Total' ? 'Visão Global' : name}
               </span>
-              <span className="font-black text-lg text-slate-900 dark:text-white">
+              <span className="font-black text-xl tracking-tight text-slate-900 dark:text-white">
                   {isCurrency ? formatCurrency(value) : value}
               </span>
           </div>
@@ -119,58 +121,60 @@ const NubankLineChart = ({ timelineData, sectorTotals, totalValue, title, icon: 
     const dataKey = activeSector || "Total";
 
     return (
-        <Card className="gsap-chart-card shadow-sm border border-slate-200/60 dark:border-slate-800 flex flex-col h-full rounded-[2.5rem] bg-white dark:bg-[#0a0f1c] hover:shadow-xl transition-all duration-500 overflow-hidden w-full mx-auto">
-            <CardHeader className="pb-0 pt-8 px-6 sm:px-10 border-none flex flex-col gap-1 items-start">
-                <CardTitle className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    {Icon && <Icon className="h-4 w-4" />} {title} {activeSector ? `- ${activeSector}` : '- Visão Global'}
+        <Card className="gsap-chart-card shadow-lg border border-white/40 dark:border-slate-800/60 flex flex-col h-full rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl hover:shadow-xl transition-all duration-500 overflow-hidden w-full mx-auto relative group">
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none transition-all duration-700 group-hover:bg-indigo-500/10" style={{ backgroundColor: `${currentColor}1A` }} />
+            
+            <CardHeader className="pb-0 pt-10 px-8 sm:px-12 border-none flex flex-col gap-1 items-start relative z-10">
+                <CardTitle className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em] flex items-center gap-2.5">
+                    {Icon && <div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-md"><Icon className="h-4 w-4" /></div>} 
+                    {title} {activeSector ? <span className="text-slate-400 font-medium tracking-normal capitalize ml-1">• {activeSector}</span> : <span className="text-slate-400 font-medium tracking-normal capitalize ml-1">• Visão Global</span>}
                 </CardTitle>
-                <div className="text-4xl sm:text-5xl font-black tracking-tighter text-slate-900 dark:text-white mt-1 transition-colors duration-500" style={{ color: activeSector ? currentColor : undefined }}>
+                <div className="text-5xl sm:text-6xl font-black tracking-tighter text-slate-900 dark:text-white mt-3 transition-colors duration-500" style={{ color: activeSector ? currentColor : undefined }}>
                     {formatCurrency(currentTotal)}
                 </div>
             </CardHeader>
             
-            <CardContent className="flex-1 pt-8 pb-8 px-4 sm:px-8 flex flex-col lg:flex-row gap-8">
-                
+            <CardContent className="flex-1 pt-10 pb-8 px-6 sm:px-10 flex flex-col lg:flex-row gap-8 relative z-10">
                 <div className="flex-1 min-h-[350px] sm:min-h-[450px]">
                     {timelineData && timelineData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.2} />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12, fontWeight: 600}} dy={10} />
-                                <Tooltip content={<CustomLineTooltip isCurrency={true} />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" strokeOpacity={0.2} />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 500}} dy={15} />
+                                <Tooltip content={<CustomLineTooltip isCurrency={true} />} cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }} />
                                 <Line 
                                     key={dataKey}
                                     type="monotone" 
                                     dataKey={dataKey} 
                                     stroke={currentColor} 
-                                    strokeWidth={4}
+                                    strokeWidth={5}
                                     dot={false}
-                                    activeDot={{ r: 7, fill: currentColor, stroke: '#fff', strokeWidth: 3 }}
+                                    activeDot={{ r: 8, fill: currentColor, stroke: '#ffffff', strokeWidth: 3, className: "shadow-xl" }}
                                     isAnimationActive={true}
                                     animationDuration={1500}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
-                            <Activity className="h-10 w-10 opacity-30" />
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
+                            <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-full"><Activity className="h-8 w-8 opacity-40" /></div>
                             <span className="text-sm font-medium tracking-wide">Sem dados na linha do tempo</span>
                         </div>
                     )}
                 </div>
                 
-                <div className="w-full lg:w-80 flex flex-col gap-2 overflow-y-auto max-h-[350px] sm:max-h-[450px] custom-scrollbar pr-2 shrink-0">
+                <div className="w-full lg:w-80 flex flex-col gap-3 overflow-y-auto max-h-[350px] sm:max-h-[450px] custom-scrollbar pr-3 shrink-0">
                     <div 
                         onClick={() => setActiveSector(null)}
-                        className="p-4 rounded-2xl cursor-pointer border transition-all flex items-center justify-between group"
+                        className="p-5 rounded-[1.25rem] cursor-pointer border transition-all duration-300 flex items-center justify-between group/btn hover:scale-[1.02]"
                         style={{
                             borderColor: activeSector === null ? '#820ad1' : 'transparent',
-                            backgroundColor: activeSector === null ? 'rgba(130, 10, 209, 0.08)' : 'transparent'
+                            backgroundColor: activeSector === null ? 'rgba(130, 10, 209, 0.08)' : 'rgba(241, 245, 249, 0.5)'
                         }}
                     >
-                        <div className="flex items-center gap-3">
-                            <div className={cn("w-4 h-4 rounded-full flex items-center justify-center border-2 transition-all", activeSector === null ? "border-[#820ad1]" : "border-slate-300 dark:border-slate-600")}>
-                                {activeSector === null && <div className="w-2 h-2 rounded-full bg-[#820ad1]"></div>}
+                        <div className="flex items-center gap-4">
+                            <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border-[3px] transition-all", activeSector === null ? "border-[#820ad1]" : "border-slate-300 dark:border-slate-600")}>
+                                {activeSector === null && <div className="w-2.5 h-2.5 rounded-full bg-[#820ad1]"></div>}
                             </div>
                             <span className="font-bold text-slate-800 dark:text-slate-200">Visão Global</span>
                         </div>
@@ -186,7 +190,7 @@ const NubankLineChart = ({ timelineData, sectorTotals, totalValue, title, icon: 
                         <div 
                             key={sector.name}
                             onClick={() => setActiveSector(sector.name)}
-                            className="p-4 rounded-2xl cursor-pointer border transition-all flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                            className="p-4 rounded-[1.25rem] cursor-pointer border border-transparent transition-all duration-300 flex items-center justify-between group/btn hover:scale-[1.02] hover:bg-slate-100 dark:hover:bg-slate-800/80"
                             style={{
                                 borderColor: isActive ? sector.fill : 'transparent',
                                 backgroundColor: isActive ? bgRgba : undefined
@@ -197,11 +201,11 @@ const NubankLineChart = ({ timelineData, sectorTotals, totalValue, title, icon: 
                                     {isActive && <div className="w-2 h-2 rounded-full transition-all" style={{ backgroundColor: sector.fill }}></div>}
                                 </div>
                                 <div className="flex flex-col truncate">
-                                    <span className={cn("font-bold truncate text-sm transition-colors", isActive ? "dark:text-white text-slate-900" : "text-slate-700 dark:text-slate-300")} title={sector.name}>{sector.name}</span>
-                                    <span className="text-[10px] text-slate-500 font-semibold">{percent}% do total mensal</span>
+                                    <span className={cn("font-bold truncate text-[13px] transition-colors", isActive ? "dark:text-white text-slate-900" : "text-slate-600 dark:text-slate-300")} title={sector.name}>{sector.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-semibold tracking-wide uppercase mt-0.5">{percent}% do total</span>
                                 </div>
                             </div>
-                            <span className={cn("font-black text-sm shrink-0 transition-colors", isActive ? "" : "text-slate-600 dark:text-slate-400")} style={{ color: isActive ? sector.fill : undefined }}>
+                            <span className={cn("font-black text-sm shrink-0 transition-colors", isActive ? "" : "text-slate-500 dark:text-slate-400")} style={{ color: isActive ? sector.fill : undefined }}>
                                 {formatCurrency(sector.value)}
                             </span>
                         </div>
@@ -212,30 +216,33 @@ const NubankLineChart = ({ timelineData, sectorTotals, totalValue, title, icon: 
     );
 };
 
-const KPICard = ({ title, value, subtext, icon: Icon, iconColor, trend, trendValue }: any) => (
-    <Card className="gsap-kpi-card hover:shadow-md transition-shadow border-slate-200 dark:border-slate-800 rounded-2xl">
-        <CardContent className="p-6">
-            <div className="flex items-center justify-between pb-2">
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-                <div className={`p-2 rounded-lg bg-slate-100 dark:bg-slate-800 ${iconColor}`}>
+const KPICard = ({ title, value, subtext, icon: Icon, iconColor, trend, trendValue, gradientClass }: any) => (
+    <Card className="gsap-kpi-card relative overflow-hidden group hover:-translate-y-1.5 hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 transition-all duration-500 border-white/40 dark:border-slate-800/50 rounded-[1.5rem] bg-white/70 dark:bg-slate-950/70 backdrop-blur-2xl">
+        {/* Efeito Glow no fundo do cartão */}
+        <div className={cn("absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] opacity-40 group-hover:scale-150 transition-transform duration-700 pointer-events-none", gradientClass || "bg-slate-300 dark:bg-slate-700")} />
+        
+        <CardContent className="p-6 relative z-10">
+            <div className="flex items-center justify-between pb-4">
+                <p className="text-[12px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em]">{title}</p>
+                <div className={`p-2.5 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 transition-transform group-hover:scale-110 duration-300 ${iconColor}`}>
                     <Icon className="h-4 w-4" />
                 </div>
             </div>
-            <div className="flex flex-col mt-2">
-                <span className="text-3xl font-bold text-slate-900 dark:text-slate-50">{value}</span>
+            <div className="flex flex-col mt-1">
+                <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{value}</span>
                 
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2.5 mt-3">
                     {trend && (
                         <Badge variant="outline" className={cn(
-                            "px-1.5 py-0 text-[10px] font-bold border-0",
-                            trend === 'up' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" 
-                                           : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                            "px-2 py-0.5 text-[11px] font-bold border-0 shadow-sm",
+                            trend === 'up' ? "bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" 
+                                           : "bg-rose-100/80 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400"
                         )}>
                             {trend === 'up' ? <ArrowUpRight className="w-3 h-3 mr-0.5" /> : <ArrowDownRight className="w-3 h-3 mr-0.5" />}
                             {trendValue}
                         </Badge>
                     )}
-                    {subtext && <span className="text-xs text-muted-foreground font-medium">{subtext}</span>}
+                    {subtext && <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{subtext}</span>}
                 </div>
             </div>
         </CardContent>
@@ -243,17 +250,20 @@ const KPICard = ({ title, value, subtext, icon: Icon, iconColor, trend, trendVal
 );
 
 const AlertCard = ({ icon: Icon, title, desc, variant }: any) => (
-    <div className={`p-4 rounded-xl border flex items-start gap-4 shadow-sm ${
+    <div className={`relative p-5 rounded-[1.5rem] border flex items-start gap-5 shadow-lg backdrop-blur-xl overflow-hidden group transition-all duration-300 hover:scale-[1.01] ${
         variant === 'rose' 
-            ? 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/50' 
-            : 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/50'
+            ? 'bg-rose-50/80 border-rose-200/60 dark:bg-rose-950/40 dark:border-rose-900/50' 
+            : 'bg-amber-50/80 border-amber-200/60 dark:bg-amber-950/40 dark:border-amber-900/50'
     }`}>
-        <div className={`p-2 rounded-lg ${variant === 'rose' ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-600' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600'}`}>
-            <Icon className="w-5 h-5" />
+        {/* Brilho animado de fundo */}
+        <div className={`absolute top-0 right-0 w-full h-full bg-gradient-to-r from-transparent opacity-20 pointer-events-none ${variant === 'rose' ? 'to-rose-400' : 'to-amber-400'}`} />
+        
+        <div className={`p-3 rounded-2xl shrink-0 shadow-sm ${variant === 'rose' ? 'bg-white dark:bg-rose-900/80 text-rose-600' : 'bg-white dark:bg-amber-900/80 text-amber-600'}`}>
+            <Icon className="w-6 h-6 animate-pulse" />
         </div>
-        <div>
-            <h4 className={`font-bold ${variant === 'rose' ? 'text-rose-900 dark:text-rose-300' : 'text-amber-900 dark:text-amber-300'}`}>{title}</h4>
-            <p className={`text-sm mt-0.5 ${variant === 'rose' ? 'text-rose-700 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'}`}>{desc}</p>
+        <div className="z-10">
+            <h4 className={`text-base font-bold tracking-tight ${variant === 'rose' ? 'text-rose-900 dark:text-rose-200' : 'text-amber-900 dark:text-amber-200'}`}>{title}</h4>
+            <p className={`text-sm mt-1 font-medium ${variant === 'rose' ? 'text-rose-700/80 dark:text-rose-300/80' : 'text-amber-700/80 dark:text-amber-300/80'}`}>{desc}</p>
         </div>
     </div>
 );
@@ -355,7 +365,7 @@ export default function Reports() {
 
   useGSAP(() => {
     if (!isLoading && reportData) {
-        gsap.from(".gsap-kpi-card", { y: 20, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power2.out", clearProps: "all" });
+        gsap.from(".gsap-kpi-card", { y: 20, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power3.out", clearProps: "all" });
     }
   }, [isLoading, reportData]);
 
@@ -611,7 +621,6 @@ export default function Reports() {
     // ==========================================
     const timelineMap = new Map();
     
-    // Função auxiliar para inicializar e somar
     const processDateTimeline = (dateStr: string, type: string, amount: number = 1) => {
       if (!dateStr) return;
       const dateKey = format(new Date(dateStr), 'dd/MM');
@@ -633,7 +642,6 @@ export default function Reports() {
       else if (type === 'rep') entry.reposicoes += amount;
     };
 
-    // 1. Entradas (Agrupadas: material novo, reaproveitado, devoluções) -> Usa 'todasEntradas'
     todasEntradas.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
@@ -641,7 +649,6 @@ export default function Reports() {
         }
     });
 
-    // 2. Solicitações -> Apenas as definidas/marcadas como "entregue"
     const uniqueRequestsCounted = new Set();
     saidasSistemaPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
@@ -649,7 +656,6 @@ export default function Reports() {
         const isEntregue = statusField.includes('entregue');
         
         if (d >= sDate && d <= eDate && isEntregue) {
-            // Conta solicitações únicas por dia (se tiver IDs) ou então cada ação atrelada à solicitação
             const reqId = i.request_id || i.op_code || i.order_number || i.id || Math.random().toString();
             const uniqKey = `${format(d, 'dd/MM')}-${reqId}`;
             
@@ -660,7 +666,6 @@ export default function Reports() {
         }
     });
 
-    // 3. Saída Manual -> Quantidade de ações feitas
     saidasManuaisPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
@@ -668,7 +673,6 @@ export default function Reports() {
         }
     }); 
     
-    // 4. Produção 3D -> Mostra a quantidade de PEÇAS produzidas
     productions3D.forEach((p: any) => {
         const d = new Date(p.date || p.created_at);
         if (d >= sDate && d <= eDate) {
@@ -676,7 +680,6 @@ export default function Reports() {
         }
     });
 
-    // 5. Pedidos de Reposição -> Apenas reposições marcadas como "concluido"
     replenishments.forEach((r: any) => {
         const d = new Date(r.created_at);
         if (d >= sDate && d <= eDate && String(r.status).toLowerCase() === 'concluido') {
@@ -689,7 +692,6 @@ export default function Reports() {
        const [d2, m2] = b.name.split('/').map(Number);
        return m1 - m2 || d1 - d2;
     });
-    // ==========================================
 
     const sectorTimelineMap = new Map();
     const setoresDisponiveis = sectorValueData.map(s => s.name);
@@ -1098,150 +1100,154 @@ export default function Reports() {
     return obterCategoriaEntrada(item) === filtroCategoriaEntrada;
   }) || [];
 
-  const tabContentClass = "space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-4 duration-500 ease-out";
+  const tabContentClass = "space-y-8 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-8 duration-700 ease-out";
 
   return (
-    <div ref={containerRef} className="space-y-6 p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100 transition-colors">
+    <div ref={containerRef} className="space-y-8 p-4 sm:p-8 bg-slate-50/30 dark:bg-[#0a0f1c] min-h-screen text-slate-900 dark:text-slate-100 transition-colors font-sans">
       
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-2">
+      {/* HEADER DE CONTROLO PREMIUM */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-4">
         <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-                <Zap className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/10 rounded-2xl">
+                    <Zap className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />
+                </div>
                 Business Intelligence
             </h1>
-            <p className="text-muted-foreground mt-1 ml-11 text-sm">
-                Análise de Performance e Dados Gerenciais
+            <p className="text-muted-foreground mt-2 ml-14 text-sm font-medium tracking-wide">
+                Análise de Performance Operacional e Fluxo Gerencial
             </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-1.5 rounded-xl border shadow-sm w-full lg:w-auto">
-            <div className="flex items-center px-3 gap-2 border-r border-slate-200 dark:border-slate-800">
-                <CalendarIcon className="w-4 h-4 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-2 rounded-[1.25rem] border border-slate-200/60 dark:border-slate-800 shadow-sm w-full lg:w-auto">
+            <div className="flex items-center px-4 gap-2 border-r border-slate-200 dark:border-slate-800">
+                <CalendarIcon className="w-4 h-4 text-indigo-500" />
                 <Input 
                     type="date" 
-                    className="h-8 w-[120px] border-0 bg-transparent focus-visible:ring-0 text-xs font-semibold p-0 cursor-pointer" 
+                    className="h-9 w-[120px] border-0 bg-transparent focus-visible:ring-0 text-xs font-bold p-0 cursor-pointer text-slate-700 dark:text-slate-200" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)} 
                 />
-                <span className="text-slate-300">-</span>
+                <span className="text-slate-300 dark:text-slate-600 font-bold">-</span>
                 <Input 
                     type="date" 
-                    className="h-8 w-[120px] border-0 bg-transparent focus-visible:ring-0 text-xs font-semibold p-0 cursor-pointer text-right" 
+                    className="h-9 w-[120px] border-0 bg-transparent focus-visible:ring-0 text-xs font-bold p-0 cursor-pointer text-right text-slate-700 dark:text-slate-200" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
                 />
             </div>
             
-            <div className="flex gap-1 pr-2">
-                <Button onClick={() => setQuickDate('today')} variant="ghost" size="sm" className="h-8 text-xs px-3">Hoje</Button>
-                <Button onClick={() => setQuickDate('month')} variant="secondary" size="sm" className="h-8 text-xs px-3">Mês</Button>
-                <Button onClick={() => refetch()} variant="ghost" size="icon" className="h-8 w-8 ml-1">
-                    <RefreshCw className={`h-4 w-4 ${isLoading || isRefetching ? 'animate-spin' : ''}`} />
+            <div className="flex gap-1.5 px-2">
+                <Button onClick={() => setQuickDate('today')} variant="ghost" size="sm" className="h-9 text-[11px] font-bold px-4 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">Hoje</Button>
+                <Button onClick={() => setQuickDate('month')} variant="secondary" size="sm" className="h-9 text-[11px] font-bold px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white">Mês</Button>
+                <Button onClick={() => refetch()} variant="outline" size="icon" className="h-9 w-9 ml-2 rounded-xl border-slate-200 dark:border-slate-700 shadow-sm">
+                    <RefreshCw className={`h-4 w-4 text-indigo-500 ${isLoading || isRefetching ? 'animate-spin' : ''}`} />
                 </Button>
             </div>
         </div>
       </div>
 
       {analytics && (analytics.obsoletos.length > 0 || analytics.estoqueCritico.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {analytics.obsoletos.length > 0 && (
                 <AlertCard 
                     icon={Clock} 
                     title="Alerta de Obsolescência" 
-                    desc={`Detectados ${analytics.obsoletos.length} itens parados há +90 dias.`} 
+                    desc={`Detectados ${analytics.obsoletos.length} itens parados há mais de 90 dias sem movimentação.`} 
                     variant="rose" 
                 />
             )}
             {analytics.estoqueCritico.length > 0 && (
                 <AlertCard 
                     icon={AlertOctagon} 
-                    title="Rutura Crítica" 
-                    desc={`${analytics.estoqueCritico.length} itens abaixo do estoque mínimo.`} 
+                    title="Rutura de Estoque Crítica" 
+                    desc={`${analytics.estoqueCritico.length} itens encontram-se atualmente abaixo do volume mínimo definido.`} 
                     variant="amber" 
                 />
             )}
         </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         
-        <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" size="sm" onClick={handleExportPDF} className="h-9 font-medium shadow-sm text-xs">
-                <FileText className="w-4 h-4 mr-2 text-rose-500" /> PDF Geral
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-9 font-medium shadow-sm text-xs">
-                <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-500" /> Excel
-            </Button>
-        </div>
+        <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-4 w-full">
+            <TabsList className="flex flex-wrap md:flex-nowrap w-full md:w-auto h-auto p-1.5 gap-1.5 bg-slate-100/80 dark:bg-slate-900/50 backdrop-blur-md rounded-[1.25rem] border border-slate-200/50 dark:border-slate-800/50">
+                <TabsTrigger value="visao-global" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Visão Global</TabsTrigger>
+                <TabsTrigger value="movimentacoes" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Movimentações</TabsTrigger>
+                <TabsTrigger value="saude-estoque" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Saúde do Estoque</TabsTrigger>
+                <TabsTrigger value="custos-setor" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Custos & Setores</TabsTrigger>
+                <TabsTrigger value="valor-op" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Valor por OP</TabsTrigger>
+                <TabsTrigger value="reposicao-garantia" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Garantias</TabsTrigger>
+                <TabsTrigger value="pedidos-reposicao" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Pedidos Reposição</TabsTrigger>
+                <TabsTrigger value="producao-3d" className="rounded-xl text-[11px] font-bold uppercase tracking-wider py-2.5 px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm transition-all">Produção 3D</TabsTrigger>
+            </TabsList>
 
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 w-full h-auto p-1 gap-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl">
-            <TabsTrigger value="visao-global" className="rounded-lg text-xs md:text-sm py-2">Visão Global</TabsTrigger>
-            <TabsTrigger value="movimentacoes" className="rounded-lg text-xs md:text-sm py-2">Movimentações</TabsTrigger>
-            <TabsTrigger value="saude-estoque" className="rounded-lg text-xs md:text-sm py-2">Saúde do Estoque</TabsTrigger>
-            <TabsTrigger value="custos-setor" className="rounded-lg text-xs md:text-sm py-2">Custos & Setores</TabsTrigger>
-            <TabsTrigger value="valor-op" className="rounded-lg text-xs md:text-sm py-2">Valor por OP</TabsTrigger>
-            <TabsTrigger value="reposicao-garantia" className="rounded-lg text-xs md:text-sm py-2">Reposição</TabsTrigger>
-            <TabsTrigger value="pedidos-reposicao" className="rounded-lg text-xs md:text-sm py-2">Pedidos Reposição</TabsTrigger>
-            <TabsTrigger value="producao-3d" className="rounded-lg text-xs md:text-sm py-2">Produção 3D</TabsTrigger>
-        </TabsList>
+            <div className="flex gap-3 w-full md:w-auto shrink-0 justify-end">
+                <Button variant="outline" size="sm" onClick={handleExportPDF} className="h-10 rounded-xl font-bold tracking-wide shadow-sm text-xs border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                    <FileText className="w-4 h-4 mr-2 text-rose-500" /> Relatório Executivo PDF
+                </Button>
+                <Button variant="default" size="sm" onClick={handleExportExcel} className="h-10 rounded-xl font-bold tracking-wide shadow-sm text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-all">
+                    <FileSpreadsheet className="w-4 h-4 mr-2" /> Base de Dados Excel
+                </Button>
+            </div>
+        </div>
 
         <TabsContent value="visao-global" className={tabContentClass}>
           {isLoading || !analytics ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[120px] w-full rounded-2xl" />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[140px] w-full rounded-[1.5rem]" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard title="Capital Físico" value={formatCurrencyNoDecimals(analytics.valorTotalEstoque)} subtext="Valor armazenado" icon={DollarSign} iconColor="text-indigo-600 dark:text-indigo-400" />
-              <KPICard title="Solicitações" value={analytics.saidasSolicitacaoTotal} subtext="Via sistema" icon={Briefcase} iconColor="text-blue-600 dark:text-blue-400" />
-              <KPICard title="Entradas" value={analytics.opsEntrada} subtext="Lotes recebidos" icon={ArrowDownToLine} iconColor="text-emerald-600 dark:text-emerald-400" />
-              <KPICard title="Saídas Manuais" value={analytics.saidasManuaisTotal} subtext="Retiradas avulsas" icon={ArrowUpFromLine} iconColor="text-amber-600 dark:text-amber-400" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <KPICard title="Capital Físico" value={formatCurrencyNoDecimals(analytics.valorTotalEstoque)} subtext="Valor armazenado em estoque" icon={DollarSign} iconColor="text-indigo-600 dark:text-indigo-400" gradientClass="bg-indigo-500/20" />
+              <KPICard title="Solicitações" value={analytics.saidasSolicitacaoTotal} subtext="Pedidos processados via sistema" icon={Briefcase} iconColor="text-blue-600 dark:text-blue-400" gradientClass="bg-blue-500/20" />
+              <KPICard title="Entradas" value={analytics.opsEntrada} subtext="Lotes e acertos recebidos" icon={ArrowDownToLine} iconColor="text-emerald-600 dark:text-emerald-400" gradientClass="bg-emerald-500/20" />
+              <KPICard title="Saídas Manuais" value={analytics.saidasManuaisTotal} subtext="Retiradas avulsas registadas" icon={ArrowUpFromLine} iconColor="text-amber-600 dark:text-amber-400" gradientClass="bg-amber-500/20" />
             </div>
           )}
 
-          <Card id="chart-flow" className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl">
-            <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-bold flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <Activity className="h-5 w-5 text-muted-foreground" />
+          <Card id="chart-flow" className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl overflow-hidden relative">
+            <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+            <CardHeader className="pb-6 pt-8 px-8 relative z-10">
+                <CardTitle className="text-lg font-bold flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-3 uppercase tracking-widest text-sm text-slate-500 dark:text-slate-400">
+                        <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><Activity className="h-5 w-5 text-indigo-500" /></div>
                         Fluxo Temporal de Movimentação
                     </div>
-                    {/* 🟢 BOTÕES DE FILTRO ADICIONADOS AQUI */}
-                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/50 dark:bg-slate-800/30 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                        <Button variant={chartFilter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className="text-[10px] h-7 px-2 rounded-lg">Ver Todos</Button>
-                        <Button variant={chartFilter === 'entradas' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('entradas')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'entradas' && "bg-emerald-500 hover:bg-emerald-600 text-white")}>Entradas</Button>
-                        <Button variant={chartFilter === 'solicitacoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('solicitacoes')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'solicitacoes' && "bg-indigo-500 hover:bg-indigo-600 text-white")}>Solicitações (Entregues)</Button>
-                        <Button variant={chartFilter === 'saidas_manual' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('saidas_manual')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'saidas_manual' && "bg-amber-500 hover:bg-amber-600 text-white")}>Saída Manual</Button>
-                        <Button variant={chartFilter === 'producao_3d' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('producao_3d')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'producao_3d' && "bg-blue-500 hover:bg-blue-600 text-white")}>Produção 3D (Peças)</Button>
-                        <Button variant={chartFilter === 'reposicoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('reposicoes')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'reposicoes' && "bg-purple-500 hover:bg-purple-600 text-white")}>Reposições</Button>
+                    <div className="flex flex-wrap items-center gap-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                        <Button variant={chartFilter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'all' && "bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900")}>Todas</Button>
+                        <Button variant={chartFilter === 'entradas' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('entradas')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'entradas' && "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20")}>Entradas</Button>
+                        <Button variant={chartFilter === 'solicitacoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('solicitacoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'solicitacoes' && "bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20")}>Solicitações (Entregues)</Button>
+                        <Button variant={chartFilter === 'saidas_manual' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('saidas_manual')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'saidas_manual' && "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20")}>Saída Manual</Button>
+                        <Button variant={chartFilter === 'producao_3d' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('producao_3d')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'producao_3d' && "bg-blue-500 hover:bg-blue-600 text-white shadow-md shadow-blue-500/20")}>Produção 3D (Peças)</Button>
+                        <Button variant={chartFilter === 'reposicoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('reposicoes')} className={cn("text-[11px] h-8 px-4 rounded-xl font-bold transition-all", chartFilter === 'reposicoes' && "bg-purple-500 hover:bg-purple-600 text-white shadow-md shadow-purple-500/20")}>Reposições</Button>
                     </div>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="h-[380px] w-full pt-4">
+            <CardContent className="h-[420px] w-full pt-4 pb-6 px-8 relative z-10">
                 {analytics && (
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={analytics.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
-                        <XAxis dataKey="name" fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#64748b'}} dy={10} />
-                        <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
-                        <Tooltip cursor={{fill: '#f1f5f9'}} />
-                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '13px' }} iconType="circle" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" strokeOpacity={0.3} />
+                        <XAxis dataKey="name" fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 500}} dy={15} />
+                        <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 500}} dx={-10} />
+                        <Tooltip content={<CustomLineTooltip isCurrency={false} />} cursor={{fill: '#f1f5f9', opacity: 0.4}} />
+                        <Legend wrapperStyle={{ paddingTop: '30px', fontSize: '12px', fontWeight: 600 }} iconType="circle" />
                         
-                        {/* 🟢 BARRAS RENDERIZADAS CONDICIONALMENTE */}
                         {(chartFilter === 'all' || chartFilter === 'entradas') && (
-                            <Bar dataKey="entradas" name="Entradas (Todas)" fill={COLORS.entradas} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            <Bar dataKey="entradas" name="Entradas (Todas)" fill={COLORS.entradas} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
                         )}
                         {(chartFilter === 'all' || chartFilter === 'solicitacoes') && (
-                            <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill={COLORS.saidas} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill={COLORS.saidas} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
                         )}
                         {(chartFilter === 'all' || chartFilter === 'producao_3d') && (
-                            <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
                         )}
                         {(chartFilter === 'all' || chartFilter === 'reposicoes') && (
-                            <Bar dataKey="reposicoes" name="Pedidos de Reposição (Concluídos)" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            <Bar dataKey="reposicoes" name="Pedidos Reposição (Concluídos)" fill="#8b5cf6" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
                         )}
                         {(chartFilter === 'all' || chartFilter === 'saidas_manual') && (
-                            <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill={COLORS.manuais} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill={COLORS.manuais} radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
                         )}
                     </BarChart>
                 </ResponsiveContainer>
@@ -1250,219 +1256,221 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
+        {/* ... OUTRAS ABAS (Mantêm o design refinado herdado) ... */}
         <TabsContent value="movimentacoes" className={tabContentClass}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <KPICard 
                   title="Entradas NFe" 
                   value={formatCurrency(analytics?.valorEntradasNFe || 0)} 
-                  subtext="Compras faturadas" 
+                  subtext="Volume de compras faturadas" 
                   icon={Receipt} iconColor="text-emerald-600 dark:text-emerald-400" 
-                  trend="up" trendValue="Custo"
+                  trend="up" trendValue="Custo Fixo"
+                  gradientClass="bg-emerald-500/20"
               />
               <KPICard 
                   title="Valor Poupado (Reuso)" 
                   value={formatCurrency(analytics?.valorEntradasReuso || 0)} 
-                  subtext="Materiais reaproveitados" 
+                  subtext="Reaproveitamentos do sistema" 
                   icon={Recycle} iconColor="text-amber-600 dark:text-amber-500" 
-                  trend="up" trendValue="Economia"
+                  trend="up" trendValue="Economia Direta"
+                  gradientClass="bg-amber-500/20"
               />
               <KPICard 
                   title="Entradas Manuais" 
                   value={formatCurrency(analytics?.valorEntradasManuais || 0)} 
-                  subtext="Outras origens" 
+                  subtext="Origens alternativas e avulsas" 
                   icon={FileBox} iconColor="text-blue-600 dark:text-blue-400" 
+                  gradientClass="bg-blue-500/20"
               />
               <KPICard 
                   title="Custo de Saída" 
                   value={formatCurrency(analytics?.valorTotalSaidas || 0)} 
-                  subtext="Materiais expedidos" 
+                  subtext="Materiais faturados/expedidos" 
                   icon={ArrowUpFromLine} iconColor="text-rose-600 dark:text-rose-400" 
-                  trend="down" trendValue="Consumo"
+                  trend="down" trendValue="Consumo Operacional"
+                  gradientClass="bg-rose-500/20"
               />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
-                            <div className="flex items-center gap-2 shrink-0">
-                                <ArrowDownToLine className="h-4 w-4 text-emerald-500" />
-                                Entradas Registradas
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[650px] overflow-hidden">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 font-bold tracking-tight">
+                            <div className="flex items-center gap-3 shrink-0">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+                                    <ArrowDownToLine className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                Histórico de Entradas
                             </div>
                             
-                            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
                                 <select 
                                     value={filtroCategoriaEntrada}
                                     onChange={(e) => setFiltroCategoriaEntrada(e.target.value)}
-                                    className="flex-1 sm:flex-none h-8 text-xs border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-slate-950 px-2 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-shadow"
+                                    className="flex-1 sm:flex-none h-10 text-xs font-semibold border-0 ring-1 ring-slate-200 dark:ring-slate-800 rounded-xl bg-white/80 dark:bg-slate-900/80 px-3 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm transition-all"
                                 >
-                                    <option value="">Todas Entradas</option>
-                                    <option value="nfe">Entrada NFe</option>
+                                    <option value="">Todas as Fontes</option>
+                                    <option value="nfe">Fornecedor (NFe)</option>
                                     <option value="reaproveitamento">Reaproveitamentos</option>
-                                    <option value="manual">Manual / Antigas</option>
-                                    <option value="viagem">Acerto Viagem</option>
+                                    <option value="manual">Lançamento Manual</option>
+                                    <option value="viagem">Acertos de Viagem</option>
                                 </select>
-                                <div className="relative flex-1 sm:flex-none max-w-[8rem] sm:max-w-[10rem]">
-                                    <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="Buscar produto..." className="pl-8 h-8 text-xs bg-white dark:bg-slate-950" value={searchEntradas} onChange={(e) => setSearchEntradas(e.target.value)} />
+                                <div className="relative flex-1 sm:flex-none max-w-[10rem] sm:max-w-[12rem]">
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                    <Input placeholder="Buscar item..." className="pl-9 h-10 text-xs font-semibold border-0 ring-1 ring-slate-200 dark:ring-slate-800 rounded-xl bg-white/80 dark:bg-slate-900/80 shadow-sm" value={searchEntradas} onChange={(e) => setSearchEntradas(e.target.value)} />
                                 </div>
                             </div>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {entradasExibidas.map((item: any, idx: number) => {
                             const categoria = obterCategoriaEntrada(item);
                             
-                            let corDestaque = "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40";
+                            let corDestaque = "hover:bg-slate-50 dark:hover:bg-slate-800/40";
                             let BadgeIcon = ArrowDownToLine;
                             let badgeLabel = "Entrada Padrão";
                             let badgeClasses = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
 
                             switch (categoria) {
                                 case 'reaproveitamento':
-                                    corDestaque = "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30 shadow-sm";
                                     BadgeIcon = Recycle;
-                                    badgeLabel = "Reaproveitamento (Custo Zero)";
-                                    badgeClasses = "bg-[#facc15]/20 text-[#b45309] hover:bg-[#facc15]/30 dark:bg-[#facc15]/10 dark:text-[#facc15]";
+                                    badgeLabel = "Reuso (Custo Zero)";
+                                    badgeClasses = "bg-amber-100/50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/50";
                                     break;
                                 case 'nfe':
-                                    corDestaque = "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/30 shadow-sm";
                                     BadgeIcon = Receipt;
-                                    badgeLabel = "Entrada via NFe";
-                                    badgeClasses = "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300";
+                                    badgeLabel = "Fatura NFe";
+                                    badgeClasses = "bg-emerald-100/50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/50";
                                     break;
                                 case 'viagem':
-                                    corDestaque = "bg-violet-50/80 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/30 shadow-sm";
                                     BadgeIcon = Plane;
-                                    badgeLabel = `Acerto Viagem: ${item.detalhes_confronto?.city}`;
-                                    badgeClasses = "bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300";
+                                    badgeLabel = `Retorno: ${item.detalhes_confronto?.city}`;
+                                    badgeClasses = "bg-violet-100/50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400 border-violet-200/50 dark:border-violet-900/50";
                                     break;
                                 case 'manual':
                                     BadgeIcon = FileBox;
-                                    badgeLabel = "Entrada Manual";
+                                    badgeLabel = "Lançamento Manual";
+                                    badgeClasses = "bg-blue-100/50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200/50 dark:border-blue-900/50";
                                     break;
                             }
 
                             return (
                                 <div key={idx} className={cn(
-                                    "flex justify-between items-start text-sm border-b pb-3 mb-3 last:border-0 p-3 -mx-3 rounded-2xl transition-colors",
+                                    "flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 p-4 -mx-4 rounded-[1.25rem] transition-colors duration-300 group/item",
                                     corDestaque
                                 )}>
-                                    <div className="flex flex-col gap-0.5 w-[70%]">
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={item.produto}>{item.produto}</span>
-                                        <Badge className={cn("border-0 mt-1 gap-1 px-2 py-0 w-max shadow-none", badgeClasses)}>
-                                            <BadgeIcon className="w-3 h-3" /> {badgeLabel}
+                                    <div className="flex flex-col gap-1.5 w-[70%]">
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate tracking-tight text-[15px]" title={item.produto}>{item.produto}</span>
+                                        <Badge variant="outline" className={cn("mt-1 gap-1.5 px-2.5 py-0.5 w-max shadow-sm", badgeClasses)}>
+                                            <BadgeIcon className="w-3.5 h-3.5" /> {badgeLabel}
                                         </Badge>
                                     </div>
                                     <div className="flex flex-col items-end shrink-0">
-                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">+{item.quantidade} un.</span>
-                                        <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(item.data || item.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                                        <span className="font-black text-emerald-600 dark:text-emerald-400 text-lg">+{item.quantidade} un.</span>
+                                        <span className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">{format(new Date(item.data || item.created_at), 'dd/MM HH:mm')}</span>
                                     </div>
                                 </div>
                             );
                         })}
                         {entradasExibidas.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                <Archive className="w-8 h-8 mb-2 opacity-30" />
-                                <p className="text-sm font-medium">Nenhuma entrada encontrada nesta categoria.</p>
+                                <Archive className="w-12 h-12 mb-4 opacity-20" />
+                                <p className="text-sm font-semibold tracking-wide">Nenhuma entrada registada nesta vista.</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-bold">
-                            <div className="flex items-center gap-2 shrink-0">
-                                <ArrowUpFromLine className="h-4 w-4 text-rose-500" />
-                                Saídas Registradas
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[650px] overflow-hidden">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                        <CardTitle className="text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 font-bold tracking-tight">
+                            <div className="flex items-center gap-3 shrink-0">
+                                <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl">
+                                    <ArrowUpFromLine className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                </div>
+                                Histórico de Saídas
                             </div>
                             
-                            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
                                 <select 
                                     value={filtroCategoriaSaida}
                                     onChange={(e) => setFiltroCategoriaSaida(e.target.value)}
-                                    className="flex-1 sm:flex-none h-8 text-xs border border-slate-200 dark:border-slate-800 rounded-md bg-white dark:bg-slate-950 px-2 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow"
+                                    className="flex-1 sm:flex-none h-10 text-xs font-semibold border-0 ring-1 ring-slate-200 dark:ring-slate-800 rounded-xl bg-white/80 dark:bg-slate-900/80 px-3 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition-all"
                                 >
-                                    <option value="">Todas Categorias</option>
-                                    <option value="solicitacao">Por Solicitação</option>
-                                    <option value="manual">Manuais</option>
-                                    <option value="separacao">Por Separação</option>
-                                    <option value="reposicao">Pedido Reposição</option>
-                                    <option value="viagem">Saída de Viagem</option>
+                                    <option value="">Todas as Categorias</option>
+                                    <option value="solicitacao">Pedidos Internos</option>
+                                    <option value="separacao">Ordens Produção</option>
+                                    <option value="reposicao">Pedidos Reposição</option>
+                                    <option value="viagem">Consumo Viagem</option>
+                                    <option value="manual">Retirada Manual</option>
                                 </select>
-                                <div className="relative flex-1 sm:flex-none max-w-[8rem] sm:max-w-[10rem]">
-                                    <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="Buscar..." className="pl-8 h-8 text-xs bg-white dark:bg-slate-950" value={searchSaidas} onChange={(e) => setSearchSaidas(e.target.value)} />
+                                <div className="relative flex-1 sm:flex-none max-w-[10rem] sm:max-w-[12rem]">
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                    <Input placeholder="Buscar item..." className="pl-9 h-10 text-xs font-semibold border-0 ring-1 ring-slate-200 dark:ring-slate-800 rounded-xl bg-white/80 dark:bg-slate-900/80 shadow-sm" value={searchSaidas} onChange={(e) => setSearchSaidas(e.target.value)} />
                                 </div>
                             </div>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {saidasExibidas.map((item: any, idx: number) => {
                             const categoria = obterCategoriaSaida(item);
                             
-                            let corDestaque = "border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40";
+                            let corDestaque = "hover:bg-slate-50 dark:hover:bg-slate-800/40";
                             let BadgeIcon = ArrowUpFromLine;
                             let badgeLabel = "Saída Padrão";
                             let badgeClasses = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
 
                             switch (categoria) {
                                 case 'manual':
-                                    corDestaque = "bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/30 shadow-sm";
                                     badgeLabel = "Saída Manual";
-                                    badgeClasses = "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300";
+                                    badgeClasses = "bg-amber-100/50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/50";
                                     break;
                                 case 'solicitacao':
-                                    corDestaque = "bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/30 shadow-sm";
-                                    badgeLabel = "Solicitação";
-                                    badgeClasses = "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300";
+                                    badgeLabel = "Pedido Interno";
+                                    badgeClasses = "bg-blue-100/50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200/50 dark:border-blue-900/50";
                                     break;
                                 case 'separacao':
-                                    corDestaque = "bg-purple-50/50 border-purple-100 dark:bg-purple-950/20 dark:border-purple-900/30 shadow-sm";
-                                    badgeLabel = item.op_code ? `Separação (OP: ${item.op_code})` : "Separação";
-                                    badgeClasses = "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300";
+                                    badgeLabel = item.op_code ? `Ordem: ${item.op_code}` : "Ordem Produção";
+                                    badgeClasses = "bg-purple-100/50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 border-purple-200/50 dark:border-purple-900/50";
                                     break;
                                 case 'reposicao':
-                                    corDestaque = "bg-teal-50/50 border-teal-100 dark:bg-teal-950/20 dark:border-teal-900/30 shadow-sm";
-                                    badgeLabel = item.order_number ? `Pedido de Reposição (Nº ${item.order_number})` : "Pedido de Reposição";
-                                    badgeClasses = "bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/50 dark:text-teal-300";
+                                    badgeLabel = item.order_number ? `Reposição Nº ${item.order_number}` : "Reposição Cliente";
+                                    badgeClasses = "bg-teal-100/50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-400 border-teal-200/50 dark:border-teal-900/50";
                                     break;
                                 case 'viagem':
-                                    corDestaque = "bg-violet-50/80 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/30 shadow-sm";
                                     BadgeIcon = Plane;
-                                    badgeLabel = `Consumo Viagem: ${item.detalhes_confronto?.city}`;
-                                    badgeClasses = "bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/50 dark:text-violet-300";
+                                    badgeLabel = `Aplicado em: ${item.detalhes_confronto?.city}`;
+                                    badgeClasses = "bg-violet-100/50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400 border-violet-200/50 dark:border-violet-900/50";
                                     break;
                             }
 
                             return (
                                 <div key={idx} className={cn(
-                                    "flex justify-between items-start text-sm border-b pb-3 mb-3 last:border-0 p-3 -mx-3 rounded-2xl transition-colors",
+                                    "flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 p-4 -mx-4 rounded-[1.25rem] transition-colors duration-300",
                                     corDestaque
                                 )}>
-                                    <div className="flex flex-col gap-0.5 w-[70%]">
-                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={item.produto}>{item.produto}</span>
-                                        <Badge className={cn("border-0 mt-1 gap-1 px-2 py-0 w-max shadow-none", badgeClasses)}>
-                                            <BadgeIcon className="w-3 h-3" /> {badgeLabel}
+                                    <div className="flex flex-col gap-1.5 w-[70%]">
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate tracking-tight text-[15px]" title={item.produto}>{item.produto}</span>
+                                        <Badge variant="outline" className={cn("mt-1 gap-1.5 px-2.5 py-0.5 w-max shadow-sm", badgeClasses)}>
+                                            <BadgeIcon className="w-3.5 h-3.5" /> {badgeLabel}
                                         </Badge>
                                         
                                         {categoria !== 'viagem' && (
-                                            <span className="text-xs text-muted-foreground truncate mt-0.5">Para: {item.destino_setor || item.client_service || 'N/A'}</span>
+                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate mt-1">Destino: <span className="text-slate-700 dark:text-slate-300">{item.destino_setor || item.client_service || 'Não especificado'}</span></span>
                                         )}
                                     </div>
                                     <div className="flex flex-col items-end shrink-0">
-                                        <span className="font-bold text-rose-600 dark:text-rose-400">-{item.quantidade} un.</span>
-                                        <span className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(item.data), 'dd/MM/yyyy HH:mm')}</span>
+                                        <span className="font-black text-rose-600 dark:text-rose-400 text-lg">-{item.quantidade} un.</span>
+                                        <span className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">{format(new Date(item.data), 'dd/MM HH:mm')}</span>
                                     </div>
                                 </div>
                             );
                         })}
                         {saidasExibidas.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                <Archive className="w-8 h-8 mb-2 opacity-30" />
-                                <p className="text-sm font-medium">Nenhuma saída encontrada nesta categoria.</p>
+                                <Archive className="w-12 h-12 mb-4 opacity-20" />
+                                <p className="text-sm font-semibold tracking-wide">Nenhuma saída registada nesta vista.</p>
                             </div>
                         )}
                     </CardContent>
@@ -1471,74 +1479,76 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="saude-estoque" className={tabContentClass}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[400px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6 flex flex-row items-center justify-between">
-                        <CardTitle className="text-base font-bold flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground"/>
-                            Estoque Parado (+90 dias)
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[450px]">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8 flex flex-row items-center justify-between">
+                        <CardTitle className="text-base font-bold flex items-center gap-3 tracking-tight">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><Clock className="h-4 w-4 text-slate-500 dark:text-slate-400"/></div>
+                            Inventário Inativo (+90 dias)
                         </CardTitle>
-                        <Badge variant="outline" className="font-semibold">{formatCurrency(analytics?.valorTotalObsoletos)} imobilizado</Badge>
+                        <Badge variant="outline" className="font-bold text-xs bg-rose-50 text-rose-600 border-rose-200 shadow-sm dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 py-1 px-3 rounded-lg">
+                            {formatCurrency(analytics?.valorTotalObsoletos)} Retido
+                        </Badge>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {analytics?.obsoletos.map((item: any, idx: number) => {
                             const disp = Number(item.quantidade_total || item.quantidade || 0);
                             return (
-                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-3 last:border-0">
-                                <div className="flex flex-col gap-0.5 w-[65%]">
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
-                                    <span className="text-xs text-muted-foreground">SKU: {item.sku}</span>
+                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 p-2 -mx-2 rounded-xl transition-all">
+                                <div className="flex flex-col gap-1 w-[65%]">
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
+                                    <span className="text-[11px] font-semibold text-slate-400 tracking-wider">SKU: {item.sku}</span>
                                 </div>
                                 <div className="flex flex-col items-end shrink-0">
-                                    <span className="font-bold text-slate-900 dark:text-slate-100">{disp} un.</span>
-                                    <span className="text-[10px] text-muted-foreground">Últ. Mov: {item.ultima_movimentacao ? format(new Date(item.ultima_movimentacao), 'dd/MM/yyyy') : 'Nunca'}</span>
+                                    <span className="font-black text-slate-900 dark:text-slate-100 text-base">{disp} un.</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Últ. Mov: {item.ultima_movimentacao ? format(new Date(item.ultima_movimentacao), 'dd/MM/yyyy') : 'Nunca'}</span>
                                 </div>
                             </div>
                         )})}
                         {analytics?.obsoletos.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                <Package className="w-8 h-8 mb-2 opacity-50" />
-                                <p className="text-sm font-medium">Estoque limpo</p>
+                            <div className="flex flex-col items-center justify-center h-full text-emerald-500">
+                                <Package className="w-12 h-12 mb-4 opacity-50" />
+                                <p className="text-sm font-bold tracking-wide">Estoque 100% ativo e circulante.</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[400px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base font-bold flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4 text-muted-foreground"/>
-                            Top 10 Maior Giro
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[450px]">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                        <CardTitle className="text-base font-bold flex items-center gap-3 tracking-tight">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><BarChart3 className="h-4 w-4 text-slate-500 dark:text-slate-400"/></div>
+                            Top 10: Mais Movimentados
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {analytics?.top10Movimentados.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-3 last:border-0">
-                                <div className="flex items-center gap-3 w-3/4">
-                                    <span className="text-xs font-bold text-muted-foreground w-4">{idx+1}.</span>
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
+                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 p-2 -mx-2 rounded-xl transition-all">
+                                <div className="flex items-center gap-4 w-3/4">
+                                    <span className="text-xs font-black text-slate-300 dark:text-slate-600 w-5">{idx+1}.</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
                                 </div>
-                                <Badge variant="secondary" className="font-bold shrink-0">{item.count} ops</Badge>
+                                <Badge variant="secondary" className="font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0">{item.count} ops</Badge>
                             </div>
                         ))}
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[400px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base font-bold flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-muted-foreground"/>
-                            Top 10 Maior Valor Armazenado
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[450px]">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                        <CardTitle className="text-base font-bold flex items-center gap-3 tracking-tight">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><DollarSign className="h-4 w-4 text-slate-500 dark:text-slate-400"/></div>
+                            Top 10: Maior Capital Alocado
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {analytics?.top10Valor.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-3 last:border-0">
-                                <div className="flex items-center gap-3 w-[60%]">
-                                    <span className="text-xs font-bold text-muted-foreground w-4">{idx+1}.</span>
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
+                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 p-2 -mx-2 rounded-xl transition-all">
+                                <div className="flex items-center gap-4 w-[60%]">
+                                    <span className="text-xs font-black text-slate-300 dark:text-slate-600 w-5">{idx+1}.</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
                                 </div>
-                                <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0 text-base">
                                     {formatCurrency((item.quantidade_total || item.quantidade) * (item.preco || 0))}
                                 </span>
                             </div>
@@ -1546,32 +1556,32 @@ export default function Reports() {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[400px]">
-                    <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                        <CardTitle className="text-base font-bold flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-muted-foreground"/>
+                <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[450px]">
+                    <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                        <CardTitle className="text-base font-bold flex items-center gap-3 tracking-tight">
+                            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500"/></div>
                             Itens em Risco de Rutura
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                    <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                         {analytics?.estoqueCritico.map((item: any, idx: number) => {
                             const disp = (item.quantidade_total || item.quantidade) - (item.quantidade_reservada || 0);
                             return (
-                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-3 last:border-0">
-                                <div className="flex items-center gap-3 w-[60%]">
-                                    <span className="text-xs font-bold text-muted-foreground w-4">{idx+1}.</span>
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
+                            <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/50 pb-4 mb-4 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 p-2 -mx-2 rounded-xl transition-all">
+                                <div className="flex items-center gap-4 w-[60%]">
+                                    <span className="text-xs font-black text-slate-300 dark:text-slate-600 w-5">{idx+1}.</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{item.produto}</span>
                                 </div>
                                 <div className="flex flex-col items-end shrink-0">
-                                    <span className="font-bold text-amber-600 dark:text-amber-400">{disp} un.</span>
-                                    <span className="text-[10px] text-muted-foreground">Mín: {item.estoque_minimo}</span>
+                                    <span className="font-black text-amber-600 dark:text-amber-400 text-base">{disp} un.</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Mínimo: {item.estoque_minimo}</span>
                                 </div>
                             </div>
                         )})}
                         {analytics?.estoqueCritico.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                <Package className="w-8 h-8 mb-2 opacity-50" />
-                                <p className="text-sm font-medium">Estoque saudável</p>
+                            <div className="flex flex-col items-center justify-center h-full text-emerald-500">
+                                <Package className="w-12 h-12 mb-4 opacity-50" />
+                                <p className="text-sm font-bold tracking-wide">Nenhuma rutura iminente.</p>
                             </div>
                         )}
                     </CardContent>
@@ -1585,7 +1595,7 @@ export default function Reports() {
                  timelineData={analytics?.sectorTimelineData}
                  sectorTotals={analytics?.sectorValueData}
                  totalValue={analytics?.totalSectorValue}
-                 title="Custos por Setor Interno" 
+                 title="Custos Operacionais por Setor Interno" 
                  icon={Layers} 
                  isCurrency={true}
                />
@@ -1593,45 +1603,45 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="valor-op" className={tabContentClass}>
-            <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px]">
-                <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 pb-4 pt-5 px-6">
-                    <CardTitle className="text-base font-bold flex items-center gap-2">
-                        <Briefcase className="h-4 w-4 text-muted-foreground"/>
+            <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl flex flex-col h-[650px] overflow-hidden">
+                <CardHeader className="bg-white/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-6 px-8">
+                    <CardTitle className="text-base font-bold flex items-center gap-3 tracking-tight">
+                        <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><Briefcase className="h-4 w-4 text-slate-500 dark:text-slate-400"/></div>
                         Custo Acumulado Histórico por OP
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-4 px-6 pb-6 flex-1 overflow-y-auto custom-scrollbar">
+                <CardContent className="pt-6 px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                     {analytics?.opValueData && analytics.opValueData.length > 0 ? (
                         <div className="space-y-4">
                             {analytics.opValueData.map((op: any, idx: number) => (
-                                <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-3 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 p-2 -mx-2 rounded-lg transition-colors">
-                                    <div className="flex flex-col gap-1 w-[60%]">
+                                <div key={idx} className="flex justify-between items-center text-sm border border-slate-100 dark:border-slate-800/50 bg-white/40 dark:bg-slate-900/40 p-5 rounded-[1.5rem] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+                                    <div className="flex flex-col gap-2 w-[60%]">
                                         <div className="flex items-center gap-3">
-                                            <span className="font-semibold text-slate-800 dark:text-slate-200 text-base">OP: {op.op_code}</span>
+                                            <span className="font-black text-slate-800 dark:text-slate-200 text-lg tracking-tight">OP: {op.op_code}</span>
                                             {op.status === 'finalizada' || op.status === 'encerrada' ? (
-                                                <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 text-[10px] py-0 flex items-center gap-1 shadow-none">
-                                                    <Lock className="w-3 h-3" /> Finalizada (Congelada)
+                                                <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 text-[10px] py-0.5 px-2 flex items-center gap-1.5 shadow-none rounded-md">
+                                                    <Lock className="w-3 h-3" /> Finalizada
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400 text-[10px] py-0 flex items-center gap-1 shadow-none">
+                                                <Badge variant="outline" className="bg-blue-50/80 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400 text-[10px] py-0.5 px-2 flex items-center gap-1.5 shadow-none rounded-md">
                                                     <Activity className="w-3 h-3" /> Em Andamento
                                                 </Badge>
                                             )}
                                         </div>
-                                        <span className="text-xs text-muted-foreground">{op.totalItems} peças/itens separados no total</span>
+                                        <span className="text-[12px] font-semibold text-slate-400">{op.totalItems} peças / itens separados no total</span>
                                     </div>
-                                    <div className="flex items-center gap-4 shrink-0">
-                                        <span className="font-black text-indigo-600 dark:text-indigo-400 text-lg">
+                                    <div className="flex items-center gap-6 shrink-0">
+                                        <span className="font-black text-indigo-600 dark:text-indigo-400 text-2xl tracking-tighter">
                                             {formatCurrency(op.totalValue)}
                                         </span>
                                         <Button 
                                             variant="outline" 
                                             size="sm" 
                                             onClick={() => handleExportOpPDF(op)}
-                                            className="h-8 bg-white dark:bg-slate-950 border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
+                                            className="h-10 rounded-xl font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors shadow-sm"
                                             title="Exportar Extrato da OP"
                                         >
-                                            <FileText className="w-4 h-4 mr-2 text-rose-500" /> PDF
+                                            <FileText className="w-4 h-4 mr-2 text-indigo-500" /> Extrato PDF
                                         </Button>
                                     </div>
                                 </div>
@@ -1639,8 +1649,8 @@ export default function Reports() {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Archive className="w-10 h-10 mb-2 opacity-30" />
-                            <p className="text-sm font-medium">Nenhuma OP encontrada ou backend pendente de atualização.</p>
+                            <Archive className="w-12 h-12 mb-4 opacity-20" />
+                            <p className="text-sm font-semibold tracking-wide">Nenhuma OP com custos alocados no momento.</p>
                         </div>
                     )}
                 </CardContent>
@@ -1648,41 +1658,44 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="reposicao-garantia" className={tabContentClass}>
-            <Card className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl">
-                <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4 pt-6 px-6">
-                    <CardTitle className="text-lg font-bold flex items-center gap-2">
-                        <ShieldAlert className="h-5 w-5 text-muted-foreground" />
-                        Registo de Operações Secundárias
+            <Card className="shadow-lg border-white/40 dark:border-slate-800/60 rounded-[2rem] bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none" />
+                <CardHeader className="border-b border-slate-100 dark:border-slate-800/50 pb-5 pt-8 px-8 relative z-10">
+                    <CardTitle className="text-xl font-bold flex items-center gap-3 tracking-tight">
+                        <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl"><ShieldAlert className="h-5 w-5 text-slate-500 dark:text-slate-400" /></div>
+                        Registo Analítico de Ocorrências
                     </CardTitle>
-                    <CardDescription>Valores paralelos para cálculo de lucro e perda (não afeta estoque físico).</CardDescription>
+                    <CardDescription className="text-xs font-semibold mt-1.5 tracking-wide">Lançamento de valores virtuais para demonstrações de resultados operacionais.</CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6 px-6 pb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                            <Label className="text-sm font-semibold flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                                <Package className="w-4 h-4" /> Ganho de Venda (Reposição)
+                <CardContent className="pt-8 px-8 pb-8 relative z-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4 p-6 bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-[1.5rem] shadow-sm">
+                            <Label className="text-sm font-bold flex items-center gap-2.5 text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
+                                <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><Package className="w-4 h-4" /></div> Ganho de Venda (Reposição)
                             </Label>
+                            <p className="text-[11px] text-slate-400 font-semibold mb-2">Simulação de lucro associado a reposições de inventário.</p>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">R$</span>
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">R$</span>
                                 <Input 
                                     type="number" 
                                     value={custoReposicao} 
                                     onChange={(e) => setCustoReposicao(e.target.value)} 
-                                    className="pl-10 h-12 text-lg font-bold bg-slate-50 dark:bg-slate-900" 
+                                    className="pl-14 h-14 text-xl font-black rounded-2xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-inner focus-visible:ring-emerald-500" 
                                 />
                             </div>
                         </div>
-                        <div className="space-y-3">
-                            <Label className="text-sm font-semibold flex items-center gap-2 text-rose-700 dark:text-rose-400">
-                                <Receipt className="w-4 h-4" /> Perda Operacional (Garantia)
+                        <div className="space-y-4 p-6 bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-[1.5rem] shadow-sm">
+                            <Label className="text-sm font-bold flex items-center gap-2.5 text-rose-700 dark:text-rose-400 uppercase tracking-widest">
+                                <div className="p-1.5 bg-rose-100 dark:bg-rose-900/30 rounded-lg"><Receipt className="w-4 h-4" /></div> Perda Operacional (Garantia)
                             </Label>
+                            <p className="text-[11px] text-slate-400 font-semibold mb-2">Deficiências e quebras cobertas pela garantia do sistema.</p>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">R$</span>
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">R$</span>
                                 <Input 
                                     type="number" 
                                     value={custoGarantia} 
                                     onChange={(e) => setCustoGarantia(e.target.value)} 
-                                    className="pl-10 h-12 text-lg font-bold bg-slate-50 dark:bg-slate-900" 
+                                    className="pl-14 h-14 text-xl font-black rounded-2xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-inner focus-visible:ring-rose-500" 
                                 />
                             </div>
                         </div>
@@ -1690,98 +1703,108 @@ export default function Reports() {
                 </CardContent>
             </Card>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-                    <CardContent className="p-6 flex flex-col justify-center h-full">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Estoque Atual</p>
-                        <p className="text-2xl font-bold">{formatCurrency(analytics?.valorTotalEstoque || 0)}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="border-white/40 dark:border-slate-800/60 rounded-[1.5rem] bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl shadow-lg">
+                    <CardContent className="p-8 flex flex-col justify-center h-full">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em] mb-2">Capital Referência</p>
+                        <p className="text-3xl font-black tracking-tighter">{formatCurrency(analytics?.valorTotalEstoque || 0)}</p>
                     </CardContent>
                 </Card>
-                <Card className="border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl shadow-sm">
-                    <CardContent className="p-6 flex flex-col justify-center h-full">
-                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-500 uppercase mb-1">Total Ganhos</p>
-                        <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">+{formatCurrency(Number(custoReposicao) || 0)}</p>
+                <Card className="border-emerald-200/50 dark:border-emerald-900/30 bg-emerald-50/70 dark:bg-emerald-950/20 backdrop-blur-xl rounded-[1.5rem] shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-bl-full pointer-events-none" />
+                    <CardContent className="p-8 flex flex-col justify-center h-full relative z-10">
+                        <p className="text-xs font-bold text-emerald-600/80 dark:text-emerald-500 uppercase tracking-[0.15em] mb-2">Projeção Ganhos</p>
+                        <p className="text-3xl font-black tracking-tighter text-emerald-600 dark:text-emerald-400">+{formatCurrency(Number(custoReposicao) || 0)}</p>
                     </CardContent>
                 </Card>
-                <Card className="border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl shadow-sm">
-                    <CardContent className="p-6 flex flex-col justify-center h-full">
-                        <p className="text-xs font-semibold text-rose-600 dark:text-rose-500 uppercase mb-1">Total Perdas</p>
-                        <p className="text-2xl font-bold text-rose-700 dark:text-rose-400">-{formatCurrency(Number(custoGarantia) || 0)}</p>
+                <Card className="border-rose-200/50 dark:border-rose-900/30 bg-rose-50/70 dark:bg-rose-950/20 backdrop-blur-xl rounded-[1.5rem] shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-400/10 rounded-bl-full pointer-events-none" />
+                    <CardContent className="p-8 flex flex-col justify-center h-full relative z-10">
+                        <p className="text-xs font-bold text-rose-600/80 dark:text-rose-500 uppercase tracking-[0.15em] mb-2">Projeção Perdas</p>
+                        <p className="text-3xl font-black tracking-tighter text-rose-600 dark:text-rose-400">-{formatCurrency(Number(custoGarantia) || 0)}</p>
                     </CardContent>
                 </Card>
             </div>
         </TabsContent>
 
         <TabsContent value="pedidos-reposicao" className={tabContentClass}>
-          <div className="mb-4">
-             <h2 className="text-xl font-bold flex items-center gap-2">
-                 <Truck className="h-5 w-5 text-indigo-500" />
+          <div className="mb-6 pl-2">
+             <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 text-slate-900 dark:text-white">
+                 <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl"><Truck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" /></div>
                  Métricas de Pedidos de Reposição
              </h2>
-             <p className="text-sm text-muted-foreground">Desempenho e status do fluxo de atendimento de reposições no período selecionado.</p>
+             <p className="text-sm font-medium text-slate-500 tracking-wide mt-2 ml-14">Análise de desempenho e status do fluxo de atendimento de reposições no período.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard 
                 title="Total de Pedidos" 
                 value={metricsReplenishments.total} 
-                subtext="Todos os registos" 
+                subtext="Pedidos emitidos no período" 
                 icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400" 
+                gradientClass="bg-slate-400/20"
             />
             <KPICard 
-                title="Aguardando (Pendentes)" 
+                title="Aguardando (Pendente)" 
                 value={metricsReplenishments.pendentes} 
-                subtext="Requerem ação" 
+                subtext="Requerem ação do backoffice" 
                 icon={Clock} iconColor="text-amber-600 dark:text-amber-400" 
+                gradientClass="bg-amber-500/20"
             />
             <KPICard 
                 title="Em Preparo" 
                 value={metricsReplenishments.emPreparo} 
-                subtext="Sendo separados" 
+                subtext="Sendo separados no armazém" 
                 icon={Package} iconColor="text-blue-600 dark:text-blue-400" 
+                gradientClass="bg-blue-500/20"
             />
             <KPICard 
                 title="Finalizados" 
                 value={metricsReplenishments.concluidos} 
-                subtext={`Valor: ${formatCurrency(metricsReplenishments.valorTotalConcluido)}`} 
+                subtext={`Faturação: ${formatCurrency(metricsReplenishments.valorTotalConcluido)}`} 
                 icon={CheckCircle2} iconColor="text-emerald-600 dark:text-emerald-400" 
+                gradientClass="bg-emerald-500/20"
             />
           </div>
         </TabsContent>
 
         <TabsContent value="producao-3d" className={tabContentClass}>
-          <div className="mb-4">
-             <h2 className="text-xl font-bold flex items-center gap-2">
-                 <Printer className="h-5 w-5 text-blue-500" />
+          <div className="mb-6 pl-2">
+             <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 text-slate-900 dark:text-white">
+                 <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl"><Printer className="h-6 w-6 text-blue-600 dark:text-blue-400" /></div>
                  Métricas de Produção 3D
              </h2>
-             <p className="text-sm text-muted-foreground">Volume de impressões, tempo gasto e filamento consumido no período selecionado.</p>
+             <p className="text-sm font-medium text-slate-500 tracking-wide mt-2 ml-14">Desempenho da manufatura aditiva, tempos operacionais e volume de material.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <KPICard 
-                title="Peças Impressas" 
+                title="Peças Manufaturadas" 
                 value={metrics3D.totalPieces} 
-                subtext="Unidades totais" 
+                subtext="Volume bruto expedido" 
                 icon={Package} iconColor="text-blue-600 dark:text-blue-400" 
+                gradientClass="bg-blue-500/20"
             />
             <KPICard 
-                title="Filamento Consumido" 
+                title="Matéria-Prima Usada" 
                 value={`${metrics3D.totalFilament}g`} 
-                subtext="Total em gramas" 
+                subtext="Consumo bruto em filamento" 
                 icon={Layers} iconColor="text-emerald-600 dark:text-emerald-400" 
+                gradientClass="bg-emerald-500/20"
             />
             <KPICard 
-                title="Tempo de Máquina" 
+                title="Carga de Máquina" 
                 value={metrics3D.tempoFormatado} 
-                subtext="Horas operacionais" 
+                subtext="Horas reais operacionais" 
                 icon={Clock} iconColor="text-amber-600 dark:text-amber-400" 
+                gradientClass="bg-amber-500/20"
             />
             <KPICard 
-                title="Ordens Finalizadas" 
+                title="Lotes Finalizados" 
                 value={metrics3D.ordensFinalizadas} 
-                subtext="Impressões concluídas" 
+                subtext="Ordens de impressão" 
                 icon={CheckCircle2} iconColor="text-purple-600 dark:text-purple-400" 
+                gradientClass="bg-purple-500/20"
             />
           </div>
         </TabsContent>
