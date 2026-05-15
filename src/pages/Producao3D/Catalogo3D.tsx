@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-// Importamos novos ícones para o upload e design
 import { Search, Pencil, Clock, Layers, Package, Loader2, UploadCloud, ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const formatMinutes = (m: number) => {
   if (!m) return "0min";
   const h = Math.floor(m / 60);
-  const min = m % 60;
+  const min = Math.floor(m % 60); // Garantir que os minutos não ficam com casas decimais na exibição
   return h > 0 ? `${h}h ${min}min` : `${min}min`;
 };
 
@@ -71,13 +70,24 @@ export default function Catalogo3D() {
       toast.success("Dados técnicos da peça atualizados com sucesso!");
       setEditingPart(null);
     },
-    onError: () => toast.error("Erro ao salvar alterações."),
+    onError: () => toast.error("Erro ao salvar alterações. A imagem pode ser demasiado grande ou houve falha na rede."),
   });
 
-  // Função educativa: Processa o upload da imagem e converte para texto (Base64)
+  // Função educativa: Processa o upload da imagem com validação de tamanho
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // 1. Verificar o tamanho do ficheiro (Exemplo: limite de 1 MB = 1048576 bytes)
+      // Como estamos a usar Base64, ficheiros muito grandes dão erro no servidor
+      const MAX_SIZE_IN_BYTES = 1 * 1024 * 1024; // 1 MB
+      
+      if (file.size > MAX_SIZE_IN_BYTES) {
+        toast.error("Imagem muito grande! Por favor, envia uma imagem com menos de 1MB.");
+        // Limpar o input para permitir selecionar novamente
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return; 
+      }
+
       // FileReader é uma API nativa do navegador para ler ficheiros locais
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -163,6 +173,7 @@ export default function Catalogo3D() {
                     </div>
                     <div className="flex items-center gap-1.5 p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
                       <Layers className="h-3.5 w-3.5 text-blue-500" />
+                      {/* Corrigida exibição do peso do filamento para suportar decimais visualmente */}
                       <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{p.filament_grams}g</span>
                     </div>
                   </div>
@@ -183,9 +194,8 @@ export default function Catalogo3D() {
         </div>
       )}
 
-      {/* MODAL DE EDIÇÃO TÉCNICA - DESIGN PROFISSIONAL */}
+      {/* MODAL DE EDIÇÃO TÉCNICA */}
       <Dialog open={!!editingPart} onOpenChange={(o) => !o && setEditingPart(null)}>
-        {/* Aumentamos a largura máxima para max-w-2xl para acomodar as duas colunas e adicionamos p-0 para controlar o padding manualmente */}
         <DialogContent className="max-w-2xl bg-white dark:bg-[#111111] border-slate-200 dark:border-white/10 rounded-3xl p-0 overflow-hidden shadow-2xl">
           
           <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
@@ -202,11 +212,10 @@ export default function Catalogo3D() {
               
               {/* COLUNA ESQUERDA: UPLOAD DE IMAGEM */}
               <div className="md:col-span-2 space-y-3">
-                <Label className="text-slate-700 dark:text-slate-300 font-semibold">Imagem da Peça</Label>
+                <Label className="text-slate-700 dark:text-slate-300 font-semibold">Imagem da Peça (Máx. 1MB)</Label>
                 
                 <div className="group relative aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 transition-colors bg-slate-50 dark:bg-white/5 flex flex-col items-center justify-center overflow-hidden">
                   
-                  {/* Pré-visualização da imagem ou área vazia */}
                   {editingPart.image_url ? (
                     <>
                       <img src={editingPart.image_url} alt="Preview" className="w-full h-full object-cover" />
@@ -229,17 +238,16 @@ export default function Catalogo3D() {
                     </div>
                   )}
 
-                  {/* Input real invisível */}
+                  {/* Input real invisível com filtro de formato */}
                   <input 
                     type="file" 
                     ref={fileInputRef}
                     className="hidden" 
-                    accept="image/*"
+                    accept="image/jpeg, image/png, image/webp"
                     onChange={handleImageUpload}
                   />
                 </div>
                 
-                {/* Opção alternativa de URL mantida discretamente para flexibilidade */}
                 <div className="pt-2">
                   <Label className="text-xs text-slate-500 mb-1 block">Ou link externo (URL)</Label>
                   <div className="relative">
@@ -263,9 +271,14 @@ export default function Catalogo3D() {
                     </Label>
                     <Input 
                       type="number"
+                      step="any"
+                      min="0"
                       className="bg-slate-50 dark:bg-white/5"
-                      value={editingPart.production_minutes || ""} 
-                      onChange={(e) => setEditingPart({ ...editingPart, production_minutes: +e.target.value })}
+                      value={editingPart.production_minutes ?? ""} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingPart({ ...editingPart, production_minutes: val === "" ? 0 : parseFloat(val) })
+                      }}
                     />
                   </div>
                   
@@ -273,11 +286,18 @@ export default function Catalogo3D() {
                     <Label className="text-slate-700 dark:text-slate-300 flex items-center gap-2">
                       <Layers className="h-4 w-4 text-blue-500" /> Filamento (Gramas)
                     </Label>
+                    {/* Alteração Principal: Adicionado step="0.01" para permitir decimais */}
                     <Input 
                       type="number"
+                      step="0.01" // Permite números com casas decimais
+                      min="0"
                       className="bg-slate-50 dark:bg-white/5"
-                      value={editingPart.filament_grams || ""} 
-                      onChange={(e) => setEditingPart({ ...editingPart, filament_grams: +e.target.value })}
+                      value={editingPart.filament_grams ?? ""} 
+                      onChange={(e) => {
+                        // Converter adequadamente a string em número decimal
+                        const val = e.target.value;
+                        setEditingPart({ ...editingPart, filament_grams: val === "" ? 0 : parseFloat(val) })
+                      }}
                     />
                   </div>
                 </div>
