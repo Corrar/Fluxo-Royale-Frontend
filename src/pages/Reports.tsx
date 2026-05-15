@@ -26,7 +26,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas"; 
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   LineChart, Line
 } from "recharts";
 import { toast } from "sonner";
@@ -84,7 +84,7 @@ const getBase64FromUrl = async (url: string): Promise<string> => {
 
 // --- COMPONENTES UI REFINADOS ---
 
-// Tooltip Glassmorphism Premium para o Gráfico de Barras Principal
+// Tooltip Glassmorphism Premium para os Gráficos
 const GlassTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
@@ -92,13 +92,13 @@ const GlassTooltip = ({ active, payload, label }: any) => {
                 <p className="font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wider text-[11px] pb-2 border-b border-slate-200 dark:border-slate-800">{label}</p>
                 <div className="flex flex-col gap-3">
                     {payload.map((entry: any, index: number) => {
-                        // Extrai a cor base para evitar passar "url(#id)" para o style de background
-                        let bgColor = entry.fill;
-                        if (bgColor.includes('url(#colorEntradas)')) bgColor = COLORS.entradas;
-                        if (bgColor.includes('url(#colorSaidas)')) bgColor = COLORS.saidas;
-                        if (bgColor.includes('url(#colorManuais)')) bgColor = COLORS.manuais;
-                        if (bgColor.includes('url(#colorProd3D)')) bgColor = COLORS.prod3d;
-                        if (bgColor.includes('url(#colorReposicoes)')) bgColor = COLORS.reposicoes;
+                        // Resolve a cor real (pois os gradients usam url(#id))
+                        let bgColor = entry.stroke || entry.fill || entry.color;
+                        if (bgColor?.includes('url(#colorEntradas)')) bgColor = COLORS.entradas;
+                        if (bgColor?.includes('url(#colorSaidas)')) bgColor = COLORS.saidas;
+                        if (bgColor?.includes('url(#colorManuais)')) bgColor = COLORS.manuais;
+                        if (bgColor?.includes('url(#colorProd3D)')) bgColor = COLORS.prod3d;
+                        if (bgColor?.includes('url(#colorReposicoes)')) bgColor = COLORS.reposicoes;
 
                         return (
                             <div key={index} className="flex justify-between items-center gap-6">
@@ -1280,53 +1280,53 @@ export default function Reports() {
                 <CardContent className="h-[420px] w-full pt-4 pb-6 px-8 relative z-10">
                     {analytics && (
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={analytics.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            {/* 🟢 GRADIENTES PREMIUM PARA AS BARRAS */}
+                        <AreaChart data={analytics.chartData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                            {/* 🟢 GRADIENTES PREMIUM PARA AS ÁREAS */}
                             <defs>
                                 <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.entradas} stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor={COLORS.entradas} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={COLORS.entradas} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={COLORS.entradas} stopOpacity={0}/>
                                 </linearGradient>
                                 <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.saidas} stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor={COLORS.saidas} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={COLORS.saidas} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={COLORS.saidas} stopOpacity={0}/>
                                 </linearGradient>
                                 <linearGradient id="colorManuais" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.manuais} stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor={COLORS.manuais} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={COLORS.manuais} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={COLORS.manuais} stopOpacity={0}/>
                                 </linearGradient>
                                 <linearGradient id="colorProd3D" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.prod3d} stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor={COLORS.prod3d} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={COLORS.prod3d} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={COLORS.prod3d} stopOpacity={0}/>
                                 </linearGradient>
                                 <linearGradient id="colorReposicoes" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.reposicoes} stopOpacity={0.9}/>
-                                    <stop offset="95%" stopColor={COLORS.reposicoes} stopOpacity={0.4}/>
+                                    <stop offset="5%" stopColor={COLORS.reposicoes} stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor={COLORS.reposicoes} stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
                             
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" strokeOpacity={0.3} />
                             <XAxis dataKey="name" fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 600}} dy={15} />
                             <YAxis fontSize={12} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 600}} dx={-10} />
-                            <Tooltip content={<GlassTooltip />} cursor={{fill: '#f8fafc', opacity: 0.5}} />
+                            <Tooltip content={<GlassTooltip />} cursor={{stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4'}} />
                             <Legend wrapperStyle={{ paddingTop: '30px', fontSize: '12px', fontWeight: 600 }} iconType="circle" />
                             
                             {(chartFilter === 'all' || chartFilter === 'entradas') && (
-                                <Bar dataKey="entradas" name="Entradas (Todas)" fill="url(#colorEntradas)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                                <Area type="monotone" dataKey="entradas" name="Entradas (Todas)" stroke={COLORS.entradas} strokeWidth={3.5} fill="url(#colorEntradas)" activeDot={{ r: 6, fill: COLORS.entradas, stroke: '#fff', strokeWidth: 2 }} animationDuration={1500} />
                             )}
                             {(chartFilter === 'all' || chartFilter === 'solicitacoes') && (
-                                <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill="url(#colorSaidas)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                                <Area type="monotone" dataKey="saidas_sistema" name="Solicitações (Entregues)" stroke={COLORS.saidas} strokeWidth={3.5} fill="url(#colorSaidas)" activeDot={{ r: 6, fill: COLORS.saidas, stroke: '#fff', strokeWidth: 2 }} animationDuration={1500} />
                             )}
                             {(chartFilter === 'all' || chartFilter === 'producao_3d') && (
-                                <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="url(#colorProd3D)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                                <Area type="monotone" dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" stroke={COLORS.prod3d} strokeWidth={3.5} fill="url(#colorProd3D)" activeDot={{ r: 6, fill: COLORS.prod3d, stroke: '#fff', strokeWidth: 2 }} animationDuration={1500} />
                             )}
                             {(chartFilter === 'all' || chartFilter === 'reposicoes') && (
-                                <Bar dataKey="reposicoes" name="Pedidos Reposição (Concluídos)" fill="url(#colorReposicoes)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                                <Area type="monotone" dataKey="reposicoes" name="Pedidos Reposição (Concluídos)" stroke={COLORS.reposicoes} strokeWidth={3.5} fill="url(#colorReposicoes)" activeDot={{ r: 6, fill: COLORS.reposicoes, stroke: '#fff', strokeWidth: 2 }} animationDuration={1500} />
                             )}
                             {(chartFilter === 'all' || chartFilter === 'saidas_manual') && (
-                                <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill="url(#colorManuais)" radius={[6, 6, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                                <Area type="monotone" dataKey="saidas_manual" name="Saída Manual (Ações)" stroke={COLORS.manuais} strokeWidth={3.5} fill="url(#colorManuais)" activeDot={{ r: 6, fill: COLORS.manuais, stroke: '#fff', strokeWidth: 2 }} animationDuration={1500} />
                             )}
-                        </BarChart>
+                        </AreaChart>
                     </ResponsiveContainer>
                     )}
                 </CardContent>
