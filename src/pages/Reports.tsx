@@ -310,31 +310,47 @@ export default function Reports() {
     refetchOnWindowFocus: false
   });
 
-  // 🟢 Métricas processadas para as novas abas
+  // 🟢 Métricas processadas para as novas abas COM FILTRO DE DATA
   const metricsReplenishments = useMemo(() => {
-    const total = replenishments.length;
-    const pendentes = replenishments.filter((r: any) => r.status === 'pendente').length;
-    const emPreparo = replenishments.filter((r: any) => r.status === 'em_preparo').length;
-    const concluidos = replenishments.filter((r: any) => r.status === 'concluido').length;
+    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
+    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+
+    const filtered = replenishments.filter((r: any) => {
+      const d = new Date(r.created_at);
+      return d >= sDate && d <= eDate;
+    });
+
+    const total = filtered.length;
+    const pendentes = filtered.filter((r: any) => r.status === 'pendente').length;
+    const emPreparo = filtered.filter((r: any) => r.status === 'em_preparo').length;
+    const concluidos = filtered.filter((r: any) => r.status === 'concluido').length;
     
-    const valorTotalConcluido = replenishments
+    const valorTotalConcluido = filtered
       .filter((r: any) => r.status === 'concluido')
       .reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
 
     return { total, pendentes, emPreparo, concluidos, valorTotalConcluido };
-  }, [replenishments]);
+  }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
-    const totalPieces = productions3D.reduce((acc: number, p: any) => acc + p.quantity, 0);
-    const totalFilament = productions3D.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
-    const totalTimeMinutes = productions3D.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
+    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
+    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+
+    const filtered = productions3D.filter((p: any) => {
+      const d = new Date(p.date || p.created_at);
+      return d >= sDate && d <= eDate;
+    });
+
+    const totalPieces = filtered.reduce((acc: number, p: any) => acc + p.quantity, 0);
+    const totalFilament = filtered.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
+    const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
     
     const horas = Math.floor(totalTimeMinutes / 60);
     const min = totalTimeMinutes % 60;
     const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
 
-    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: productions3D.length };
-  }, [productions3D]);
+    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length };
+  }, [productions3D, startDate, endDate]);
 
   useGSAP(() => {
     if (!isLoading && reportData) {
@@ -616,8 +632,17 @@ export default function Reports() {
     entradasPuras.forEach((i: any) => processDate(i.data, 'in'));
     saidasSistemaPuras.forEach((i: any) => processDate(i.data, 'out_sis'));
     saidasManuaisPuras.forEach((i: any) => processDate(i.data, 'out_man')); 
-    productions3D.forEach((p: any) => processDate(p.date || p.created_at, 'prod_3d'));
-    replenishments.forEach((r: any) => processDate(r.created_at, 'rep'));
+    
+    // 🟢 Adiciona apenas os itens que estão dentro do mês/período selecionado
+    productions3D.forEach((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        if (d >= sDate && d <= eDate) processDate(p.date || p.created_at, 'prod_3d');
+    });
+
+    replenishments.forEach((r: any) => {
+        const d = new Date(r.created_at);
+        if (d >= sDate && d <= eDate) processDate(r.created_at, 'rep');
+    });
 
     const chartData = Array.from(timelineMap.values()).sort((a, b) => {
        const [d1, m1] = a.name.split('/').map(Number);
@@ -1636,7 +1661,7 @@ export default function Reports() {
                  <Truck className="h-5 w-5 text-indigo-500" />
                  Métricas de Pedidos de Reposição
              </h2>
-             <p className="text-sm text-muted-foreground">Desempenho e status do fluxo de atendimento de reposições.</p>
+             <p className="text-sm text-muted-foreground">Desempenho e status do fluxo de atendimento de reposições no período selecionado.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1673,7 +1698,7 @@ export default function Reports() {
                  <Printer className="h-5 w-5 text-blue-500" />
                  Métricas de Produção 3D
              </h2>
-             <p className="text-sm text-muted-foreground">Volume de impressões, tempo gasto e filamento consumido.</p>
+             <p className="text-sm text-muted-foreground">Volume de impressões, tempo gasto e filamento consumido no período selecionado.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
