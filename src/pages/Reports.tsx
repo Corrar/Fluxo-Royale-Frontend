@@ -17,7 +17,7 @@ import {
   DollarSign, Clock, BarChart3, Zap, ShieldAlert, Receipt,
   ArrowDownToLine, ArrowUpFromLine, Search, Briefcase, Construction, Layers, Plane,
   AlertTriangle, AlertOctagon, Lock, Recycle, FileBox,
-  Printer, CheckCircle2, Truck, ListChecks // 🟢 Novos ícones adicionados
+  Printer, CheckCircle2, Truck, ListChecks 
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -263,6 +263,9 @@ export default function Reports() {
   const [endDate, setEndDate] = useState(endOfMonth(new Date()).toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState("visao-global"); 
   
+  // 🟢 ESTADO PARA O FILTRO DO GRÁFICO
+  const [chartFilter, setChartFilter] = useState<string>('all');
+  
   const [custoReposicao, setCustoReposicao] = useState<string>("0");
   const [custoGarantia, setCustoGarantia] = useState<string>("0");
 
@@ -297,7 +300,6 @@ export default function Reports() {
       refetchOnWindowFocus: false
   });
 
-  // 🟢 Novas consultas para o Dashboard Global e abas
   const { data: productions3D = [] } = useQuery({
     queryKey: ["productions-3d-all"],
     queryFn: async () => (await api.get("/producao-3d/productions")).data,
@@ -310,7 +312,6 @@ export default function Reports() {
     refetchOnWindowFocus: false
   });
 
-  // 🟢 Métricas processadas para as novas abas COM FILTRO DE DATA
   const metricsReplenishments = useMemo(() => {
     const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
     const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
@@ -341,7 +342,7 @@ export default function Reports() {
       return d >= sDate && d <= eDate;
     });
 
-    const totalPieces = filtered.reduce((acc: number, p: any) => acc + p.quantity, 0);
+    const totalPieces = filtered.reduce((acc: number, p: any) => acc + Number(p.quantity || 0), 0);
     const totalFilament = filtered.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
     const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
     
@@ -477,7 +478,6 @@ export default function Reports() {
 
     const valorTotalEstoque = estoque.reduce((acc: number, item: any) => acc + (Number(item.quantidade_total || item.quantidade || 0) * Number(item.preco || 0)), 0);
     
-    // 🟢 MATEMÁTICA DA SEPARAÇÃO DE VALORES DE ENTRADA
     let valorEntradasNFe = 0;
     let valorEntradasReuso = 0;
     let valorEntradasManuais = 0;
@@ -606,9 +606,13 @@ export default function Reports() {
         }))
         .sort((a, b) => b.totalValue - a.totalValue); 
 
+    // ==========================================
     // 🟢 MAPA DA LINHA DO TEMPO ATUALIZADO
+    // ==========================================
     const timelineMap = new Map();
-    const processDate = (dateStr: string, type: string) => {
+    
+    // Função auxiliar para inicializar e somar
+    const processDateTimeline = (dateStr: string, type: string, amount: number = 1) => {
       if (!dateStr) return;
       const dateKey = format(new Date(dateStr), 'dd/MM');
       if (!timelineMap.has(dateKey)) {
@@ -622,26 +626,62 @@ export default function Reports() {
         });
       }
       const entry = timelineMap.get(dateKey);
-      if (type === 'in') entry.entradas += 1;
-      else if (type === 'out_sis') entry.saidas_sistema += 1;
-      else if (type === 'out_man') entry.saidas_manual += 1;
-      else if (type === 'prod_3d') entry.producao_3d += 1;
-      else if (type === 'rep') entry.reposicoes += 1;
+      if (type === 'in') entry.entradas += amount;
+      else if (type === 'out_sis') entry.saidas_sistema += amount;
+      else if (type === 'out_man') entry.saidas_manual += amount;
+      else if (type === 'prod_3d') entry.producao_3d += amount;
+      else if (type === 'rep') entry.reposicoes += amount;
     };
 
-    entradasPuras.forEach((i: any) => processDate(i.data, 'in'));
-    saidasSistemaPuras.forEach((i: any) => processDate(i.data, 'out_sis'));
-    saidasManuaisPuras.forEach((i: any) => processDate(i.data, 'out_man')); 
-    
-    // 🟢 Adiciona apenas os itens que estão dentro do mês/período selecionado
-    productions3D.forEach((p: any) => {
-        const d = new Date(p.date || p.created_at);
-        if (d >= sDate && d <= eDate) processDate(p.date || p.created_at, 'prod_3d');
+    // 1. Entradas (Agrupadas: material novo, reaproveitado, devoluções) -> Usa 'todasEntradas'
+    todasEntradas.forEach((i: any) => {
+        const d = new Date(i.data || i.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(i.data || i.created_at, 'in', 1);
+        }
     });
 
+    // 2. Solicitações -> Apenas as definidas/marcadas como "entregue"
+    const uniqueRequestsCounted = new Set();
+    saidasSistemaPuras.forEach((i: any) => {
+        const d = new Date(i.data || i.created_at);
+        const statusField = String(i.status || i.op_status || i.request_status || i.status_solicitacao || '').toLowerCase();
+        const isEntregue = statusField.includes('entregue');
+        
+        if (d >= sDate && d <= eDate && isEntregue) {
+            // Conta solicitações únicas por dia (se tiver IDs) ou então cada ação atrelada à solicitação
+            const reqId = i.request_id || i.op_code || i.order_number || i.id || Math.random().toString();
+            const uniqKey = `${format(d, 'dd/MM')}-${reqId}`;
+            
+            if (!uniqueRequestsCounted.has(uniqKey)) {
+                uniqueRequestsCounted.add(uniqKey);
+                processDateTimeline(i.data || i.created_at, 'out_sis', 1);
+            }
+        }
+    });
+
+    // 3. Saída Manual -> Quantidade de ações feitas
+    saidasManuaisPuras.forEach((i: any) => {
+        const d = new Date(i.data || i.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(i.data || i.created_at, 'out_man', 1);
+        }
+    }); 
+    
+    // 4. Produção 3D -> Mostra a quantidade de PEÇAS produzidas
+    productions3D.forEach((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(p.date || p.created_at, 'prod_3d', Number(p.quantity || 1));
+        }
+    });
+
+    // 5. Pedidos de Reposição -> Apenas reposições marcadas como "concluido"
     replenishments.forEach((r: any) => {
         const d = new Date(r.created_at);
-        if (d >= sDate && d <= eDate) processDate(r.created_at, 'rep');
+        if (d >= sDate && d <= eDate && String(r.status).toLowerCase() === 'concluido') {
+            processDateTimeline(r.created_at, 'rep', 1);
+        }
     });
 
     const chartData = Array.from(timelineMap.values()).sort((a, b) => {
@@ -649,6 +689,7 @@ export default function Reports() {
        const [d2, m2] = b.name.split('/').map(Number);
        return m1 - m2 || d1 - d2;
     });
+    // ==========================================
 
     const sectorTimelineMap = new Map();
     const setoresDisponiveis = sectorValueData.map(s => s.name);
@@ -682,7 +723,7 @@ export default function Reports() {
     const saidasFiltradas = todasSaidas.filter((i: any) => i.produto?.toLowerCase().includes(searchSaidas.toLowerCase()));
 
     return {
-      opsEntrada: entradasPuras.length, 
+      opsEntrada: todasEntradas.filter(i => new Date(i.data || i.created_at) >= sDate && new Date(i.data || i.created_at) <= eDate).length, 
       opsSaidaTotal: saidasManuaisPuras.length + saidasSistemaPuras.length, 
       saidasSolicitacaoTotal: saidasSistemaPuras.length,
       saidasManuaisTotal: saidasManuaisPuras.length, 
@@ -1133,7 +1174,6 @@ export default function Reports() {
             </Button>
         </div>
 
-        {/* 🟢 ABAS ADICIONADAS AQUI */}
         <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 w-full h-auto p-1 gap-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-xl">
             <TabsTrigger value="visao-global" className="rounded-lg text-xs md:text-sm py-2">Visão Global</TabsTrigger>
             <TabsTrigger value="movimentacoes" className="rounded-lg text-xs md:text-sm py-2">Movimentações</TabsTrigger>
@@ -1161,9 +1201,20 @@ export default function Reports() {
 
           <Card id="chart-flow" className="shadow-sm border-slate-200 dark:border-slate-800 rounded-2xl">
             <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-muted-foreground" />
-                    Fluxo Temporal de Movimentação
+                <CardTitle className="text-lg font-bold flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-muted-foreground" />
+                        Fluxo Temporal de Movimentação
+                    </div>
+                    {/* 🟢 BOTÕES DE FILTRO ADICIONADOS AQUI */}
+                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/50 dark:bg-slate-800/30 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <Button variant={chartFilter === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className="text-[10px] h-7 px-2 rounded-lg">Ver Todos</Button>
+                        <Button variant={chartFilter === 'entradas' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('entradas')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'entradas' && "bg-emerald-500 hover:bg-emerald-600 text-white")}>Entradas</Button>
+                        <Button variant={chartFilter === 'solicitacoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('solicitacoes')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'solicitacoes' && "bg-indigo-500 hover:bg-indigo-600 text-white")}>Solicitações (Entregues)</Button>
+                        <Button variant={chartFilter === 'saidas_manual' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('saidas_manual')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'saidas_manual' && "bg-amber-500 hover:bg-amber-600 text-white")}>Saída Manual</Button>
+                        <Button variant={chartFilter === 'producao_3d' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('producao_3d')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'producao_3d' && "bg-blue-500 hover:bg-blue-600 text-white")}>Produção 3D (Peças)</Button>
+                        <Button variant={chartFilter === 'reposicoes' ? 'default' : 'ghost'} size="sm" onClick={() => setChartFilter('reposicoes')} className={cn("text-[10px] h-7 px-2 rounded-lg", chartFilter === 'reposicoes' && "bg-purple-500 hover:bg-purple-600 text-white")}>Reposições</Button>
+                    </div>
                 </CardTitle>
             </CardHeader>
             <CardContent className="h-[380px] w-full pt-4">
@@ -1176,14 +1227,22 @@ export default function Reports() {
                         <Tooltip cursor={{fill: '#f1f5f9'}} />
                         <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '13px' }} iconType="circle" />
                         
-                        <Bar dataKey="entradas" name="Entradas" fill={COLORS.entradas} radius={[4, 4, 0, 0]} barSize={15} />
-                        <Bar dataKey="saidas_sistema" name="Solicitações" fill={COLORS.saidas} radius={[4, 4, 0, 0]} barSize={15} />
-                        
-                        {/* 🟢 BARRAS ADICIONADAS */}
-                        <Bar dataKey="producao_3d" name="Produção 3D" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={15} />
-                        <Bar dataKey="reposicoes" name="Reposições" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={15} />
-                        
-                        <Bar dataKey="saidas_manual" name="Saída Manual" fill={COLORS.manuais} radius={[4, 4, 0, 0]} barSize={15} />
+                        {/* 🟢 BARRAS RENDERIZADAS CONDICIONALMENTE */}
+                        {(chartFilter === 'all' || chartFilter === 'entradas') && (
+                            <Bar dataKey="entradas" name="Entradas (Todas)" fill={COLORS.entradas} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        )}
+                        {(chartFilter === 'all' || chartFilter === 'solicitacoes') && (
+                            <Bar dataKey="saidas_sistema" name="Solicitações (Entregues)" fill={COLORS.saidas} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        )}
+                        {(chartFilter === 'all' || chartFilter === 'producao_3d') && (
+                            <Bar dataKey="producao_3d" name="Produção 3D (Qtd. Peças)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        )}
+                        {(chartFilter === 'all' || chartFilter === 'reposicoes') && (
+                            <Bar dataKey="reposicoes" name="Pedidos de Reposição (Concluídos)" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        )}
+                        {(chartFilter === 'all' || chartFilter === 'saidas_manual') && (
+                            <Bar dataKey="saidas_manual" name="Saída Manual (Ações)" fill={COLORS.manuais} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                        )}
                     </BarChart>
                 </ResponsiveContainer>
                 )}
@@ -1192,7 +1251,6 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="movimentacoes" className={tabContentClass}>
-          {/* 🟢 OS VALORES DE ENTRADA AGORA ESTÃO SEPARADOS AQUI! */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard 
                   title="Entradas NFe" 
@@ -1654,7 +1712,6 @@ export default function Reports() {
             </div>
         </TabsContent>
 
-        {/* 🟢 NOVAS ABAS DE CONTEÚDO ADICIONADAS AQUI */}
         <TabsContent value="pedidos-reposicao" className={tabContentClass}>
           <div className="mb-4">
              <h2 className="text-xl font-bold flex items-center gap-2">
