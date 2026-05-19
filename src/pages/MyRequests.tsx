@@ -25,6 +25,12 @@ import { useSocket } from "@/contexts/SocketContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
+// 🟢 NOVOS IMPORTS ADICIONADOS PARA A LISTA SUSPENSA DE OPs
+import { 
+  Select, SelectContent, SelectGroup, SelectItem, 
+  SelectLabel, SelectTrigger, SelectValue 
+} from "@/components/ui/select";
+
 // --- Configuração de Status Premium ---
 const statusConfig = {
   aberto: { label: "Em Análise", color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30", icon: Clock },
@@ -127,6 +133,36 @@ export default function MyRequests() {
     placeholderData: keepPreviousData,
   });
 
+  // 🟢 Busca das OPs para a lista Suspensa no Carrinho
+  const { data: opsData = [] } = useQuery({
+    queryKey: ["ops-list"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/tasks"); // Verifique se o endpoint é este na sua API
+        return res.data;
+      } catch (error) {
+        return [];
+      }
+    }
+  });
+
+  // 🟢 Agrupa as OPs pelo nome do cliente
+  const groupedOps = useMemo(() => {
+    if (!Array.isArray(opsData)) return {};
+    
+    return opsData.reduce((acc: any, op: any) => {
+      // Tenta obter o nome do cliente de várias formas comuns
+      const clientName = op.client?.name || op.client_name || op.client || "Outros / Sem Cliente";
+      
+      if (!acc[clientName]) {
+        acc[clientName] = [];
+      }
+      acc[clientName].push(op);
+      
+      return acc;
+    }, {});
+  }, [opsData]);
+
   // ==========================================
   // 3. MUTAÇÃO INTELIGENTE (Cart Splitting)
   // ==========================================
@@ -218,7 +254,7 @@ export default function MyRequests() {
         try { extractedTags = JSON.parse(product.tags); } catch(e) {}
     }
     
-    // 🟢 Se não houver tags, forçamos a usar a Categoria/Grupo como tag para a validação da OP funcionar!
+    // Se não houver tags, forçamos a usar a Categoria/Grupo como tag para a validação da OP funcionar!
     if (!extractedTags.length) {
       if (typeof product.category === 'string' && product.category) extractedTags.push(product.category);
       else if (typeof product.grupo === 'string' && product.grupo) extractedTags.push(product.grupo);
@@ -321,14 +357,14 @@ export default function MyRequests() {
     });
 
     if (requiresOp && (!opCode || opCode.trim() === '')) {
-        return toast.error("É obrigatório informar o Número da OP para os materiais selecionados.");
+        return toast.error("É obrigatório selecionar a OP para os materiais selecionados.");
     }
 
     // Validação de EPI / CAMISETA / FERRAMENTAS obrigatória
     const isMissingObs = validItems.some(i => i.tags?.some(t => ['EPI', 'CAMISETA', 'FERRAMENTAS'].includes(t.trim().toUpperCase())) && (!i.observation || i.observation.trim() === ''));
     if (isMissingObs) return toast.error("Preencha para quem é o item (EPI/Camiseta/Ferramenta) nos itens assinalados.");
 
-    // 🟢 Envia TUDO para a nossa nova Mutação Inteligente
+    // Envia TUDO para a nossa Mutação Inteligente
     createRequestMutation.mutate({
       sector,
       opCode, 
@@ -341,7 +377,7 @@ export default function MyRequests() {
   // ==========================================
   const renderCartListContent = () => {
     
-    // 🟢 Verifica se algum item no carrinho atual exige OP
+    // Verifica se algum item no carrinho atual exige OP
     const isOpRequiredForCart = cart.some(i => {
         const isExempt = i.tags?.some(t => [
             'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
@@ -452,19 +488,51 @@ export default function MyRequests() {
           )}
 
         <div className="p-4 border-t border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#111] mt-auto pb-8 md:pb-4 flex flex-col gap-4">
-           
-           {/* 🟢 CAMPO GLOBAL DA OP NO RODAPÉ - Escondido se não for exigido */}
+            
+           {/* 🟢 CAMPO GLOBAL DA OP NO RODAPÉ - SUBSTITUÍDO PELO COMPONENTE SELECT */}
            {cart.length > 0 && isOpRequiredForCart && (
              <div className="bg-slate-50 dark:bg-white/5 p-3 sm:p-4 rounded-[1rem] border border-slate-200/60 dark:border-white/5 shadow-inner animate-in fade-in zoom-in-95 duration-200">
                <Label className="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mb-2">
                  <Briefcase className="w-4 h-4" /> Número da OP (Ordem de Produção)
                </Label>
-               <Input 
-                 placeholder="Ex: OP-1234"
-                 value={opCode}
-                 onChange={(e) => setOpCode(e.target.value)}
-                 className="h-11 bg-white dark:bg-[#111] border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-blue-500/30 transition-all font-medium"
-               />
+               
+               <Select value={opCode} onValueChange={setOpCode}>
+                 <SelectTrigger className="w-full h-11 bg-white dark:bg-[#111] border-slate-200 dark:border-white/10 focus:ring-2 focus:ring-blue-500/30 transition-all font-medium">
+                   <SelectValue placeholder="Selecione a OP correspondente..." />
+                 </SelectTrigger>
+                 <SelectContent className="max-h-[300px] bg-white dark:bg-[#111] border-slate-200 dark:border-white/10 rounded-xl shadow-xl">
+                   {Object.keys(groupedOps).length === 0 ? (
+                     <div className="p-4 text-center text-sm text-slate-500">Nenhuma OP encontrada no sistema.</div>
+                   ) : (
+                     Object.entries(groupedOps).map(([clientName, clientOps]: any) => (
+                       <SelectGroup key={clientName}>
+                         {/* O nome do cliente funciona como cabeçalho inamovível para aquele grupo */}
+                         <SelectLabel className="bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-slate-300 font-bold px-3 py-2 text-xs uppercase tracking-wider sticky top-0 z-10">
+                           {clientName}
+                         </SelectLabel>
+                         {/* OPs desse cliente */}
+                         {clientOps.map((op: any) => {
+                           // Garante que tentamos pegar o número em vários formatos que as APIs usam
+                           const opIdentifier = op.op_code || op.op_number || String(op.id);
+                           return (
+                             <SelectItem 
+                               key={op.id} 
+                               value={String(opIdentifier)}
+                               className="font-medium cursor-pointer py-2.5 focus:bg-blue-50 dark:focus:bg-blue-900/20"
+                             >
+                               <div className="flex flex-col">
+                                 <span className="font-bold">OP-{opIdentifier}</span>
+                                 {op.title && <span className="text-xs text-slate-500">{op.title}</span>}
+                               </div>
+                             </SelectItem>
+                           )
+                         })}
+                       </SelectGroup>
+                     ))
+                   )}
+                 </SelectContent>
+               </Select>
+
                <p className="text-[10px] text-slate-500 mt-2 leading-snug">
                  * Obrigatório preencher caso existam componentes. Pode ser deixado em branco APENAS para retirar Insumos, EPIs, Camisetas ou Ferramentas.
                </p>
