@@ -25,7 +25,7 @@ import { useSocket } from "@/contexts/SocketContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-// 🟢 NOVOS IMPORTS ADICIONADOS PARA A LISTA SUSPENSA DE OPs
+// 🟢 IMPORTS ADICIONADOS PARA A LISTA SUSPENSA DE OPs
 import { 
   Select, SelectContent, SelectGroup, SelectItem, 
   SelectLabel, SelectTrigger, SelectValue 
@@ -133,35 +133,21 @@ export default function MyRequests() {
     placeholderData: keepPreviousData,
   });
 
-  // 🟢 Busca das OPs para a lista Suspensa no Carrinho
-  const { data: opsData = [] } = useQuery({
-    queryKey: ["ops-list"],
+  // 🟢 NOVA BUSCA DAS OPs (EXATAMENTE COMO NO Clients.tsx)
+  const { data: clientsData = [] } = useQuery({
+    queryKey: ["clients-ops"],
     queryFn: async () => {
       try {
-        const res = await api.get("/tasks"); // Verifique se o endpoint é este na sua API
-        return res.data;
+        const response = await api.get("/clients");
+        return response.data.map((c: any) => ({
+          ...c,
+          services: Array.isArray(c.services) ? c.services : (typeof c.services === 'string' ? JSON.parse(c.services) : [])
+        }));
       } catch (error) {
         return [];
       }
     }
   });
-
-  // 🟢 Agrupa as OPs pelo nome do cliente
-  const groupedOps = useMemo(() => {
-    if (!Array.isArray(opsData)) return {};
-    
-    return opsData.reduce((acc: any, op: any) => {
-      // Tenta obter o nome do cliente de várias formas comuns
-      const clientName = op.client?.name || op.client_name || op.client || "Outros / Sem Cliente";
-      
-      if (!acc[clientName]) {
-        acc[clientName] = [];
-      }
-      acc[clientName].push(op);
-      
-      return acc;
-    }, {});
-  }, [opsData]);
 
   // ==========================================
   // 3. MUTAÇÃO INTELIGENTE (Cart Splitting)
@@ -254,7 +240,6 @@ export default function MyRequests() {
         try { extractedTags = JSON.parse(product.tags); } catch(e) {}
     }
     
-    // Se não houver tags, forçamos a usar a Categoria/Grupo como tag para a validação da OP funcionar!
     if (!extractedTags.length) {
       if (typeof product.category === 'string' && product.category) extractedTags.push(product.category);
       else if (typeof product.grupo === 'string' && product.grupo) extractedTags.push(product.grupo);
@@ -348,7 +333,6 @@ export default function MyRequests() {
     const validItems = cart.filter(i => i.quantity > 0);
     if (validItems.length === 0) return toast.error("Adicione quantidades válidas.");
 
-    // Verifica se algum item no carrinho exige OP
     const requiresOp = validItems.some(i => {
       const isExempt = i.tags?.some(t => [
           'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
@@ -360,11 +344,9 @@ export default function MyRequests() {
         return toast.error("É obrigatório selecionar a OP para os materiais selecionados.");
     }
 
-    // Validação de EPI / CAMISETA / FERRAMENTAS obrigatória
     const isMissingObs = validItems.some(i => i.tags?.some(t => ['EPI', 'CAMISETA', 'FERRAMENTAS'].includes(t.trim().toUpperCase())) && (!i.observation || i.observation.trim() === ''));
     if (isMissingObs) return toast.error("Preencha para quem é o item (EPI/Camiseta/Ferramenta) nos itens assinalados.");
 
-    // Envia TUDO para a nossa Mutação Inteligente
     createRequestMutation.mutate({
       sector,
       opCode, 
@@ -377,7 +359,6 @@ export default function MyRequests() {
   // ==========================================
   const renderCartListContent = () => {
     
-    // Verifica se algum item no carrinho atual exige OP
     const isOpRequiredForCart = cart.some(i => {
         const isExempt = i.tags?.some(t => [
             'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
@@ -419,7 +400,6 @@ export default function MyRequests() {
                   return (
                     <div key={item.product_id} className={`flex flex-col gap-3 bg-white dark:bg-[#111] p-4 rounded-[1.25rem] border ${hasError ? 'border-rose-400 dark:border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'border-slate-200/60 dark:border-white/5'} shadow-sm overflow-hidden group hover:border-blue-500/30 transition-colors`}>
                       
-                      {/* Linha 1: Info e Lixo */}
                       <div className="flex items-start justify-between gap-3 w-full">
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           <div className="h-10 w-10 bg-blue-50 dark:bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600 shrink-0">
@@ -442,7 +422,6 @@ export default function MyRequests() {
                         </Button>
                       </div>
 
-                      {/* OBSERVAÇÃO OBRIGATÓRIA (EPI / CAMISETA / FERRAMENTAS) */}
                       {requiresObs && (
                           <div className="px-1 py-1 animate-in fade-in slide-in-from-top-2">
                              <Label className={`text-[10px] font-bold uppercase mb-1 flex items-center gap-1 ${missingObs ? 'text-rose-500 dark:text-rose-400' : 'text-amber-600 dark:text-amber-500'}`}>
@@ -457,7 +436,6 @@ export default function MyRequests() {
                           </div>
                       )}
 
-                      {/* Linha 2: Controlos de Quantidade */}
                       <div className="flex justify-end items-center pt-3 border-t border-slate-100 dark:border-white/5">
                         <div className="flex items-center bg-slate-100 dark:bg-white/10 rounded-full border border-slate-200/60 dark:border-white/5 p-1 shadow-inner">
                           <button onClick={() => updateQty(-1)} className="h-8 w-8 flex items-center justify-center rounded-full bg-white dark:bg-[#222] text-slate-700 dark:text-slate-300 shadow-sm active:scale-90 transition-transform font-bold hover:bg-slate-200 dark:hover:bg-[#333]">
@@ -489,7 +467,7 @@ export default function MyRequests() {
 
         <div className="p-4 border-t border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#111] mt-auto pb-8 md:pb-4 flex flex-col gap-4">
             
-           {/* 🟢 CAMPO GLOBAL DA OP NO RODAPÉ - SUBSTITUÍDO PELO COMPONENTE SELECT */}
+           {/* 🟢 CAMPO GLOBAL DA OP NO RODAPÉ - CORRIGIDO PARA LISTAR DADOS DA PÁGINA CLIENTES */}
            {cart.length > 0 && isOpRequiredForCart && (
              <div className="bg-slate-50 dark:bg-white/5 p-3 sm:p-4 rounded-[1rem] border border-slate-200/60 dark:border-white/5 shadow-inner animate-in fade-in zoom-in-95 duration-200">
                <Label className="text-[11px] font-bold uppercase text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mb-2">
@@ -501,34 +479,32 @@ export default function MyRequests() {
                    <SelectValue placeholder="Selecione a OP correspondente..." />
                  </SelectTrigger>
                  <SelectContent className="max-h-[300px] bg-white dark:bg-[#111] border-slate-200 dark:border-white/10 rounded-xl shadow-xl">
-                   {Object.keys(groupedOps).length === 0 ? (
-                     <div className="p-4 text-center text-sm text-slate-500">Nenhuma OP encontrada no sistema.</div>
+                   {clientsData.length === 0 ? (
+                     <div className="p-4 text-center text-sm text-slate-500">Nenhum cliente/OP encontrado no sistema.</div>
                    ) : (
-                     Object.entries(groupedOps).map(([clientName, clientOps]: any) => (
-                       <SelectGroup key={clientName}>
-                         {/* O nome do cliente funciona como cabeçalho inamovível para aquele grupo */}
-                         <SelectLabel className="bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-slate-300 font-bold px-3 py-2 text-xs uppercase tracking-wider sticky top-0 z-10">
-                           {clientName}
-                         </SelectLabel>
-                         {/* OPs desse cliente */}
-                         {clientOps.map((op: any) => {
-                           // Garante que tentamos pegar o número em vários formatos que as APIs usam
-                           const opIdentifier = op.op_code || op.op_number || String(op.id);
-                           return (
+                     clientsData.map((client: any) => {
+                       const ops = client.services || [];
+                       if (ops.length === 0) return null; // Oculta clientes que não têm OPs
+
+                       return (
+                         <SelectGroup key={client.id || client.code}>
+                           <SelectLabel className="bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-slate-300 font-bold px-3 py-2 text-xs uppercase tracking-wider sticky top-0 z-10">
+                             {client.name}
+                           </SelectLabel>
+                           {ops.map((op: any) => (
                              <SelectItem 
                                key={op.id} 
-                               value={String(opIdentifier)}
+                               value={String(op.op_code)}
                                className="font-medium cursor-pointer py-2.5 focus:bg-blue-50 dark:focus:bg-blue-900/20"
                              >
                                <div className="flex flex-col">
-                                 <span className="font-bold">OP-{opIdentifier}</span>
-                                 {op.title && <span className="text-xs text-slate-500">{op.title}</span>}
+                                 <span className="font-bold">OP-{op.op_code}</span>
                                </div>
                              </SelectItem>
-                           )
-                         })}
-                       </SelectGroup>
-                     ))
+                           ))}
+                         </SelectGroup>
+                       )
+                     })
                    )}
                  </SelectContent>
                </Select>
@@ -575,7 +551,6 @@ export default function MyRequests() {
           </div>
         </div>
         
-        {/* Controle das abas visível apenas se tiver permissão para adicionar */}
         {canAdd && (
           <div className="flex bg-white dark:bg-[#111] p-1.5 rounded-full border border-slate-200/60 dark:border-white/5 shadow-sm w-full md:w-auto">
             <Button 
@@ -862,7 +837,6 @@ export default function MyRequests() {
                     return (
                       <TableRow key={request.id} className="hover:bg-slate-50 dark:hover:bg-white/5 border-slate-100 dark:border-white/5 transition-colors group">
                         
-                        {/* Coluna Data */}
                         <TableCell className="align-top text-center p-5">
                           <div className="flex flex-col items-center justify-center bg-slate-50 dark:bg-white/5 rounded-xl p-3 border border-slate-100 dark:border-white/5 group-hover:bg-white dark:group-hover:bg-[#222] transition-colors">
                             <span className="font-black text-slate-900 dark:text-white text-[15px]">{format(new Date(request.created_at), "dd/MM/yyyy")}</span>
@@ -873,7 +847,6 @@ export default function MyRequests() {
                           </div>
                         </TableCell>
                         
-                        {/* Coluna Itens */}
                         <TableCell className="align-top p-5">
                           <div className="space-y-2">
                             {request.request_items?.map((item: any) => (
@@ -883,13 +856,11 @@ export default function MyRequests() {
                                 </Badge>
                                 <span className="font-bold text-sm text-slate-700 dark:text-slate-200 line-clamp-1">
                                     {item.products?.name || item.custom_product_name}
-                                    {/* Mantive o client_service na visualização para dados antigos! */}
                                     {item.client_service && <span className="ml-2 text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-sm">OS/Cliente: {item.client_service}</span>}
                                     {item.observation && <span className="ml-2 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-sm">Para: {item.observation}</span>}
                                 </span>
                               </div>
                             ))}
-                            {/* Alerta de Recusa Destacado */}
                             {request.rejection_reason && (
                               <div className="mt-3 text-sm font-medium text-rose-700 bg-rose-50 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 p-3 rounded-xl flex items-start gap-3 shadow-sm">
                                 <AlertTriangle className="h-5 w-5 shrink-0 text-rose-500"/> 
@@ -902,7 +873,6 @@ export default function MyRequests() {
                           </div>
                         </TableCell>
                         
-                        {/* Coluna Status */}
                         <TableCell className="align-top text-center p-5">
                           <Badge variant="outline" className={`${status.color} px-3 py-1.5 font-bold border rounded-lg text-xs flex items-center justify-center w-full shadow-sm`}>
                             <StatusIcon className="h-4 w-4 mr-1.5" strokeWidth={2.5} /> {status.label}
@@ -934,8 +904,6 @@ export default function MyRequests() {
                
                return (
                 <Card key={request.id} className="shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-slate-200/60 dark:border-white/5 rounded-[1.5rem] overflow-hidden bg-white dark:bg-[#111]">
-                  
-                  {/* Cabeçalho do Card */}
                   <CardHeader className="p-4 pb-3 flex flex-row justify-between items-center space-y-0 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#0A0A0A]">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 bg-white dark:bg-[#222] border border-slate-200/60 dark:border-white/10 rounded-full flex items-center justify-center shadow-sm">
@@ -956,7 +924,6 @@ export default function MyRequests() {
                     </Badge>
                   </CardHeader>
                   
-                  {/* Corpo do Card (Itens) */}
                   <CardContent className="p-4">
                     <div className="space-y-2">
                       {request.request_items?.map((item: any) => (
@@ -978,7 +945,6 @@ export default function MyRequests() {
                       ))}
                     </div>
                     
-                    {/* Alerta de Recusa Mobile */}
                     {request.rejection_reason && (
                       <div className="mt-3 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20 p-3 rounded-xl flex items-start gap-2 shadow-sm">
                         <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500 mt-0.5"/> 
