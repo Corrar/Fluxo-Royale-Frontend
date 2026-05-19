@@ -77,13 +77,31 @@ function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any)
       return; 
     }
     
+    // 1. Pegamos o exato momento atual (hora, minuto, segundo)
+    const agora = new Date();
+    
+    // 2. Separamos o ano, mês e dia da string do input (ex: "2026-05-19")
+    const [ano, mes, dia] = date.split('-').map(Number);
+    
+    // 3. Criamos uma nova data combinando a data selecionada com o horário atual.
+    // Dica de JS: Subtraímos 1 do mês porque no JavaScript os meses começam no 0 (Janeiro = 0).
+    const dataComHoraCorreta = new Date(
+      ano, 
+      mes - 1, 
+      dia, 
+      agora.getHours(), 
+      agora.getMinutes(), 
+      agora.getSeconds()
+    );
+    
     onAdd({
       partId, 
       quantity, 
       operator, // Mesmo que o backend o sobreescreva com o utilizador logado, enviamos para evitar falhas
       totalMinutes, 
       filamentGrams,
-      date: new Date(date).toISOString(),
+      // 4. Convertemos para o formato que o backend espera (ISO)
+      date: dataComHoraCorreta.toISOString(), 
       demandId: demandId === "none" ? null : demandId,
     });
   };
