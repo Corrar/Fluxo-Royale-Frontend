@@ -205,7 +205,11 @@ export default function Dashboard3D() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-slate-100 dark:divide-white/5">
-            {productions.slice(-5).reverse().map((p: any) => {
+            {/* LÓGICA ATUALIZADA: Ordena pelas datas mais recentes, e depois pega os primeiros 5 */}
+            {[...productions]
+              .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .slice(0, 5)
+              .map((p: any) => {
               const product = products.find((prod: any) => prod.id === p.partId);
               return (
                 <div key={p.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
