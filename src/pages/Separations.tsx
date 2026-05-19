@@ -822,6 +822,33 @@ const DetailedView = ({
            return;
        }
 
+       let totalReqValue = 0;
+       let totalSepValue = 0;
+
+       const tableRows = itemsToExport.map(item => {
+           const requested = item.qty_requested;
+           const separated = item.quantity;
+           const missing = Math.max(0, requested - separated);
+           const status = separated >= requested ? "Completo" : "Pendente";
+           
+           const price = Number(item.products?.unit_price) || 0;
+           const subtotalReq = requested * price;
+           const subtotalSep = separated * price;
+           
+           totalReqValue += subtotalReq;
+           totalSepValue += subtotalSep;
+
+           return [
+               `${item.products?.sku}\n${item.products?.name}`, 
+               requested, 
+               separated, 
+               missing > 0 ? missing : "-", 
+               formatCurrency(price),
+               formatCurrency(subtotalSep),
+               status
+           ];
+       });
+
        const doc = new jsPDF();
        doc.setFontSize(22);
        doc.setTextColor(0, 0, 0);
@@ -837,7 +864,7 @@ const DetailedView = ({
        doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, 14, 34);
        
        doc.setFillColor(240, 240, 240);
-       doc.rect(14, 40, 182, 28, 'F');
+       doc.rect(14, 40, 182, 36, 'F');
        doc.setFontSize(12);
        doc.setTextColor(0);
        doc.setFont("helvetica", "bold");
@@ -852,32 +879,34 @@ const DetailedView = ({
        const completedItems = sep.items.filter(i => i.quantity >= i.qty_requested).length;
        const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
        
-       let startY = 75;
-       doc.setFontSize(10);
        doc.text(`Progresso: ${progress.toFixed(0)}% Concluído`, 120, 64);
        
-       const tableRows = itemsToExport.map(item => {
-           const requested = item.qty_requested;
-           const separated = item.quantity;
-           const missing = Math.max(0, requested - separated);
-           const stock = item.products?.stock?.quantity_on_hand ?? item.products?.stock_available ?? 0;
-           const status = separated >= requested ? "Completo" : "Pendente";
-           return [`${item.products?.sku}\n${item.products?.name}`, requested, separated, missing > 0 ? missing : "-", stock, status];
-       });
+       doc.setFont("helvetica", "bold");
+       doc.text(`Total Solicitado: ${formatCurrency(totalReqValue)}`, 18, 72);
+       doc.text(`Total Separado: ${formatCurrency(totalSepValue)}`, 120, 72);
+       
+       let startY = 82;
        
        // @ts-ignore
        autoTable(doc, {
            startY: startY,
-           head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Estoque Atual', 'Status']],
+           head: [['Produto / SKU', 'Solicitado', 'Separado', 'Falta', 'Preço Un.', 'Total (Sep.)', 'Status']],
            body: tableRows,
+           foot: [['', '', '', '', 'TOTAIS:', formatCurrency(totalSepValue), '']],
            headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+           footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' },
            styles: { fontSize: 9, valign: 'middle', cellPadding: 3 },
            columnStyles: {
-               0: { cellWidth: 70 }, 1: { halign: 'center' }, 2: { halign: 'center', fontStyle: 'bold' },
-               3: { halign: 'center', textColor: [220, 53, 69] }, 4: { halign: 'center' }, 5: { halign: 'center' }
+               0: { cellWidth: 70 }, 
+               1: { halign: 'center' }, 
+               2: { halign: 'center', fontStyle: 'bold' },
+               3: { halign: 'center', textColor: [220, 53, 69] }, 
+               4: { halign: 'right' },
+               5: { halign: 'right', fontStyle: 'bold' },
+               6: { halign: 'center' }
            },
            didParseCell: function(data: any) {
-               if (data.section === 'body' && data.column.index === 5) {
+               if (data.section === 'body' && data.column.index === 6) {
                    if (data.cell.raw === 'Pendente') { data.cell.styles.textColor = [220, 53, 69]; } 
                    else { data.cell.styles.textColor = [40, 167, 69]; }
                }
