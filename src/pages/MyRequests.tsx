@@ -261,7 +261,7 @@ export default function MyRequests() {
   };
 
   // ==========================================
-  // 🟢 IMPORTAÇÃO VIA EXCEL (C/ LISTA DE PENDENTES)
+  // 🟢 IMPORTAÇÃO VIA EXCEL (C/ LISTA DE PENDENTES E RESTRIÇÕES)
   // ==========================================
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -302,7 +302,14 @@ export default function MyRequests() {
             if (product) {
               const available = getAvailableStock(product);
               const pTags = getProductTags(product);
-              const isRestricted = pTags.some((t: string) => t.trim().toUpperCase() === 'CAMISETA') && profile?.role !== "escritorio";
+              
+              // 🛡️ REGRAS DE RESTRIÇÃO POR TAG
+              const isCamiseta = pTags.some((t: string) => ['CAMISETA', 'CAMISETAS'].includes(t.trim().toUpperCase()));
+              const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
+
+              const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
+              const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
+              const isRestricted = isRestrictedCamiseta || isRestrictedFeira;
 
               if (isRestricted) {
                   // Produto existe mas é restrito ao utilizador
@@ -830,7 +837,14 @@ export default function MyRequests() {
                     const cartItem = cart.find(i => i.product_id === product.id);
                     const inCart = !!cartItem;
                     const pTags = getProductTags(product);
-                    const isRestricted = pTags.some((t: string) => t.trim().toUpperCase() === 'CAMISETA') && profile?.role !== "escritorio";
+                    
+                    // 🛡️ REGRAS DE RESTRIÇÃO POR TAG (MANUAL)
+                    const isCamiseta = pTags.some((t: string) => ['CAMISETA', 'CAMISETAS'].includes(t.trim().toUpperCase()));
+                    const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
+
+                    const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
+                    const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
+                    const isRestricted = isRestrictedCamiseta || isRestrictedFeira;
                     
                     const updateQuantity = (change: number, e: React.MouseEvent) => {
                       e.stopPropagation();
@@ -863,7 +877,8 @@ export default function MyRequests() {
                           "bg-white dark:bg-[#111] border border-slate-200/60 dark:border-white/5 hover:shadow-md hover:border-blue-500/30"
                         }`}
                         onClick={() => {
-                          if (isRestricted) toast.error("Somente o setor Escritório pode solicitar camisetas.");
+                          if (isRestrictedCamiseta) toast.error("Somente o setor Escritório pode solicitar camisetas.");
+                          else if (isRestrictedFeira) toast.error("Somente Escritório, Almoxarifado e Admin podem solicitar materiais de Feira.");
                         }}
                       >
                         <div className="flex items-start gap-3 w-full">
@@ -873,8 +888,11 @@ export default function MyRequests() {
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-[15px] text-slate-900 dark:text-white leading-snug mb-1.5 break-words whitespace-normal">
                               {product.name}
-                              {pTags.some((t: string) => t.trim().toUpperCase() === 'CAMISETA') && (
+                              {isCamiseta && (
                                 <Badge variant="outline" className="ml-2 text-[10px] bg-white dark:bg-black">Camiseta</Badge>
+                              )}
+                              {isFeira && (
+                                <Badge variant="outline" className="ml-2 text-[10px] border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-900/20">Feira</Badge>
                               )}
                             </h3>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -895,7 +913,7 @@ export default function MyRequests() {
                         <div className={`mt-3 pt-3 flex justify-end items-center border-t ${inCart ? 'border-blue-200/50 dark:border-blue-500/20' : 'border-slate-100 dark:border-white/5'}`}>
                           {isRestricted ? (
                              <span className="text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
-                               <AlertTriangle className="w-3 h-3" /> Restrito ao Escritório
+                               <AlertTriangle className="w-3 h-3" /> {isRestrictedCamiseta ? "Restrito ao Escritório" : "Acesso Restrito"}
                              </span>
                           ) : available > 0 && (
                             inCart ? (
