@@ -405,14 +405,14 @@ export default function MyRequests() {
 
       const requiresOpItems = validItems.filter(i => {
         const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
+            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
         ].includes(t.trim().toUpperCase()));
         return !isExempt;
       });
 
       const exemptItems = validItems.filter(i => {
         const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
+            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
         ].includes(t.trim().toUpperCase()));
         return isExempt;
       });
@@ -478,7 +478,7 @@ export default function MyRequests() {
 
     const requiresOp = validItems.some(i => {
       const isExempt = i.tags?.some(t => [
-          'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
+          'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
       ].includes(t.trim().toUpperCase()));
       return !isExempt;
     });
@@ -501,7 +501,7 @@ export default function MyRequests() {
     
     const isOpRequiredForCart = cart.some(i => {
         const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO'
+            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
         ].includes(t.trim().toUpperCase()));
         return !isExempt;
     });
@@ -677,7 +677,7 @@ export default function MyRequests() {
                </Select>
 
                <p className="text-[10px] text-slate-500 mt-2 leading-snug">
-                 * Obrigatório preencher caso existam componentes. Pode ser deixado em branco APENAS para retirar Insumos, EPIs, Camisetas ou Ferramentas.
+                 * Obrigatório preencher caso existam componentes. Pode ser deixado em branco APENAS para retirar Insumos, EPIs, Camisetas, Ferramentas ou itens de Feira.
                </p>
              </div>
            )}
