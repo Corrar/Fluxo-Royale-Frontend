@@ -206,24 +206,31 @@ const CatalogItem = ({
   quantityInCart,
   onAdd,
   onRemove,
-  onUpdateQuantity
+  onUpdateQuantity,
+  previouslyRequested = 0 // <--- NOVA PROPRIEDADE
 }: {
   product: IProduct;
   quantityInCart: number;
   onAdd: () => void;
   onRemove: () => void;
   onUpdateQuantity: (val: number) => void;
+  previouslyRequested?: number; // <--- TIPO ATUALIZADO
 }) => {
 
   const stockPhysical = product.stock?.quantity_on_hand ?? 0;
   const stockReserved = product.stock?.quantity_reserved ?? 0;
-  const stockAvailable = product.stock_available ?? Math.max(0, stockPhysical - stockReserved);
+  
+  // Estoque base disponível (físico - reservado geral)
+  const baseAvailable = product.stock_available ?? Math.max(0, stockPhysical - stockReserved);
+  
+  // ESTOQUE AJUSTADO: Soma de volta o que já foi reservado por esta mesma separação (se estiver editando)
+  const stockAvailable = baseAvailable + previouslyRequested;
   
   const stock = stockAvailable;
   const hasStock = stock > 0;
   const minStock = product.min_stock || 10;
   
-  const isExceedingStock = quantityInCart > stock;
+  const isExceedingStock = quantityInCart > stock; // Agora calcula de forma justa
   const stockColor = stock === 0 ? "bg-muted-foreground/20" : stock < minStock ? "bg-amber-400" : "bg-emerald-500";
   const allowDecimal = isDecimalUnit(product.unit);
 
@@ -1682,13 +1689,24 @@ export default function Separations() {
   const hasExceedingItemsInCart = useMemo(() => {
     return Object.entries(selectedProducts).some(([pid, qty]) => {
         const prod = (products as any[]).find(p => p.id === pid);
-        if (!prod) return false;
+        if (!prod) return false; // Se for item fantasma, deixamos passar na validação de excedente
+        
         const stockPhysical = prod.stock?.quantity_on_hand ?? 0;
         const stockReserved = prod.stock?.quantity_reserved ?? 0;
-        const stockAvailable = prod.stock_available ?? Math.max(0, stockPhysical - stockReserved);
-        return qty > stockAvailable;
+        const baseAvailable = prod.stock_available ?? Math.max(0, stockPhysical - stockReserved);
+        
+        // Verifica se estamos editando para compensar o estoque
+        let prevReq = 0;
+        if (editingSeparationId) {
+            const sep = (separations as ISeparation[]).find(s => s.id === editingSeparationId);
+            const item = sep?.items.find(i => i.product_id === pid);
+            if (item) prevReq = Number(item.qty_requested) || 0;
+        }
+        
+        const adjustedAvailable = baseAvailable + prevReq;
+        return qty > adjustedAvailable;
     });
-  }, [selectedProducts, products]);
+  }, [selectedProducts, products, editingSeparationId, separations]);
 
   const hasEdits = Object.values(inputIncrements).some(v => {
       const num = parseFloat(v);
@@ -1935,16 +1953,27 @@ export default function Separations() {
                                     </div>
                                 ) : (
                                     <AnimatePresence>
-                                        {filteredCatalogProducts.map((prod: any) => (
-                                            <CatalogItem 
-                                                key={prod.id}
-                                                product={prod}
-                                                quantityInCart={selectedProducts[prod.id] || 0}
-                                                onAdd={() => addItemToCart(prod.id)}
-                                                onRemove={() => removeItemFromCart(prod.id)}
-                                                onUpdateQuantity={(val) => updateCartQuantity(prod.id, val)}
-                                            />
-                                        ))}
+                                        {filteredCatalogProducts.map((prod: any) => {
+                                            // Calcula o quanto já foi pedido caso esteja editando
+                                            let prevReq = 0;
+                                            if (editingSeparationId) {
+                                                const sep = (separations as ISeparation[]).find(s => s.id === editingSeparationId);
+                                                const item = sep?.items.find(i => i.product_id === prod.id);
+                                                if (item) prevReq = Number(item.qty_requested) || 0;
+                                            }
+
+                                            return (
+                                                <CatalogItem 
+                                                    key={prod.id}
+                                                    product={prod}
+                                                    quantityInCart={selectedProducts[prod.id] || 0}
+                                                    previouslyRequested={prevReq} // Passando o valor ajustado!
+                                                    onAdd={() => addItemToCart(prod.id)}
+                                                    onRemove={() => removeItemFromCart(prod.id)}
+                                                    onUpdateQuantity={(val) => updateCartQuantity(prod.id, val)}
+                                                />
+                                            )
+                                        })}
                                     </AnimatePresence>
                                 )}
                             </div>
@@ -1999,12 +2028,43 @@ export default function Separations() {
                             ) : (
                                 Object.entries(selectedProducts).map(([pid, qty]) => {
                                     const prod = (products as any[]).find((p) => p.id === pid);
-                                    if (!prod) return null;
                                     
+                                    // 🛡️ SOLUÇÃO DO ITEM FANTASMA: Se o produto não for achado, renderiza um aviso para remoção
+                                    if (!prod) {
+                                        return (
+                                            <div key={pid} className="flex justify-between items-center p-3 rounded-2xl border border-red-500/30 bg-red-500/5 mb-2 shadow-sm">
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-bold text-red-600 dark:text-red-400">Produto Indisponível (ID: {pid.slice(0,6)}...)</p>
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5">O código deste produto foi alterado ou excluído. Por favor, remova-o da lista.</p>
+                                                </div>
+                                                <m.button 
+                                                    whileTap={{ scale: 0.85 }} 
+                                                    onClick={() => {
+                                                        const newCart = { ...selectedProducts };
+                                                        delete newCart[pid];
+                                                        setSelectedProducts(newCart);
+                                                    }} 
+                                                    className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-100 text-red-600 hover:bg-red-200 ml-3 shrink-0"
+                                                >
+                                                    <Trash2 className="h-5 w-5" />
+                                                </m.button>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // 🛡️ SOLUÇÃO DA EDIÇÃO: Ajuste de estoque
                                     const stockPhysical = prod.stock?.quantity_on_hand ?? 0;
                                     const stockReserved = prod.stock?.quantity_reserved ?? 0;
-                                    const stockAvailable = prod.stock_available ?? Math.max(0, stockPhysical - stockReserved);
+                                    const baseAvailable = prod.stock_available ?? Math.max(0, stockPhysical - stockReserved);
                                     
+                                    let prevReq = 0;
+                                    if (editingSeparationId) {
+                                        const sep = (separations as ISeparation[]).find(s => s.id === editingSeparationId);
+                                        const item = sep?.items.find(i => i.product_id === pid);
+                                        if (item) prevReq = Number(item.qty_requested) || 0;
+                                    }
+                                    
+                                    const stockAvailable = baseAvailable + prevReq; // O estoque ajustado!
                                     const isExceeding = qty > stockAvailable;
                                     const allowDecimal = isDecimalUnit(prod.unit);
 
@@ -2015,7 +2075,7 @@ export default function Separations() {
                                             qty={qty}
                                             allowDecimal={allowDecimal}
                                             isExceeding={isExceeding}
-                                            stockAvailable={stockAvailable}
+                                            stockAvailable={stockAvailable} // Mandamos o ajustado para a linha
                                             onUpdate={(val: number) => updateCartQuantity(pid, val)}
                                             onRemove={() => removeItemFromCart(pid)}
                                             onAdd={() => addItemToCart(pid)}
