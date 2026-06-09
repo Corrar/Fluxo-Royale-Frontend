@@ -11,6 +11,9 @@ import { toast } from "sonner";
 import { Settings, BellRing, Megaphone, AlertTriangle, Image as ImageIcon } from "lucide-react"; 
 import { useSocket } from "@/contexts/SocketContext";
 
+// --- Importação do teu componente de Upload ---
+import { ImageUpload } from "@/components/cards/ImageUpload";
+
 export default function SystemSettings() {
   const queryClient = useQueryClient();
   const { requestNotificationPermission } = useSocket();
@@ -19,7 +22,7 @@ export default function SystemSettings() {
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
-  const [announcementImage, setAnnouncementImage] = useState(""); // <-- ADICIONADO: Estado para a imagem
+  const [announcementImage, setAnnouncementImage] = useState(""); 
   
   const { data: settings, isLoading, isError, error } = useQuery({
     queryKey: ["settings"],
@@ -35,7 +38,7 @@ export default function SystemSettings() {
       setAnnouncementActive(settings.find((s: any) => s.key === "announcement_active")?.value === "true");
       setAnnouncementTitle(settings.find((s: any) => s.key === "announcement_title")?.value || "");
       setAnnouncementMessage(settings.find((s: any) => s.key === "announcement_message")?.value || "");
-      setAnnouncementImage(settings.find((s: any) => s.key === "announcement_image")?.value || ""); // <-- ADICIONADO: Ler a imagem da API
+      setAnnouncementImage(settings.find((s: any) => s.key === "announcement_image")?.value || ""); 
     }
   }, [settings]);
 
@@ -52,11 +55,10 @@ export default function SystemSettings() {
   // --- Função para salvar o Aviso de Login ---
   const handleSaveAnnouncement = async () => {
     try {
-      // Usamos mutateAsync para esperar que as chamadas terminem
       await updateMutation.mutateAsync({ key: "announcement_active", value: announcementActive.toString() });
       await updateMutation.mutateAsync({ key: "announcement_title", value: announcementTitle });
       await updateMutation.mutateAsync({ key: "announcement_message", value: announcementMessage });
-      await updateMutation.mutateAsync({ key: "announcement_image", value: announcementImage }); // <-- ADICIONADO: Salvar a imagem no banco
+      await updateMutation.mutateAsync({ key: "announcement_image", value: announcementImage }); 
       toast.success("Aviso de login atualizado com sucesso!");
     } catch (error) {
       console.error(error);
@@ -93,7 +95,6 @@ export default function SystemSettings() {
     );
   }
 
-  // Filtra as configurações para não repetir as chaves do anúncio na listagem geral
   const regularSettings = settings?.filter((s: any) => !s.key.startsWith("announcement_")) || [];
 
   return (
@@ -108,7 +109,7 @@ export default function SystemSettings() {
 
       <div className="grid gap-6">
         
-        {/* --- NOVO CARD: GERENCIAR AVISO DE LOGIN --- */}
+        {/* --- CARD: GERENCIAR AVISO DE LOGIN --- */}
         <Card className="border-blue-200 dark:border-blue-900 shadow-sm overflow-hidden">
           <CardHeader className="pb-4 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
             <CardTitle className="text-lg flex items-center gap-2 text-blue-700 dark:text-blue-400">
@@ -133,34 +134,23 @@ export default function SystemSettings() {
               />
             </div>
 
-            {/* --- NOVO BLOCO DA IMAGEM --- */}
+            {/* --- BLOCO DE UPLOAD DA IMAGEM --- */}
             <div className="space-y-3 p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-white/5">
               <div className="flex items-center gap-2 mb-2">
                 <ImageIcon className="h-4 w-4 text-slate-500" />
-                <Label htmlFor="image" className="font-semibold text-slate-700 dark:text-slate-300">Link da Imagem (Opcional)</Label>
+                <Label className="font-semibold text-slate-700 dark:text-slate-300">
+                  Imagem do Poster
+                </Label>
               </div>
-              <Input 
-                id="image" 
-                value={announcementImage}
-                onChange={(e) => setAnnouncementImage(e.target.value)}
-                placeholder="Ex: https://i.imgur.com/suaimagem.jpg" 
-                className="bg-white dark:bg-black"
-              />
-              <p className="text-[12px] text-slate-500">
-                Cola o URL direto de uma imagem. Se preenchido, o pop-up vira um poster visual lindíssimo de ecrã inteiro.
-              </p>
               
-              {/* PREVIEW DA IMAGEM PARA O ADMIN VER COMO FICA */}
-              {announcementImage && (
-                <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 w-full sm:w-[320px] aspect-video bg-black/5 flex items-center justify-center">
-                  <img 
-                    src={announcementImage} 
-                    alt="Preview do Poster" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Imagem+Inv%C3%A1lida')}
-                  />
-                </div>
-              )}
+              <ImageUpload 
+                value={announcementImage} 
+                onChange={(url) => setAnnouncementImage(url || "")} 
+              />
+
+              <p className="text-[12px] text-slate-500 pt-2">
+                Faça upload de uma imagem do seu computador ou cole um URL direto. Se preenchido, o pop-up vira um poster visual lindíssimo de ecrã inteiro.
+              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
