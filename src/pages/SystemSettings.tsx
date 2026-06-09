@@ -4,11 +4,11 @@ import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea"; // <-- Adicionado
-import { Switch } from "@/components/ui/switch"; // <-- Adicionado
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Settings, BellRing, Megaphone } from "lucide-react"; // <-- Megaphone adicionado
+import { Settings, BellRing, Megaphone, AlertTriangle, Image as ImageIcon } from "lucide-react"; 
 import { useSocket } from "@/contexts/SocketContext";
 
 export default function SystemSettings() {
@@ -19,8 +19,9 @@ export default function SystemSettings() {
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementImage, setAnnouncementImage] = useState(""); // <-- ADICIONADO: Estado para a imagem
   
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading, isError, error } = useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
       const response = await api.get("/admin/settings");
@@ -30,10 +31,11 @@ export default function SystemSettings() {
 
   // --- Preenche os estados quando os dados chegam da API ---
   useEffect(() => {
-    if (settings) {
+    if (settings && Array.isArray(settings)) {
       setAnnouncementActive(settings.find((s: any) => s.key === "announcement_active")?.value === "true");
       setAnnouncementTitle(settings.find((s: any) => s.key === "announcement_title")?.value || "");
       setAnnouncementMessage(settings.find((s: any) => s.key === "announcement_message")?.value || "");
+      setAnnouncementImage(settings.find((s: any) => s.key === "announcement_image")?.value || ""); // <-- ADICIONADO: Ler a imagem da API
     }
   }, [settings]);
 
@@ -43,7 +45,6 @@ export default function SystemSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast.success("Configuração salva!");
     },
     onError: () => toast.error("Erro ao salvar"),
   });
@@ -51,20 +52,49 @@ export default function SystemSettings() {
   // --- Função para salvar o Aviso de Login ---
   const handleSaveAnnouncement = async () => {
     try {
-      // Usamos mutateAsync para esperar que as 3 chamadas terminem
+      // Usamos mutateAsync para esperar que as chamadas terminem
       await updateMutation.mutateAsync({ key: "announcement_active", value: announcementActive.toString() });
       await updateMutation.mutateAsync({ key: "announcement_title", value: announcementTitle });
       await updateMutation.mutateAsync({ key: "announcement_message", value: announcementMessage });
+      await updateMutation.mutateAsync({ key: "announcement_image", value: announcementImage }); // <-- ADICIONADO: Salvar a imagem no banco
       toast.success("Aviso de login atualizado com sucesso!");
     } catch (error) {
-      // O erro já é tratado pelo onError da mutation
+      console.error(error);
     }
   };
 
-  if (isLoading) return <div>Carregando...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p className="text-muted-foreground">A carregar configurações do sistema...</p>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8">
+        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Erro de Comunicação com o Servidor
+            </CardTitle>
+            <CardDescription className="text-red-500/80">
+              Não foi possível carregar as configurações. O teu Backend pode estar desligado ou a rota não existe.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm font-mono text-red-800 dark:text-red-400">
+            Detalhes do erro: {(error as any)?.message || "Erro desconhecido"}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Filtra as configurações para não repetir as chaves do anúncio na listagem geral
-  const regularSettings = settings?.filter((s: any) => !s.key.startsWith("announcement_"));
+  const regularSettings = settings?.filter((s: any) => !s.key.startsWith("announcement_")) || [];
 
   return (
     <div className="space-y-6">
@@ -79,21 +109,21 @@ export default function SystemSettings() {
       <div className="grid gap-6">
         
         {/* --- NOVO CARD: GERENCIAR AVISO DE LOGIN --- */}
-        <Card className="border-blue-200 dark:border-blue-900 shadow-sm">
-          <CardHeader className="pb-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-t-xl">
+        <Card className="border-blue-200 dark:border-blue-900 shadow-sm overflow-hidden">
+          <CardHeader className="pb-4 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
             <CardTitle className="text-lg flex items-center gap-2 text-blue-700 dark:text-blue-400">
               <Megaphone className="h-5 w-5" />
-              Aviso na Tela Inicial (Pop-up)
+              Aviso na Tela Inicial (Poster Promocional)
             </CardTitle>
             <CardDescription>
-              Configure um alerta que aparece para os utilizadores logo após o login.
+              Configure o poster de ecrã inteiro que aparece para os utilizadores logo após o login.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+          <CardContent className="pt-6 space-y-6">
+            <div className="flex items-center justify-between p-3 border rounded-xl bg-slate-50 dark:bg-slate-900/50">
               <div className="space-y-0.5">
-                <div className="text-sm font-medium">Ativar Aviso Pop-up</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm font-bold text-slate-800 dark:text-slate-200">Ativar Poster de Aviso</div>
+                <div className="text-xs text-slate-500">
                   Se desativado, o aviso não será mostrado a ninguém.
                 </div>
               </div>
@@ -103,29 +133,61 @@ export default function SystemSettings() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="title">Título do Aviso</Label>
+            {/* --- NOVO BLOCO DA IMAGEM --- */}
+            <div className="space-y-3 p-4 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-white/5">
+              <div className="flex items-center gap-2 mb-2">
+                <ImageIcon className="h-4 w-4 text-slate-500" />
+                <Label htmlFor="image" className="font-semibold text-slate-700 dark:text-slate-300">Link da Imagem (Opcional)</Label>
+              </div>
               <Input 
-                id="title" 
-                value={announcementTitle}
-                onChange={(e) => setAnnouncementTitle(e.target.value)}
-                placeholder="Ex: Manutenção Programada" 
+                id="image" 
+                value={announcementImage}
+                onChange={(e) => setAnnouncementImage(e.target.value)}
+                placeholder="Ex: https://i.imgur.com/suaimagem.jpg" 
+                className="bg-white dark:bg-black"
               />
+              <p className="text-[12px] text-slate-500">
+                Cola o URL direto de uma imagem. Se preenchido, o pop-up vira um poster visual lindíssimo de ecrã inteiro.
+              </p>
+              
+              {/* PREVIEW DA IMAGEM PARA O ADMIN VER COMO FICA */}
+              {announcementImage && (
+                <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 w-full sm:w-[320px] aspect-video bg-black/5 flex items-center justify-center">
+                  <img 
+                    src={announcementImage} 
+                    alt="Preview do Poster" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Imagem+Inv%C3%A1lida')}
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="message">Mensagem do Aviso</Label>
-              <Textarea 
-                id="message" 
-                value={announcementMessage}
-                onChange={(e) => setAnnouncementMessage(e.target.value)}
-                placeholder="Escreva os detalhes do aviso aqui..." 
-                className="min-h-[100px]"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="title" className="font-semibold">Título do Aviso</Label>
+                <Input 
+                  id="title" 
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="Ex: Super Promoção de Inverno" 
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="message" className="font-semibold">Subtítulo / Descrição</Label>
+                <Textarea 
+                  id="message" 
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  placeholder="Detalhes adicionais do poster..." 
+                  className="min-h-[100px]"
+                />
+              </div>
             </div>
 
-            <Button onClick={handleSaveAnnouncement} className="w-full sm:w-auto">
-              Guardar Configurações do Aviso
+            <Button onClick={handleSaveAnnouncement} className="w-full sm:w-auto h-11 px-8">
+              Guardar Configurações do Poster
             </Button>
           </CardContent>
         </Card>
@@ -174,6 +236,7 @@ export default function SystemSettings() {
                   onClick={() => {
                     const input = document.getElementById(`input-${setting.key}`) as HTMLInputElement;
                     updateMutation.mutate({ key: setting.key, value: input.value });
+                    toast.success("Configuração atualizada!");
                   }}
                 >
                   Salvar
