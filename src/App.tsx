@@ -42,7 +42,8 @@ import UserProfile from "./pages/UserProfile";
 import DevDashboard from "./pages/DevDashboard";
 import Clients from "./pages/Clients";
 import MaterialEntries from "./pages/MaterialEntries"; 
-import MaterialWithdrawals from "./pages/MaterialWithdrawals"; // <-- ADICIONADO: Nova página de Saídas
+import MaterialWithdrawals from "./pages/MaterialWithdrawals"; 
+import SystemSettings from "./pages/SystemSettings"; // <-- ADICIONADO: Importação da página de configurações
 
 // === PÁGINAS DO MÓDULO 3D ===
 import Dashboard3D from "./pages/Producao3D/Dashboard3D";
@@ -467,6 +468,17 @@ const App = () => {
                     {/* ========================================== */}
 
                     {/* ADMINISTRAÇÃO */}
+                    
+                    {/* --- ADICIONADO: NOVA ROTA DE CONFIGURAÇÕES AQUI --- */}
+                    <Route
+                      path="/settings"
+                      element={
+                        <ProtectedRoute pageKey="configuracoes">
+                          <Layout><SystemSettings /></Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+
                     <Route
                       path="/users"
                       element={
