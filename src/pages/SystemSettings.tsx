@@ -4,24 +4,18 @@ import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Settings, BellRing, Megaphone, AlertTriangle, Image as ImageIcon } from "lucide-react"; 
+import { Settings, BellRing, Image as ImageIcon, Sparkles } from "lucide-react"; 
 import { useSocket } from "@/contexts/SocketContext";
-
-// --- Importação do teu componente de Upload ---
 import { ImageUpload } from "@/components/cards/ImageUpload";
 
 export default function SystemSettings() {
   const queryClient = useQueryClient();
   const { requestNotificationPermission } = useSocket();
   
-  // --- Estados locais para o Aviso de Login ---
   const [announcementActive, setAnnouncementActive] = useState(false);
-  const [announcementTitle, setAnnouncementTitle] = useState("");
-  const [announcementMessage, setAnnouncementMessage] = useState("");
   const [announcementImage, setAnnouncementImage] = useState(""); 
   
   const { data: settings, isLoading, isError, error } = useQuery({
@@ -32,12 +26,9 @@ export default function SystemSettings() {
     },
   });
 
-  // --- Preenche os estados quando os dados chegam da API ---
   useEffect(() => {
     if (settings && Array.isArray(settings)) {
       setAnnouncementActive(settings.find((s: any) => s.key === "announcement_active")?.value === "true");
-      setAnnouncementTitle(settings.find((s: any) => s.key === "announcement_title")?.value || "");
-      setAnnouncementMessage(settings.find((s: any) => s.key === "announcement_message")?.value || "");
       setAnnouncementImage(settings.find((s: any) => s.key === "announcement_image")?.value || ""); 
     }
   }, [settings]);
@@ -52,14 +43,11 @@ export default function SystemSettings() {
     onError: () => toast.error("Erro ao salvar"),
   });
 
-  // --- Função para salvar o Aviso de Login ---
   const handleSaveAnnouncement = async () => {
     try {
       await updateMutation.mutateAsync({ key: "announcement_active", value: announcementActive.toString() });
-      await updateMutation.mutateAsync({ key: "announcement_title", value: announcementTitle });
-      await updateMutation.mutateAsync({ key: "announcement_message", value: announcementMessage });
       await updateMutation.mutateAsync({ key: "announcement_image", value: announcementImage }); 
-      toast.success("Aviso de login atualizado com sucesso!");
+      toast.success("Poster atualizado com sucesso!");
     } catch (error) {
       console.error(error);
     }
@@ -68,7 +56,7 @@ export default function SystemSettings() {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center p-12 space-y-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
         <p className="text-muted-foreground">A carregar configurações do sistema...</p>
       </div>
     );
@@ -76,22 +64,7 @@ export default function SystemSettings() {
 
   if (isError) {
     return (
-      <div className="p-8">
-        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
-          <CardHeader>
-            <CardTitle className="text-red-600 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Erro de Comunicação com o Servidor
-            </CardTitle>
-            <CardDescription className="text-red-500/80">
-              Não foi possível carregar as configurações. O teu Backend pode estar desligado ou a rota não existe.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm font-mono text-red-800 dark:text-red-400">
-            Detalhes do erro: {(error as any)?.message || "Erro desconhecido"}
-          </CardContent>
-        </Card>
-      </div>
+      <div className="p-8 text-center text-red-500">Erro ao comunicar com o servidor.</div>
     );
   }
 
@@ -101,7 +74,7 @@ export default function SystemSettings() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Settings className="h-8 w-8 text-gray-700" />
+          <Settings className="h-8 w-8 text-slate-700 dark:text-slate-300" />
           Configurações do Sistema
         </h1>
         <p className="text-muted-foreground">Ajuste parâmetros globais e notificações.</p>
@@ -109,23 +82,23 @@ export default function SystemSettings() {
 
       <div className="grid gap-6">
         
-        {/* --- CARD: GERENCIAR AVISO DE LOGIN --- */}
-        <Card className="border-blue-200 dark:border-blue-900 shadow-sm overflow-hidden">
-          <CardHeader className="pb-4 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30">
-            <CardTitle className="text-lg flex items-center gap-2 text-blue-700 dark:text-blue-400">
-              <Megaphone className="h-5 w-5" />
-              Aviso na Tela Inicial (Poster Promocional)
+        {/* --- CARD: GERENCIAR POSTER (SÓ IMAGEM) --- */}
+        <Card className="border-emerald-200 dark:border-emerald-900/50 shadow-sm overflow-hidden">
+          <CardHeader className="pb-4 bg-emerald-50/50 dark:bg-emerald-900/10 border-b border-emerald-100 dark:border-emerald-900/30">
+            <CardTitle className="text-lg flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="h-5 w-5" />
+              Poster de Ecrã Inicial (App Style)
             </CardTitle>
             <CardDescription>
-              Configure o poster de ecrã inteiro que aparece para os utilizadores logo após o login.
+              Faça o upload de uma imagem (poster) para exibir aos utilizadores assim que entram no sistema.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
             <div className="flex items-center justify-between p-3 border rounded-xl bg-slate-50 dark:bg-slate-900/50">
               <div className="space-y-0.5">
-                <div className="text-sm font-bold text-slate-800 dark:text-slate-200">Ativar Poster de Aviso</div>
+                <div className="text-sm font-bold text-slate-800 dark:text-slate-200">Ativar Poster Promocional</div>
                 <div className="text-xs text-slate-500">
-                  Se desativado, o aviso não será mostrado a ninguém.
+                  Se desativado, o poster não será mostrado a ninguém.
                 </div>
               </div>
               <Switch 
@@ -148,36 +121,13 @@ export default function SystemSettings() {
                 onChange={(url) => setAnnouncementImage(url || "")} 
               />
 
-              <p className="text-[12px] text-slate-500 pt-2">
-                Faça upload de uma imagem do seu computador ou cole um URL direto. Se preenchido, o pop-up vira um poster visual lindíssimo de ecrã inteiro.
+              <p className="text-[12px] text-slate-500 pt-2 text-center">
+                (Aviso: O pop-up só aparece se houver uma imagem carregada aqui.)
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="title" className="font-semibold">Título do Aviso</Label>
-                <Input 
-                  id="title" 
-                  value={announcementTitle}
-                  onChange={(e) => setAnnouncementTitle(e.target.value)}
-                  placeholder="Ex: Super Promoção de Inverno" 
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="message" className="font-semibold">Subtítulo / Descrição</Label>
-                <Textarea 
-                  id="message" 
-                  value={announcementMessage}
-                  onChange={(e) => setAnnouncementMessage(e.target.value)}
-                  placeholder="Detalhes adicionais do poster..." 
-                  className="min-h-[100px]"
-                />
-              </div>
-            </div>
-
-            <Button onClick={handleSaveAnnouncement} className="w-full sm:w-auto h-11 px-8">
-              Guardar Configurações do Poster
+            <Button onClick={handleSaveAnnouncement} className="w-full h-12 text-[15px] font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+              Guardar Layout do Poster
             </Button>
           </CardContent>
         </Card>
