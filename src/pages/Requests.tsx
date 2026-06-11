@@ -227,6 +227,10 @@ export default function Requests() {
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [adjustedItems, setAdjustedItems] = useState<Record<string, number>>({});
 
+  // NOVO: Estados para Devolução Parcial
+  const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
+  const [returnItems, setReturnItems] = useState<Record<string, number>>({});
+
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -347,14 +351,31 @@ export default function Requests() {
     },
   });
 
+  // NOVO: Mutation de Devolução Parcial
+  const partialReturnMutation = useMutation({
+    mutationFn: async ({ id, returns }: { id: string, returns: any[] }) => {
+      await api.post(`/requests/${id}/partial-return`, { returns });
+    },
+    onSuccess: () => {
+      toast.success("Devolução parcial efetuada e stock atualizado!");
+      closeAllDialogs();
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
+    onError: (error: any) => { 
+      toast.error(error.response?.data?.error || "Erro ao devolver itens."); 
+    },
+  });
+
   const closeAllDialogs = () => {
     setIsRejectDialogOpen(false);
     setDeleteDialogOpen(false);
     setIsApproveDialogOpen(false);
+    setIsReturnDialogOpen(false); // NOVO
     setSelectedRequest(null);
     setRequestActionId(null);
     setRejectionReason("");
     setAdjustedItems({});
+    setReturnItems({}); // NOVO
   };
 
   // --- LÓGICA DE APROVAÇÃO COM CONFERÊNCIA ---
@@ -394,10 +415,46 @@ export default function Requests() {
     });
   };
 
+  // --- LÓGICA DE DEVOLUÇÃO PARCIAL ---
+  const openReturnDialog = (request: any) => {
+    setRequestActionId(request.id);
+    const initialReturns: Record<string, number> = {};
+    request.request_items.forEach((item: any) => {
+        initialReturns[item.id] = 0; // Inicializa a zero para que o utilizador escolha o que vai devolver
+    });
+    setReturnItems(initialReturns);
+    setIsReturnDialogOpen(true);
+  };
+
+  const handleReturnQtyChange = (itemId: string, change: number, maxQty: number) => {
+    setReturnItems(prev => {
+        const current = prev[itemId] || 0;
+        const newQty = Math.max(0, Math.min(maxQty, current + change));
+        return { ...prev, [itemId]: newQty };
+    });
+  };
+
+  const confirmPartialReturn = () => {
+    if (!requestActionId) return;
+    
+    // Filtra apenas itens com quantidade maior que 0
+    const itemsToReturn = Object.entries(returnItems)
+        .filter(([_, qty]) => qty > 0)
+        .map(([id, qty]) => ({
+            request_item_id: id,
+            quantity_to_return: qty
+        }));
+
+    if (itemsToReturn.length === 0) {
+        return toast.error("Por favor, selecione pelo menos um item para devolver.");
+    }
+
+    partialReturnMutation.mutate({ id: requestActionId, returns: itemsToReturn });
+  };
   // -----------------------------------------------
 
   const handleDeliver = (id: string) => updateStatusMutation.mutate({ id, status: "entregue" });
-  const handleReturn = (id: string) => updateStatusMutation.mutate({ id, status: "devolvido" });
+  const handleReturn = (id: string) => updateStatusMutation.mutate({ id, status: "devolvido" }); // Total via status (opcional manter)
   
   const openRejectDialog = (id: string) => {
     setRequestActionId(id);
@@ -742,12 +799,13 @@ export default function Requests() {
               </Button>
             ) : canManage && selectedRequest?.status === 'entregue' ? (
               <>
+                 {/* NOVO: Abrimos o Modal de Devolução Parcial */}
                  <Button 
                    variant="outline" 
                    className="w-full rounded-xl sm:rounded-2xl h-12 sm:h-14 border-purple-200 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 font-bold text-sm sm:text-[15px] tracking-tight" 
-                   onClick={() => handleReturn(selectedRequest.id)}
+                   onClick={() => openReturnDialog(selectedRequest)}
                  >
-                   <RotateCcw className="mr-2 h-4 w-4 sm:h-5 sm:w-5" /> Estornar / Devolver
+                   <RotateCcw className="mr-2 h-4 w-4 sm:h-5 sm:w-5" /> Devolução Parcial / Estorno
                  </Button>
                  <Button variant="secondary" className="w-full rounded-xl sm:rounded-2xl h-12 sm:h-14 font-bold text-sm sm:text-[15px] bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-900 dark:text-white" onClick={closeAllDialogs}>
                    Fechar Menu
@@ -824,6 +882,72 @@ export default function Requests() {
             </Button>
             <Button className="w-full sm:flex-1 h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md" onClick={confirmApproveWithAdjustments}>
               Confirmar e Aprovar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- DIALOG DE DEVOLUÇÃO PARCIAL --- */}
+      <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
+        <DialogContent className="w-[90vw] max-w-lg bg-white dark:bg-[#111] border-none rounded-[1.5rem] sm:rounded-[2rem] p-0 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          
+          <div className="p-6 sm:p-8 pb-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-[#0A0A0A]">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-10 w-10 bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-500 rounded-full flex items-center justify-center shrink-0">
+                <RotateCcw className="h-5 w-5" strokeWidth={2.5} />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Devolução de Materiais</DialogTitle>
+                <DialogDescription className="text-xs font-medium text-slate-500 mt-0.5">
+                  Selecione quantos itens estão a retornar do setor. O stock será reposto e a OP ajustada automaticamente.
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-white dark:bg-transparent">
+            {selectedRequest?.request_items?.map((item: any) => {
+               const deliveredQty = parseFloat(item.quantity_delivered ?? item.quantity_requested);
+               const returnedQty = parseFloat(item.quantity_returned ?? 0);
+               const maxReturnable = deliveredQty - returnedQty;
+
+               return (
+               <div key={item.id} className="flex flex-col gap-3 p-4 bg-white dark:bg-[#111] border border-slate-200/60 dark:border-white/10 rounded-2xl shadow-sm">
+                 <div className="flex flex-col min-w-0">
+                     <span className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
+                         {item.products?.name || item.custom_product_name}
+                     </span>
+                     <span className="text-[11px] text-slate-500 mt-1 font-medium">
+                       Entregue: <strong>{deliveredQty}</strong> | Já devolvido: <strong>{returnedQty}</strong>
+                     </span>
+                 </div>
+
+                 {maxReturnable > 0 ? (
+                   <div className="flex justify-between items-center border-t border-slate-100 dark:border-white/5 pt-3 mt-1">
+                       <span className="text-[10px] uppercase font-bold text-slate-400">Qtd a Devolver:</span>
+                       <div className="flex items-center bg-slate-100 dark:bg-[#222] rounded-full p-1 shadow-inner border border-slate-200/60 dark:border-white/5">
+                         <button onClick={() => handleReturnQtyChange(item.id, -1, maxReturnable)} className="h-8 w-8 flex items-center justify-center rounded-full bg-white dark:bg-[#333] text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50">-</button>
+                         <span className="w-14 text-center text-base font-black text-purple-600 dark:text-purple-400 tabular-nums">
+                           {returnItems[item.id] || 0}
+                         </span>
+                         <button onClick={() => handleReturnQtyChange(item.id, 1, maxReturnable)} className="h-8 w-8 flex items-center justify-center rounded-full bg-purple-600 text-white font-bold hover:bg-purple-700">+</button>
+                       </div>
+                   </div>
+                 ) : (
+                   <div className="text-[11px] font-bold text-emerald-500 mt-2 bg-emerald-50 dark:bg-emerald-500/10 p-2 rounded-lg text-center">
+                     Totalmente devolvido
+                   </div>
+                 )}
+               </div>
+            )})}
+          </div>
+
+          <DialogFooter className="p-6 bg-white dark:bg-[#111] border-t border-slate-100 dark:border-white/5 flex flex-col sm:flex-row gap-2 shrink-0">
+            <Button variant="outline" className="w-full sm:flex-1 h-12 rounded-xl font-bold border-slate-200 dark:border-white/10" onClick={() => setIsReturnDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button className="w-full sm:flex-1 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md" onClick={confirmPartialReturn}>
+              Confirmar Devolução
             </Button>
           </DialogFooter>
         </DialogContent>
