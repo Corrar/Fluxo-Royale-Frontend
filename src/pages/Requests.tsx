@@ -239,7 +239,7 @@ export default function Requests() {
   }, [markRequestsAsRead]);
 
   // ==========================================
-  // 🔌 1. SOCKET (Atualizações em Tempo Real Absoluto)
+  // 🔌 1. SOCKET (Atualizações em Tempo Real Multi-Almoxarife)
   // ==========================================
   useEffect(() => {
     if (!socket) return;
@@ -252,6 +252,9 @@ export default function Requests() {
              if (oldData.some((req: any) => req.id === newRequestData.id)) return oldData;
              return [newRequestData, ...oldData]; 
            });
+           
+           // Força recarregamento limpo para garantir integridade
+           queryClient.invalidateQueries({ queryKey: ["requests"] });
         }
     };
 
@@ -262,13 +265,13 @@ export default function Requests() {
         });
     };
 
-    // 🟢 MAGIA DA REDE: Atualiza o status localmente sem bater no banco de dados!
+    // 🟢 MAGIA DA REDE MULTI-ALMOXARIFE: Sincronia instantânea e Proteção Anti-Colisão
     const handleRequestUpdated = (data: { id: string, status: string, rejection_reason?: string, novo_status?: string }) => {
         if (!data || !data.id) return;
         
         const updatedStatus = data.status || data.novo_status; 
         
-        // Atualiza a cache do React Query
+        // Atualiza a cache do React Query instantaneamente
         queryClient.setQueryData(["requests"], (oldData: any) => {
             if (!oldData) return oldData;
             
@@ -279,27 +282,30 @@ export default function Requests() {
             );
         });
 
-        // Se o modal deste pedido estiver aberto, atualiza-o também ao vivo
+        // Anti-Colisão: Avisa se estás com o modal aberto e outro almoxarife o altera
         setSelectedRequest((prevSelected: any) => {
            if (prevSelected && prevSelected.id === data.id) {
+               if (prevSelected.status !== updatedStatus) {
+                   toast.warning(`⚠️ Atenção: Um colega alterou este pedido para "${updatedStatus?.toUpperCase()}" neste instante!`, { duration: 6000 });
+               }
                return { ...prevSelected, status: updatedStatus, rejection_reason: data.rejection_reason || prevSelected.rejection_reason };
            }
            return prevSelected;
         });
+
+        // Puxa as quantidades precisas que o colega alterou em background
+        queryClient.invalidateQueries({ queryKey: ["requests"] });
     };
 
-    // Fallback: Mantemos isto caso o back-end mande o refresh genérico antigo
     const handleRefresh = () => {
-      setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["requests"] });
-      }, Math.random() * 1500);
     };
 
     socket.on("new_request", handleNewRequest);
     socket.on("new_request_notification", handleNotification);
-    socket.on("refresh_requests", handleRefresh); // Fallback
+    socket.on("refresh_requests", handleRefresh); 
     
-    // 🟢 Escuta os novos eventos otimizados!
+    // Escuta os eventos otimizados!
     socket.on("request_updated", handleRequestUpdated);
     socket.on("status_updated", handleRequestUpdated);
 
@@ -328,12 +334,13 @@ export default function Requests() {
       await api.put(`/requests/${id}/status`, { status, rejection_reason: reason, adjusted_items: items });
     },
     onSuccess: (_, variables) => {
-      // Como o nosso handleRequestUpdated trata disto agora, invalidateQueries não é obrigatório para não pesar
       const msg = variables.status === 'aprovado' ? 'Aprovado e Ajustado! Pode separar os itens.' : 
                   variables.status === 'rejeitado' ? 'Solicitação recusada e stock devolvido.' : 
                   variables.status === 'devolvido' ? 'Pedido devolvido e stock restaurado com sucesso!' : 'Entrega confirmada com sucesso!';
       toast.success(msg);
       closeAllDialogs();
+      // Atualização forçada para refletir nas tabelas de stock e requests instantaneamente
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
     },
     onError: (error: any) => { 
       toast.error(error.response?.data?.error || "Erro ao atualizar."); 
@@ -345,6 +352,7 @@ export default function Requests() {
     onSuccess: (data) => {
       toast.success(data?.data?.message || "Pedido cancelado com sucesso.");
       closeAllDialogs();
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
     },
     onError: (error: any) => { 
       toast.error(error.response?.data?.error || "Erro ao cancelar o pedido."); 
@@ -454,7 +462,7 @@ export default function Requests() {
   // -----------------------------------------------
 
   const handleDeliver = (id: string) => updateStatusMutation.mutate({ id, status: "entregue" });
-  const handleReturn = (id: string) => updateStatusMutation.mutate({ id, status: "devolvido" }); // Total via status (opcional manter)
+  const handleReturn = (id: string) => updateStatusMutation.mutate({ id, status: "devolvido" }); 
   
   const openRejectDialog = (id: string) => {
     setRequestActionId(id);
@@ -484,14 +492,13 @@ export default function Requests() {
         return false;
       }
 
-      // 🛡️ Melhoria: Conversão segura de op_code para string para evitar erros se vier número do BD
       const safeOpCode = String(request.op_code || "").toLowerCase();
 
       const matchesSearch = 
         searchTerm === "" ||
         request.sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         request.requester?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        safeOpCode.includes(searchTerm.toLowerCase()) || // 🟢 Filtro por OP Global Seguro
+        safeOpCode.includes(searchTerm.toLowerCase()) || 
         request.request_items?.some((item: any) => 
             (item.products?.name || item.custom_product_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
             (item.client_service || "").toLowerCase().includes(searchTerm.toLowerCase())
@@ -572,7 +579,6 @@ export default function Requests() {
                const timeAgo = formatDistanceToNow(new Date(request.created_at), { addSuffix: true, locale: ptBR });
                
                const hasOS = request.request_items?.some((i: any) => i.client_service);
-               // 🟢 Validação correta para saber se a OP deve aparecer no Card
                const hasOpCode = !!request.op_code; 
 
                return (
@@ -608,7 +614,6 @@ export default function Requests() {
                                    </div>
                                  </div>
                                  
-                                 {/* 🟢 Renderização do número da OP no Cartão */}
                                  {(hasOpCode || hasOS) && (
                                    <div className="mt-4 flex flex-wrap items-center gap-2">
                                      {hasOpCode && (
@@ -696,7 +701,6 @@ export default function Requests() {
                 </p>
                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] opacity-70 mt-3 sm:mt-4 z-10 flex items-center gap-2">
                     REQ-{selectedRequest.id.substring(0, 8)}
-                    {/* 🟢 Mostra a OP no Cabeçalho do Modal */}
                     {selectedRequest.op_code && (
                        <>
                          <span className="w-1 h-1 rounded-full bg-white opacity-50"></span>
@@ -725,7 +729,6 @@ export default function Requests() {
                 </div>
             </div>
 
-            {/* LISTA DE ITENS DENTRO DO MODAL */}
             <div className="p-5 sm:p-10 bg-white dark:bg-transparent">
               <h4 className="font-bold text-[10px] sm:text-[11px] mb-3 sm:mb-4 text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 Produtos Solicitados ({selectedRequest?.request_items?.length})
@@ -745,7 +748,6 @@ export default function Requests() {
                                     SKU: {item.products.sku}
                                 </span>
                             )}
-                            {/* 🟢 Exibe a OP na listagem de itens */}
                             {(item.client_service || selectedRequest.op_code) && (
                                 <span className="text-[9px] sm:text-[10px] font-bold text-blue-700 bg-blue-100/50 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded">
                                     {selectedRequest.op_code ? `OP: ${selectedRequest.op_code}` : `OS/Cliente: ${item.client_service}`}
@@ -799,7 +801,6 @@ export default function Requests() {
               </Button>
             ) : canManage && selectedRequest?.status === 'entregue' ? (
               <>
-                 {/* NOVO: Abrimos o Modal de Devolução Parcial */}
                  <Button 
                    variant="outline" 
                    className="w-full rounded-xl sm:rounded-2xl h-12 sm:h-14 border-purple-200 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 font-bold text-sm sm:text-[15px] tracking-tight" 
