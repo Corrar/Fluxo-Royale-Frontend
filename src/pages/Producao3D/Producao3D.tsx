@@ -20,7 +20,7 @@ import {
 import {
   Plus, Minus, Clock, Factory, Weight, Package, Trash2, Search, TrendingUp,
   CalendarDays, User, Hash, LayoutGrid, List, Activity, Loader2, Calendar, 
-  BookOpen, Lightbulb, MessageSquare
+  BookOpen, Lightbulb, MessageSquare, Layers // <-- IMPORTAÇÃO CORRIGIDA AQUI
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, isToday, isYesterday } from "date-fns";
