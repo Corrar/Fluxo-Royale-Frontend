@@ -1,3 +1,5 @@
+// src/pages/Products.tsx
+
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, updateProductPrices } from "@/services/api"; 
@@ -25,7 +27,8 @@ import {
   EyeOff,
   TrendingUp,
   CreditCard,
-  Layers
+  Layers,
+  Check
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -38,20 +41,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-// --- 🎨 ESTILOS DE TAGS ---
-const getTagStyle = (tag: string) => {
-  const styles = [
-    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-    "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  ];
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return styles[Math.abs(hash) % styles.length];
-};
 
 // --- 💀 SKELETON LOADER ---
 const ProductSkeleton = () => (
@@ -142,7 +131,6 @@ const ProductCard = ({
           {product.sku && product.sku.trim() !== "" ? product.sku : <span className="text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3"/> VAZIO</span>}
         </Badge>
 
-        {/* CONTROLE GRANULAR AQUI: Edição e Deleção */}
         {(canEdit || canDelete) && !isPurchaseMode && (
           <div className={`flex gap-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-full p-1 shadow-sm border border-slate-50 dark:border-slate-800 transition-all duration-300 ${isEditingThis ? "opacity-100" : "opacity-100 lg:opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0"}`}>
             {canEdit && (
@@ -202,7 +190,6 @@ const ProductCard = ({
           </div>
         </div>
 
-        {/* CONTROLE GRANULAR AQUI: Ver/Editar Preços */}
         {(canViewPrice || canEditPrice) && !isPurchaseMode && (
           <div className="flex flex-col items-end group/price">
             <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1.5">Unitário</span>
@@ -255,7 +242,9 @@ export default function Products() {
   const [purchaseDetails, setPurchaseDetails] = useState({ date: "", note: "" });
   const [useAutoSku, setUseAutoSku] = useState(true);
   const [tagInput, setTagInput] = useState("");
-  const [formData, setFormData] = useState({ sku: "", name: "", description: "", unit: "", min_stock: "0", quantity: "0", unit_price: "0", tags: [] as string[] });
+  
+  // REMOVIDO: campo quantity
+  const [formData, setFormData] = useState({ sku: "", name: "", description: "", unit: "", min_stock: "0", unit_price: "0", tags: [] as string[] });
   
   const [isVisible, setIsVisible] = useState(true);
   const [showMobileForm, setShowMobileForm] = useState(false);
@@ -268,7 +257,6 @@ export default function Products() {
   const canViewTotalValue = canAccess("valores:view");
   
   const canEditTags = canAddProduct || canEditProduct;
-  // Modo compra mantido com a validação por cargo, pode adicionar uma permissão 'compras:view' futuramente se desejar
   const canPurchase = profile?.role === "compras" || profile?.role === "admin";
 
   const primaryColor = isPurchaseMode ? "violet" : "emerald";
@@ -335,7 +323,6 @@ export default function Products() {
     },
     onError: (error: any, variables: any) => {
       const errorMsg = error.response?.data?.error || "Erro ao criar";
-      
       if (errorMsg.includes("arquivado") || errorMsg.includes("inativo")) {
         if (canAddProduct || canEditProduct) {
           setSkuToReactivate(variables.sku);
@@ -428,17 +415,15 @@ export default function Products() {
     const cleanName = formData.name.trim();
     if (!cleanName || !formData.unit.trim()) return toast.error("Preencha Nome e Unidade");
     
-    // CORREÇÃO AQUI: Estava 'formData.min_stock' no lugar de 'formData.sku'
     const finalSku = (useAutoSku ? nextSku : formData.sku).trim();
-    
     if (!finalSku) return toast.error("O código SKU não pode ficar vazio");
 
+    // Removemos quantity daqui, a entrada do sistema agora é o único lugar que dita estoque.
     const data = { 
       ...formData, 
       name: cleanName,
       sku: finalSku, 
       min_stock: parseFloat(formData.min_stock) || 0, 
-      quantity: parseFloat(formData.quantity) || 0, 
       unit_price: parseFloat(formData.unit_price) || 0 
     };
     
@@ -447,11 +432,24 @@ export default function Products() {
 
   const handleEdit = (product: any) => {
     setEditingProduct(product); setUseAutoSku(false);
-    setFormData({ sku: product.sku, name: product.name, description: product.description || "", unit: product.unit, min_stock: product.min_stock?.toString() || "0", quantity: (product.stock?.quantity_on_hand || "0").toString(), unit_price: product.unit_price?.toString() || "0", tags: product.tags || [] });
+    setFormData({ 
+      sku: product.sku, 
+      name: product.name, 
+      description: product.description || "", 
+      unit: product.unit, 
+      min_stock: product.min_stock?.toString() || "0", 
+      unit_price: product.unit_price?.toString() || "0", 
+      tags: product.tags || [] 
+    });
     setShowMobileForm(true);
   };
 
-  const resetForm = () => { setFormData({ sku: "", name: "", description: "", unit: "", min_stock: "0", quantity: "0", unit_price: "0", tags: [] }); setEditingProduct(null); setUseAutoSku(true); setTagInput(""); };
+  const resetForm = () => { 
+    setFormData({ sku: "", name: "", description: "", unit: "", min_stock: "0", unit_price: "0", tags: [] }); 
+    setEditingProduct(null); 
+    setUseAutoSku(true); 
+    setTagInput(""); 
+  };
   
   const handleConfirmPrice = (e: React.FormEvent) => {
     e.preventDefault();
@@ -469,9 +467,20 @@ export default function Products() {
     });
   };
 
+  // 🟢 NOVO: Lógica fluída de Tags (Toggle)
+  const toggleFormTag = (tag: string) => {
+    setFormData(f => ({
+      ...f,
+      tags: f.tags.includes(tag) ? f.tags.filter(t => t !== tag) : [...f.tags, tag]
+    }));
+  };
+
   const handleAddTag = () => {
     const cleanTag = tagInput.trim();
-    if (cleanTag && !formData.tags.includes(cleanTag)) { setFormData(f => ({ ...f, tags: [...f.tags, cleanTag] })); setTagInput(""); }
+    if (cleanTag && !formData.tags.includes(cleanTag)) { 
+      setFormData(f => ({ ...f, tags: [...f.tags, cleanTag] })); 
+      setTagInput(""); 
+    }
   };
 
   const toggleFilterTag = (tag: string) => {
@@ -685,6 +694,7 @@ export default function Products() {
                         />
                       </div>
 
+                      {/* 🟢 REMOVIDO: O input de quantidade (Estoque Inicial). Agora o formulário foca na identificação do produto. */}
                       <div className="grid grid-cols-2 gap-3 lg:gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[11px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 lg:ml-1">Unidade</Label>
@@ -705,27 +715,36 @@ export default function Products() {
                             className={`font-bold text-base text-center bg-slate-50/80 border-transparent hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-${primaryColor}-500/30 rounded-[16px] lg:rounded-[12px] h-12 lg:h-10 shadow-inner dark:bg-slate-800 transition-all [&::-webkit-inner-spin-button]:appearance-none`}
                           />
                         </div>
-
-                        <div className="space-y-1.5 col-span-2">
-                          <Label className="text-[11px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 lg:ml-1">{editingProduct ? "Ajustar Estoque" : "Estoque Inicial"}</Label>
-                          <Input
-                            type="number" step="0.01"
-                            value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                            className={`h-14 lg:h-12 text-2xl lg:text-xl text-center font-black rounded-[18px] lg:rounded-[14px] shadow-inner transition-all duration-300 focus:ring-2 [&::-webkit-inner-spin-button]:appearance-none ${editingProduct ? "bg-amber-50 text-amber-600 focus:ring-amber-500/40 focus:bg-white" : `bg-slate-50/80 border-transparent text-slate-800 focus:ring-${primaryColor}-500/30 focus:bg-white dark:bg-slate-800 dark:text-white`}`}
-                            placeholder="0"
-                          />
-                        </div>
                       </div>
 
+                      {/* 🟢 NOVO: Experiência de Tags interativas */}
                       {canEditTags && (
                         <div className="space-y-3 bg-slate-50/50 dark:bg-slate-800/30 p-4 lg:p-3 rounded-[20px] lg:rounded-[16px] border border-slate-100/50 dark:border-slate-800/50">
                           <Label className="text-[10px] lg:text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                            <Tag className="h-3 w-3" /> Etiquetas Rápidas
+                            <Tag className="h-3 w-3" /> Categorias e Etiquetas
                           </Label>
-                          <div className="flex gap-2 relative">
+
+                          {availableTags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar p-1">
+                              {availableTags.map(tag => {
+                                 const isSelected = formData.tags.includes(tag);
+                                 return (
+                                   <Badge
+                                     key={tag}
+                                     onClick={() => toggleFormTag(tag)}
+                                     variant={isSelected ? "default" : "outline"}
+                                     className={`cursor-pointer transition-all active:scale-95 px-2.5 py-1 text-[10px] font-bold ${isSelected ? `bg-${primaryColor}-500 text-white border-none shadow-sm` : 'bg-white text-slate-500 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+                                   >
+                                     {tag} {isSelected && <Check className="ml-1 h-3 w-3 inline-block" strokeWidth={3}/>}
+                                   </Badge>
+                                 )
+                              })}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 relative mt-2">
                             <Input
-                              placeholder="Nome da tag..."
+                              placeholder="Criar nova etiqueta..."
                               value={tagInput}
                               onChange={(e) => setTagInput(e.target.value)}
                               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddTag())}
@@ -735,22 +754,24 @@ export default function Products() {
                               <Plus className="h-5 w-5 lg:h-4 lg:w-4" strokeWidth={3} />
                             </Button>
                           </div>
-                          {formData.tags.length > 0 && (
+                          
+                          {/* Exibe novas tags criadas que ainda não constam no banco principal */}
+                          {formData.tags.filter(t => !availableTags.includes(t)).length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
-                              {formData.tags.map((tag) => (
-                                <Badge key={tag} className={`flex items-center gap-1 pl-2.5 pr-1 py-1 font-bold rounded-xl lg:rounded-lg ${getTagStyle(tag)} border-none shadow-sm text-[10px]`} variant="outline">
-                                  {tag}
-                                  <div onClick={() => setFormData({ ...formData, tags: formData.tags.filter(t => t !== tag) })} className="bg-black/5 hover:bg-black/10 rounded-lg lg:rounded-md p-0.5 cursor-pointer active:scale-90 transition-transform">
-                                    <X className="h-3 w-3" strokeWidth={3} />
-                                  </div>
-                                </Badge>
+                              {formData.tags.filter(t => !availableTags.includes(t)).map((tag) => (
+                                 <Badge key={tag} className={`flex items-center gap-1 pl-2.5 pr-1 py-1 font-bold rounded-xl lg:rounded-lg bg-${primaryColor}-500 text-white border-none shadow-sm text-[10px]`}>
+                                   {tag}
+                                   <div onClick={() => toggleFormTag(tag)} className="bg-black/10 hover:bg-black/20 rounded-lg lg:rounded-md p-0.5 cursor-pointer active:scale-90 transition-transform ml-1">
+                                     <X className="h-3 w-3" strokeWidth={3} />
+                                   </div>
+                                 </Badge>
                               ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30 p-3.5 lg:p-2.5 rounded-[16px] lg:rounded-[12px]">
+                      <div className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30 p-3.5 lg:p-2.5 rounded-[16px] lg:rounded-[12px] mt-4">
                         <div className="flex flex-col">
                           <Label className="text-[10px] lg:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 lg:mb-0">Código SKU</Label>
                           <span className="font-mono font-black text-slate-700 dark:text-slate-300 tracking-wider text-xs">{currentSkuDisplay}</span>
@@ -769,14 +790,14 @@ export default function Products() {
                           />
                       )}
 
-                      <div className="pt-2 lg:pt-1">
+                      <div className="pt-4 lg:pt-2">
                         <Button
                           type="submit"
                           className={`w-full h-14 lg:h-12 rounded-[20px] lg:rounded-[14px] font-black text-[16px] lg:text-[14px] shadow-lg transition-all active:scale-[0.97] hover:-translate-y-0.5 ${editingProduct ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30 ring-2 ring-amber-500/10" : `bg-${primaryColor}-500 hover:bg-${primaryColor}-600 text-white shadow-${primaryColor}-500/30 ring-2 ring-${primaryColor}-500/10`}`}
                           disabled={createMutation.isPending || updateMutation.isPending}
                         >
                           {editingProduct ? (updateMutation.isPending ? "Salvando..." : "Salvar Edição") : (
-                            <><Plus className="h-5 w-5 lg:h-4 lg:w-4 mr-2" strokeWidth={3} /> {createMutation.isPending ? "Criando..." : "Cadastrar"}</>
+                            <><Plus className="h-5 w-5 lg:h-4 lg:w-4 mr-2" strokeWidth={3} /> {createMutation.isPending ? "Criando..." : "Cadastrar Produto"}</>
                           )}
                         </Button>
                       </div>
