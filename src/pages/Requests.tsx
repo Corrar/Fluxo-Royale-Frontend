@@ -62,6 +62,33 @@ const statusStyles: Record<string, StatusConfig> = {
   },
 };
 
+// 🟢 NOVO: Calculador Visual Inteligente para Devoluções Parciais/Totais
+const getRequestDisplayInfo = (request: any) => {
+  if (!request) return { status: 'aberto', isPartial: false, style: statusStyles.aberto, label: 'Em Análise' };
+
+  let currentStatus = request.status;
+  let isPartial = false;
+
+  // Verifica se o status original é "entregue" e analisa as devoluções
+  if (currentStatus === 'entregue') {
+    const totalDelivered = request.request_items?.reduce((sum: number, item: any) => sum + parseFloat(item.quantity_delivered ?? item.quantity_requested ?? 0), 0) || 0;
+    const totalReturned = request.request_items?.reduce((sum: number, item: any) => sum + parseFloat(item.quantity_returned ?? 0), 0) || 0;
+
+    if (totalReturned > 0) {
+      currentStatus = 'devolvido'; // Força a exibição visual roxa
+      isPartial = totalReturned < totalDelivered;
+    }
+  }
+
+  const style = statusStyles[currentStatus] || statusStyles.aberto;
+  return {
+    status: currentStatus,
+    isPartial,
+    style,
+    label: isPartial ? "Devol. Parcial" : style.label
+  };
+};
+
 // ==========================================
 // 🧩 COMPONENTE: EMPTY STATE
 // ==========================================
@@ -82,8 +109,10 @@ const EmptyState = ({ title, description }: { title: string; description: string
 // Responsável por desenhar a linha do tempo do pedido dentro do modal
 const MLTimeline = ({ request }: { request: any }) => {
   const { status, created_at, rejection_reason } = request;
+  const displayInfo = getRequestDisplayInfo(request); // 🟢 Otimizado
+  
   const isRejected = status === "rejeitado";
-  const isReturned = status === "devolvido";
+  const isReturned = displayInfo.status === "devolvido";
   const isDelivered = status === "entregue" || status === "devolvido";
   const isApproved = status === "aprovado" || isDelivered;
 
@@ -126,8 +155,8 @@ const MLTimeline = ({ request }: { request: any }) => {
   if (isReturned) {
     steps.push({
       id: 4,
-      title: "Devolvido (Estorno)",
-      desc: "Os materiais foram devolvidos e o stock restaurado.",
+      title: displayInfo.isPartial ? "Devolução Parcial" : "Devolvido (Estorno)",
+      desc: displayInfo.isPartial ? "Parte dos materiais retornou ao stock." : "Os materiais foram devolvidos e o stock restaurado.",
       date: "Estornado",
       isCompleted: true,
       isActive: true,
@@ -504,13 +533,17 @@ export default function Requests() {
             (item.client_service || "").toLowerCase().includes(searchTerm.toLowerCase())
         );
       
-      const matchesStatus = statusFilter === "all" || request.status === statusFilter;
+      // 🟢 O filtro entende agora se clicar na tab "devolvido" mesmo sendo entregue e parcial
+      const totalReturned = request.request_items?.reduce((sum: number, item: any) => sum + parseFloat(item.quantity_returned ?? 0), 0) || 0;
+      const displayStatusMatch = (statusFilter === 'devolvido' && totalReturned > 0) ? true : request.status === statusFilter;
+      const matchesStatus = statusFilter === "all" || displayStatusMatch;
       
       return matchesSearch && matchesStatus;
     });
   }, [requests, searchTerm, statusFilter]);
 
   const canManage = profile?.role === "admin" || profile?.role === "almoxarife";
+  const modalDisplayInfo = selectedRequest ? getRequestDisplayInfo(selectedRequest) : null;
 
   return (
     <div className="w-full mx-auto px-4 md:px-8 py-6 space-y-6 animate-in fade-in duration-1000 pb-32 min-h-screen bg-[#F8FAFC] dark:bg-[#000000] selection:bg-blue-500/30">
@@ -573,7 +606,8 @@ export default function Requests() {
       ) : (
          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6 w-full">
             {filteredRequests.map((request: any) => {
-               const style = statusStyles[request.status] || statusStyles.aberto;
+               const displayInfo = getRequestDisplayInfo(request); // 🟢 Otimizado
+               const style = displayInfo.style;
                const StatusIcon = style.icon;
                const itemCount = request.request_items?.length || 0;
                const timeAgo = formatDistanceToNow(new Date(request.created_at), { addSuffix: true, locale: ptBR });
@@ -594,7 +628,7 @@ export default function Requests() {
                          <div className="p-5 sm:p-6 pb-4">
                              <div className="flex justify-between items-start gap-2 mb-4">
                                  <Badge variant="outline" className={cn("shrink-0 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] uppercase font-black tracking-widest border border-transparent", style.color)}>
-                                     <StatusIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1.5" strokeWidth={2.5} /> {style.label}
+                                     <StatusIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1.5" strokeWidth={2.5} /> {displayInfo.label}
                                  </Badge>
                                  <span className="shrink-0 text-[10px] sm:text-[11px] font-bold text-slate-400 flex items-center gap-1 sm:gap-1.5 pt-0.5">
                                      <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {timeAgo}
@@ -674,30 +708,32 @@ export default function Requests() {
               <DialogDescription id="dialog-desc">Visualização dos detalhes, histórico e itens desta solicitação específica.</DialogDescription>
           </DialogHeader>
           
-          {selectedRequest && (
+          {selectedRequest && modalDisplayInfo && (
             <div className={cn(
               "px-5 sm:px-10 py-6 sm:py-8 border-b border-black/5 dark:border-white/5 flex flex-col shrink-0 relative overflow-hidden",
-              selectedRequest.status === 'entregue' ? "bg-emerald-600 dark:bg-emerald-900/40 text-white" :
-              selectedRequest.status === 'devolvido' ? "bg-purple-600 dark:bg-purple-900/40 text-white" :
-              selectedRequest.status === 'rejeitado' ? "bg-rose-600 dark:bg-rose-900/40 text-white" :
-              selectedRequest.status === 'aprovado' ? "bg-blue-600 dark:bg-blue-900/40 text-white" : "bg-amber-500 dark:bg-amber-900/40 text-white"
+              modalDisplayInfo.status === 'entregue' ? "bg-emerald-600 dark:bg-emerald-900/40 text-white" :
+              modalDisplayInfo.status === 'devolvido' ? "bg-purple-600 dark:bg-purple-900/40 text-white" :
+              modalDisplayInfo.status === 'rejeitado' ? "bg-rose-600 dark:bg-rose-900/40 text-white" :
+              modalDisplayInfo.status === 'aprovado' ? "bg-blue-600 dark:bg-blue-900/40 text-white" : "bg-amber-500 dark:bg-amber-900/40 text-white"
             )}>
                 <div className="absolute -right-6 -bottom-6 opacity-10 pointer-events-none hidden sm:block">
                     <PackageOpen className="w-40 h-40" />
                 </div>
 
                 <h2 className="text-2xl sm:text-4xl font-black z-10 tracking-tighter leading-none mb-1 sm:mb-2">
-                    {selectedRequest.status === 'entregue' ? "Pedido Concluído" :
-                     selectedRequest.status === 'devolvido' ? "Pedido Devolvido" :
-                     selectedRequest.status === 'rejeitado' ? "Pedido Recusado" :
-                     selectedRequest.status === 'aprovado' ? "Em Preparação" : "Aguardando Análise"}
+                    {modalDisplayInfo.status === 'entregue' ? "Pedido Concluído" :
+                     modalDisplayInfo.status === 'devolvido' && modalDisplayInfo.isPartial ? "Devolução Parcial" :
+                     modalDisplayInfo.status === 'devolvido' && !modalDisplayInfo.isPartial ? "Pedido Devolvido" :
+                     modalDisplayInfo.status === 'rejeitado' ? "Pedido Recusado" :
+                     modalDisplayInfo.status === 'aprovado' ? "Em Preparação" : "Aguardando Análise"}
                 </h2>
 
                 <p className="text-xs sm:text-base font-medium opacity-90 z-10 max-w-md">
-                    {selectedRequest.status === 'entregue' ? "Os materiais já foram entregues ao setor." :
-                     selectedRequest.status === 'devolvido' ? "Os materiais foram devolvidos e o stock restaurado." :
-                     selectedRequest.status === 'rejeitado' ? "A solicitação não pôde ser atendida nesta ocasião." :
-                     selectedRequest.status === 'aprovado' ? "O almoxarifado já aprovou e está a preparar a entrega." : "A sua solicitação foi recebida e será analisada em breve."}
+                    {modalDisplayInfo.status === 'entregue' ? "Os materiais já foram entregues ao setor." :
+                     modalDisplayInfo.status === 'devolvido' && modalDisplayInfo.isPartial ? "Alguns materiais foram devolvidos ao stock." :
+                     modalDisplayInfo.status === 'devolvido' && !modalDisplayInfo.isPartial ? "Todos os materiais foram devolvidos e o stock restaurado." :
+                     modalDisplayInfo.status === 'rejeitado' ? "A solicitação não pôde ser atendida nesta ocasião." :
+                     modalDisplayInfo.status === 'aprovado' ? "O almoxarifado já aprovou e está a preparar a entrega." : "A sua solicitação foi recebida e será analisada em breve."}
                 </p>
                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] opacity-70 mt-3 sm:mt-4 z-10 flex items-center gap-2">
                     REQ-{selectedRequest.id.substring(0, 8)}
