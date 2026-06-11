@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -17,11 +18,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Plus, Clock, Factory, Weight, Package, Trash2, Search, TrendingUp,
-  CalendarDays, User, Hash, LayoutGrid, List, Activity, Loader2, Calendar, CheckCircle2, Layers
+  Plus, Minus, Clock, Factory, Weight, Package, Trash2, Search, TrendingUp,
+  CalendarDays, User, Hash, LayoutGrid, List, Activity, Loader2, Calendar, 
+  BookOpen, Lightbulb, MessageSquare
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear, isToday, isYesterday, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -98,7 +100,7 @@ const CustomBarTooltip = ({ active, payload, label }: any) => {
     return null;
   };
 
-// --- COMPONENTES FILHOS (MODAL & CARDS) ---
+// --- MODAL: REGISTRAR PRODUÇÃO (MELHORADO) ---
 function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any) {
   const [partId, setPartId] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
@@ -135,73 +137,234 @@ function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg rounded-[24px]">
-        <DialogHeader><DialogTitle className="text-xl font-black">Registrar Produção</DialogTitle></DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div>
-            <Label className="text-xs font-bold text-slate-500 uppercase">Peça</Label>
-            <Select value={partId} onValueChange={(v) => { setPartId(v); setDemandId("none"); }}>
-              <SelectTrigger className="mt-1 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"><SelectValue placeholder="Selecione uma peça" /></SelectTrigger>
-              <SelectContent>
-                {parts.map((p: any) => (
-                  <SelectItem key={p.id} value={String(p.id)} className="font-medium">
-                    {p.name} <span className="text-muted-foreground font-mono ml-1">({p.code})</span>
+      <DialogContent className="max-w-lg rounded-[32px] p-0 overflow-hidden bg-white dark:bg-slate-950 border-slate-200/60 dark:border-slate-800">
+        <div className="bg-slate-50/80 dark:bg-slate-900/50 p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800/60">
+            <div className="flex justify-between items-center">
+                <div>
+                    <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">Registrar Produção</DialogTitle>
+                    <p className="text-xs sm:text-sm font-medium text-slate-500 mt-1">Insira os dados da nova impressão 3D.</p>
+                </div>
+                <div className="h-12 w-12 bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400 rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                    <Factory className="h-6 w-6" strokeWidth={2.5} />
+                </div>
+            </div>
+        </div>
+
+        <div className="p-6 sm:p-8 space-y-6">
+          {/* Peça Selecionada Header */}
+          <div className="flex gap-4 items-center p-3 rounded-[20px] bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80">
+            {part && (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-white dark:bg-slate-950 shrink-0 border border-slate-200/50 dark:border-slate-800 shadow-sm">
+                    <img src={part.image || '/placeholder-3d.png'} alt={part.name} className="w-full h-full object-cover" />
+                </div>
+            )}
+            <div className="flex-1 min-w-0 pr-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Modelo Selecionado</Label>
+                <Select value={partId} onValueChange={(v) => { setPartId(v); setDemandId("none"); }}>
+                <SelectTrigger className="h-10 rounded-xl bg-transparent border-0 ring-1 ring-slate-200 dark:ring-slate-800 font-bold shadow-sm focus:ring-indigo-500 text-sm">
+                    <SelectValue placeholder="Selecione uma peça" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl">
+                    {parts.map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)} className="font-bold py-2.5 cursor-pointer">
+                        {p.name} <span className="text-slate-400 font-mono ml-1 text-xs">({p.code})</span>
+                    </SelectItem>
+                    ))}
+                </SelectContent>
+                </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantidade</Label>
+              <div className="flex items-center h-12 bg-slate-50 dark:bg-slate-900 rounded-[16px] border border-slate-200/60 dark:border-slate-800 shadow-inner p-1">
+                 <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-full w-10 flex items-center justify-center bg-white dark:bg-slate-950 rounded-xl shadow-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 active:scale-90 transition-all"><Minus className="h-4 w-4" strokeWidth={3}/></button>
+                 <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, +e.target.value))} className="flex-1 border-0 bg-transparent text-center font-black text-lg p-0 focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none" />
+                 <button onClick={() => setQuantity(quantity + 1)} className="h-full w-10 flex items-center justify-center bg-indigo-600 rounded-xl shadow-sm text-white hover:bg-indigo-700 active:scale-90 transition-all"><Plus className="h-4 w-4" strokeWidth={3}/></button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-12 rounded-[16px] font-bold text-sm bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 focus-visible:ring-indigo-500 shadow-sm" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vincular a uma Demanda (Opcional)</Label>
+            <Select value={demandId} onValueChange={setDemandId}>
+              <SelectTrigger className="h-12 rounded-[16px] bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 font-bold shadow-sm focus:ring-indigo-500 text-sm">
+                  <SelectValue placeholder="Sem vínculo" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                <SelectItem value="none" className="font-bold text-slate-500 py-2.5">Sem vínculo (Estoque Livre)</SelectItem>
+                {eligibleDemands.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id} className="font-bold py-2.5 text-indigo-700 dark:text-indigo-400">
+                      OP {d.opNumber} — Para: {d.requester} (Qtd: {d.quantity})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-bold text-slate-500 uppercase">Quantidade</Label>
-              <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, +e.target.value))} className="mt-1 h-12 rounded-xl text-lg font-black bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Operador Responsável</Label>
+              <Input value={operator} onChange={(e) => setOperator(e.target.value)} placeholder="Automático (Sistema)" className="h-12 rounded-[16px] font-bold text-sm bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 focus-visible:ring-indigo-500 shadow-sm placeholder:font-medium" />
             </div>
-            <div>
-              <Label className="text-xs font-bold text-slate-500 uppercase">Data</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-bold text-slate-500 uppercase">Operador</Label>
-              <Input value={operator} onChange={(e) => setOperator(e.target.value)} placeholder="Opcional" className="mt-1 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" />
-            </div>
-            <div>
-              <Label className="text-xs font-bold text-slate-500 uppercase">Tempo extra (min)</Label>
-              <Input type="number" min={0} value={extraMinutes} onChange={(e) => setExtraMinutes(Math.max(0, +e.target.value))} className="mt-1 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" />
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tempo Extra (min)</Label>
+              <Input type="number" min={0} value={extraMinutes} onChange={(e) => setExtraMinutes(Math.max(0, +e.target.value))} className="h-12 rounded-[16px] font-bold text-sm bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 focus-visible:ring-indigo-500 shadow-sm" />
             </div>
           </div>
-          <div>
-            <Label className="text-xs font-bold text-slate-500 uppercase">Vincular demanda (opcional)</Label>
-            <Select value={demandId} onValueChange={setDemandId}>
-              <SelectTrigger className="mt-1 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"><SelectValue placeholder="Sem vínculo"/></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none" className="font-medium text-slate-500">Sem vínculo</SelectItem>
-                {eligibleDemands.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id} className="font-medium">{d.opNumber} — {d.requester} (Qtd: {d.quantity})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/30 rounded-[20px] p-4 flex justify-between items-center">
+             <div className="flex items-center gap-3">
+                 <div className="h-10 w-10 rounded-full bg-white dark:bg-slate-950 flex items-center justify-center shadow-sm">
+                     <Clock className="h-5 w-5 text-indigo-500" />
+                 </div>
+                 <div className="flex flex-col">
+                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Tempo Total Máq.</span>
+                     <span className="font-black text-indigo-900 dark:text-indigo-200 text-lg leading-tight">{formatMinutes(totalMinutes)}</span>
+                 </div>
+             </div>
+             <div className="h-10 w-px bg-indigo-200 dark:bg-indigo-800"></div>
+             <div className="flex items-center gap-3 pr-2">
+                 <div className="flex flex-col text-right">
+                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Filamento</span>
+                     <span className="font-black text-indigo-900 dark:text-indigo-200 text-lg leading-tight">{filamentGrams}g</span>
+                 </div>
+                 <div className="h-10 w-10 rounded-full bg-white dark:bg-slate-950 flex items-center justify-center shadow-sm">
+                     <Weight className="h-5 w-5 text-indigo-500" />
+                 </div>
+             </div>
           </div>
-          <Card className="bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-100 dark:border-indigo-900/50 rounded-xl shadow-none mt-2">
-            <CardContent className="p-4 grid grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-indigo-500" />
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Tempo Máq:</span>
-                <span className="font-black text-indigo-700 dark:text-indigo-400">{formatMinutes(totalMinutes)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Weight className="h-5 w-5 text-indigo-500" />
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Filamento:</span>
-                <span className="font-black text-indigo-700 dark:text-indigo-400">{filamentGrams}g</span>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
-        <DialogFooter className="mt-4 gap-2 sm:gap-0">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-12">Cancelar</Button>
-          <Button onClick={handleSave} className="rounded-xl font-bold h-12 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20">Registrar Produção</Button>
-        </DialogFooter>
+        <div className="p-6 sm:p-8 pt-0 flex flex-col sm:flex-row gap-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-14 sm:flex-1 border-slate-200 dark:border-slate-800 text-slate-600">Cancelar</Button>
+          <Button onClick={handleSave} className="rounded-xl font-black h-14 sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20">Registrar e Salvar</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- NOVO MODAL: DIÁRIO DE MELHORIAS (AGENDA) ---
+function ImprovementsLogbookDialog({ open, onOpenChange, parts }: any) {
+  // Salva no localStorage para não requerer alterações no backend instantaneamente
+  const [logs, setLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem("royale_3d_improvements");
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [note, setNote] = useState("");
+  const [partId, setPartId] = useState("geral");
+
+  const handleSaveNote = () => {
+    if (!note.trim()) return toast.error("Escreva alguma observação antes de salvar.");
+    
+    const newLog = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      partId,
+      note: note.trim()
+    };
+    
+    const updated = [newLog, ...logs];
+    setLogs(updated);
+    localStorage.setItem("royale_3d_improvements", JSON.stringify(updated));
+    setNote("");
+    toast.success("Melhoria registada no diário!");
+  };
+
+  const deleteLog = (id: string) => {
+    const updated = logs.filter(l => l.id !== id);
+    setLogs(updated);
+    localStorage.setItem("royale_3d_improvements", JSON.stringify(updated));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl rounded-[32px] p-0 overflow-hidden bg-slate-50 dark:bg-slate-950 border-slate-200/60 dark:border-slate-800 flex flex-col max-h-[85vh]">
+        <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+            <div className="flex justify-between items-center">
+                <div>
+                    <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">Diário de Melhorias</DialogTitle>
+                    <p className="text-xs sm:text-sm font-medium text-slate-500 mt-1">Registe ajustes de fatiamento e ocorrências.</p>
+                </div>
+                <div className="h-12 w-12 bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                    <Lightbulb className="h-6 w-6" strokeWidth={2.5} />
+                </div>
+            </div>
+        </div>
+
+        <div className="p-6 sm:p-8 bg-white dark:bg-slate-950 shrink-0 border-b border-slate-100 dark:border-slate-800/60">
+            <div className="flex flex-col gap-3">
+                <Select value={partId} onValueChange={setPartId}>
+                    <SelectTrigger className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 font-bold text-sm">
+                        <SelectValue placeholder="Selecione o modelo afetado" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl">
+                        <SelectItem value="geral" className="font-bold py-2.5">Anotação Geral (Impressoras/Insumos)</SelectItem>
+                        {parts.map((p: any) => (
+                            <SelectItem key={p.id} value={String(p.id)} className="font-bold py-2.5">
+                                {p.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <div className="relative">
+                    <Textarea 
+                        placeholder="Ex: Aumentar temperatura do bico para 215º na próxima leva para evitar stringing..."
+                        className="resize-none h-24 rounded-[16px] bg-slate-50 dark:bg-slate-900 border-slate-200/60 dark:border-slate-800 font-medium text-sm p-4 focus-visible:ring-amber-500"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                    />
+                    <Button onClick={handleSaveNote} size="sm" className="absolute bottom-3 right-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 shadow-lg shadow-amber-500/20">
+                        Salvar Nota
+                    </Button>
+                </div>
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar bg-slate-50 dark:bg-[#1A1A1A]">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Histórico de Anotações</h4>
+            <div className="space-y-4">
+                {logs.length === 0 ? (
+                    <div className="text-center py-10">
+                        <MessageSquare className="h-10 w-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                        <p className="text-slate-500 font-medium text-sm">O diário está vazio. Comece a documentar as suas melhorias.</p>
+                    </div>
+                ) : (
+                    logs.map(log => {
+                        const part = parts.find((p: any) => String(p.id) === log.partId);
+                        return (
+                            <div key={log.id} className="p-4 bg-white dark:bg-slate-900 rounded-[20px] shadow-sm border border-slate-100 dark:border-slate-800/80 group">
+                                <div className="flex justify-between items-start mb-2">
+                                    <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 border-none font-bold text-[10px] text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md">
+                                        {part ? part.name : "Geral"}
+                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-slate-400">{format(new Date(log.date), "dd/MM/yyyy HH:mm")}</span>
+                                        <button onClick={() => deleteLog(log.id)} className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{log.note}</p>
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+        </div>
+        
+        <div className="p-4 sm:p-6 bg-white dark:bg-slate-950 shrink-0 border-t border-slate-100 dark:border-slate-800">
+             <Button variant="secondary" onClick={() => onOpenChange(false)} className="w-full h-14 rounded-xl font-bold bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800">
+                Fechar Diário
+             </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -232,10 +395,10 @@ export default function Producao3D() {
   const { canAccess, profile } = useAuth(); 
 
   const [creating, setCreating] = useState(false);
+  const [agendaOpen, setAgendaOpen] = useState(false); // 🟢 ESTADO DA AGENDA DE MELHORIAS
   const [search, setSearch] = useState("");
   const [partFilter, setPartFilter] = useState("all");
   
-  // 🟢 NOVO: Filtro Mensal
   const [dateFilter, setDateFilter] = useState("currentMonth");
   const [view, setView] = useState<"cards" | "table">("cards");
 
@@ -308,7 +471,6 @@ export default function Producao3D() {
         if (!groups[dateKey]) groups[dateKey] = [];
         groups[dateKey].push(p);
     });
-    // Retornar array ordenado do dia mais recente para o mais antigo
     return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
   }, [filtered]);
 
@@ -316,14 +478,12 @@ export default function Producao3D() {
   const totalMin = filtered.reduce((s: number, p: any) => s + Number(p.totalMinutes), 0);
   const totalFil = filtered.reduce((s: number, p: any) => s + Number(p.filamentGrams), 0);
   
-  // Calcular dias filtrados reais baseados nos dados existentes no período
   const diasUnicos = new Set(filtered.map((p: any) => format(new Date(p.date), 'yyyy-MM-dd'))).size;
   const avgPerDay = diasUnicos > 0 ? (totalQty / diasUnicos).toFixed(1) : "0";
 
   const partOf = (id: string) => parts.find((p: any) => String(p.id) === String(id));
   const demandOf = (id?: string) => (id ? demands.find((d: any) => String(d.id) === String(id)) : undefined);
 
-  // Gráfico Diário
   const trend = useMemo(() => {
     const map = new Map<string, { date: string; pecas: number; filamento: number, timestamp: number }>();
     filtered.forEach((p: any) => {
@@ -337,7 +497,6 @@ export default function Producao3D() {
     return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
   }, [filtered]);
 
-  // Peças Top
   const topParts = useMemo(() => {
     const m = new Map<string, number>();
     filtered.forEach((p: any) => {
@@ -350,7 +509,6 @@ export default function Producao3D() {
       .slice(0, 5);
   }, [filtered, parts]);
 
-  // Ranking Operadores
   const operators = useMemo(() => {
     const m = new Map<string, { qty: number; minutes: number }>();
     filtered.forEach((p: any) => {
@@ -376,7 +534,7 @@ export default function Producao3D() {
       {/* --- VISUAL DE CABEÇALHO PREMIUM --- */}
       <div className="relative overflow-hidden rounded-[2rem] border border-indigo-200/50 dark:border-indigo-900/50 bg-gradient-to-br from-indigo-600 via-indigo-700 to-blue-800 p-8 sm:p-10 shadow-lg">
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] pointer-events-none transform translate-x-1/3 -translate-y-1/3" />
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 text-white z-10">
+        <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 text-white z-10">
           <div>
             <div className="flex items-center gap-2 text-[10px] sm:text-xs uppercase font-bold tracking-widest text-indigo-200 mb-2">
               <Activity className="h-4 w-4" /> Diário de Operação
@@ -386,13 +544,22 @@ export default function Producao3D() {
               Lançamentos, consumos de matéria-prima e tempos de máquina da manufatura aditiva.
             </p>
           </div>
-          <Button 
-            onClick={() => setCreating(true)} 
-            disabled={parts.length === 0 || !canAdd} 
-            className="h-14 px-6 rounded-2xl bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl shadow-black/10 font-black tracking-wide text-sm sm:text-base shrink-0 active:scale-95 transition-all"
-          >
-            <Plus className="h-5 w-5 mr-2" strokeWidth={3} /> Registrar Produção
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto shrink-0">
+              <Button 
+                onClick={() => setAgendaOpen(true)} 
+                variant="outline"
+                className="h-14 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border-white/20 text-white font-black tracking-wide text-sm sm:text-base active:scale-95 transition-all w-full sm:w-auto"
+              >
+                <BookOpen className="h-5 w-5 mr-2" strokeWidth={2.5} /> Diário de Melhorias
+              </Button>
+              <Button 
+                onClick={() => setCreating(true)} 
+                disabled={parts.length === 0 || !canAdd} 
+                className="h-14 px-6 rounded-2xl bg-white text-indigo-700 hover:bg-indigo-50 shadow-xl shadow-black/10 font-black tracking-wide text-sm sm:text-base active:scale-95 transition-all w-full sm:w-auto"
+              >
+                <Plus className="h-5 w-5 mr-2" strokeWidth={3} /> Registrar Produção
+              </Button>
+          </div>
         </div>
       </div>
 
@@ -657,6 +824,7 @@ export default function Producao3D() {
         </CardContent>
       </Card>
 
+      {/* MODAL 1: REGISTRAR PRODUÇÃO */}
       {creating && (
         <NewProductionDialog 
           open={creating} 
@@ -664,6 +832,15 @@ export default function Producao3D() {
           parts={parts} 
           demands={demands} 
           onAdd={(data: any) => addProductionMutation.mutate(data)} 
+        />
+      )}
+
+      {/* MODAL 2: DIÁRIO DE MELHORIAS */}
+      {agendaOpen && (
+        <ImprovementsLogbookDialog 
+          open={agendaOpen} 
+          onOpenChange={setAgendaOpen} 
+          parts={parts}
         />
       )}
     </div>
