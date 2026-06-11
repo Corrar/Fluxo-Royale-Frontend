@@ -251,7 +251,8 @@ export default function Dashboard3D() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
                   <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#888'}} minTickGap={20} />
                   <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#888'}} />
-                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#88888810', radius: [8,8,0,0] }} />
+                  {/* 🟢 REMOVIDO o radius: [8,8,0,0] daqui para corrigir o erro TypeScript */}
+                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#88888810' }} />
                   <Bar dataKey="filamento" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
