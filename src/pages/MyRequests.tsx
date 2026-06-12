@@ -1,3 +1,5 @@
+// src/pages/MyRequests.tsx
+
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -225,12 +227,15 @@ export default function MyRequests() {
     if (!products) return [];
     const tags = new Set<string>();
     const userSector = profile?.sector?.trim().toLowerCase() || "";
+    const isUsinagemOperador = profile?.role === 'usinagem_operador';
     
     products.forEach((p: any) => {
       const pTags = getProductTags(p);
       const isFerroProduct = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
+      const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
       
       if (isFerroProduct && userSector !== 'ferro') return;
+      if (isUsinagemOperador && !hasUsinagemTag) return;
       
       pTags.forEach((t: string) => tags.add(t));
     });
@@ -241,11 +246,16 @@ export default function MyRequests() {
     if (!products) return [];
     let result = products;
     const userSector = profile?.sector?.trim().toLowerCase() || "";
+    const isUsinagemOperador = profile?.role === 'usinagem_operador';
 
     result = result.filter((p: any) => {
       const pTags = getProductTags(p);
       const isFerroProduct = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
+      const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
+
       if (isFerroProduct && userSector !== 'ferro') return false;
+      if (isUsinagemOperador && !hasUsinagemTag) return false;
+
       return true;
     });
 
@@ -373,6 +383,7 @@ export default function MyRequests() {
         const newCartItems = [...cart]; 
         const newUnmatched = [...unmatchedItems]; 
         const userSector = profile?.sector?.trim().toLowerCase() || "";
+        const isUsinagemOperador = profile?.role === 'usinagem_operador';
 
         data.forEach((row: any, index: number) => {
           const getProp = (possibleKeys: string[]) => {
@@ -395,12 +406,14 @@ export default function MyRequests() {
               const isCamiseta = pTags.some((t: string) => ['CAMISETA', 'CAMISETAS'].includes(t.trim().toUpperCase()));
               const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
               const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
+              const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
               const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
               const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
               const isRestrictedFerro = isFerro && userSector !== "ferro";
+              const isRestrictedUsinagem = isUsinagemOperador && !hasUsinagemTag;
               
-              const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro;
+              const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem;
 
               if (isRestricted) {
                   newUnmatched.push({ id: `unm-${Date.now()}-${index}`, rawName: product.name, rawSku: String(rowSku), rawQty: rowQty, reason: "Restrito" });
@@ -459,7 +472,7 @@ export default function MyRequests() {
         } else if (addedCount > 0 && unmatchedCount > 0) {
             toast.warning(`Leitura concluída. ${addedCount} itens adicionados, mas ${unmatchedCount} tiveram problemas.`);
         } else if (addedCount === 0 && unmatchedCount > 0) {
-            toast.error(`Nenhum item adicionado. Todos os ${unmatchedCount} itens do Excel estavam sem stock ou não existem.`);
+            toast.error(`Nenhum item adicionado. Todos os ${unmatchedCount} itens do Excel estavam sem stock ou possui acesso restrito a eles.`);
         } else {
             toast.info("Não foram encontradas colunas 'SKU' e 'Quantidade' válidas no Excel.");
         }
@@ -722,7 +735,6 @@ export default function MyRequests() {
                      <div className="p-4 text-center text-sm text-slate-500">Nenhum cliente/OP encontrado no sistema.</div>
                    ) : (
                      clientsData.map((client: any) => {
-                       // 🟢 ATUALIZAÇÃO: Filtrar OPs para remover as finalizadas
                        const ops = (client.services || []).filter((op: any) => {
                            const status = (op.status || "").toLowerCase();
                            return !['concluido', 'finalizada', 'encerrada'].includes(status);
@@ -914,12 +926,14 @@ export default function MyRequests() {
                     const isCamiseta = pTags.some((t: string) => ['CAMISETA', 'CAMISETAS'].includes(t.trim().toUpperCase()));
                     const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
                     const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
+                    const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
                     const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
                     const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
                     const isRestrictedFerro = isFerro && userSector !== "ferro";
+                    const isRestrictedUsinagem = profile?.role === 'usinagem_operador' && !hasUsinagemTag;
 
-                    const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro;
+                    const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem;
                     
                     const updateQuantity = (change: number, e: React.MouseEvent) => {
                       e.stopPropagation();
@@ -955,6 +969,7 @@ export default function MyRequests() {
                           if (isRestrictedCamiseta) toast.error("Somente o setor Escritório pode solicitar camisetas.");
                           else if (isRestrictedFeira) toast.error("Somente Escritório, Almoxarifado e Admin podem solicitar materiais de Feira.");
                           else if (isRestrictedFerro) toast.error("Somente o setor Ferro tem autorização para visualizar e solicitar estes materiais.");
+                          else if (isRestrictedUsinagem) toast.error("Como Operador de Usinagem, você só pode solicitar itens com a tag Usinagem.");
                         }}
                       >
                         <div className="flex items-start gap-3 w-full">
@@ -972,6 +987,9 @@ export default function MyRequests() {
                               )}
                               {isFerro && (
                                 <Badge variant="outline" className="ml-2 text-[10px] border-slate-500 text-slate-600 bg-slate-50 dark:bg-slate-900/20">Ferro</Badge>
+                              )}
+                              {hasUsinagemTag && (
+                                <Badge variant="outline" className="ml-2 text-[10px] border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20">Usinagem</Badge>
                               )}
                             </h3>
                             <div className="flex items-center gap-2 flex-wrap">
@@ -992,7 +1010,8 @@ export default function MyRequests() {
                         <div className={`mt-3 pt-3 flex justify-end items-center border-t ${inCart ? 'border-blue-200/50 dark:border-blue-500/20' : 'border-slate-100 dark:border-white/5'}`}>
                           {isRestricted ? (
                              <span className="text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
-                               <AlertTriangle className="w-3 h-3" /> {isRestrictedCamiseta ? "Restrito ao Escritório" : isRestrictedFerro ? "Restrito ao setor Ferro" : "Acesso Restrito"}
+                               <AlertTriangle className="w-3 h-3" /> 
+                               {isRestrictedCamiseta ? "Restrito ao Escritório" : isRestrictedFerro ? "Restrito ao setor Ferro" : isRestrictedUsinagem ? "Restrito a Usinagem" : "Acesso Restrito"}
                              </span>
                           ) : available > 0 && (
                             inCart ? (
