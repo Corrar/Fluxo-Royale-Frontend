@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginAnnouncement } from "@/components/LoginAnnouncement";
+import { Button } from "@/components/ui/button"; // <-- Importação do Button
 import {
   Eye,
   EyeOff,
@@ -418,43 +419,113 @@ export default function TelaInicialPremium() {
         </div>
       ) : (
         // =========================================================================
-        // VIEW SIMPLIFICADA PARA SETORES OPERACIONAIS (Apenas 2 Botões Gigantes)
+        // VIEW SIMPLIFICADA PARA SETORES OPERACIONAIS
         // =========================================================================
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 ease-out max-w-5xl mx-auto">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 ease-out max-w-6xl mx-auto mt-8">
           
-          {/* CARTÃO 1: VISUALIZAR ESTOQUE (Products.tsx) */}
-          <Card
-            onClick={() => navigate('/products')}
-            className="rounded-[2.5rem] border border-blue-200/60 dark:border-blue-500/10 shadow-[0_8px_24px_rgba(0,0,0,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-2 hover:shadow-[0_12px_40px_rgba(37,99,235,0.12)] transition-all duration-500 ease-out group"
-          >
-            <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[300px]">
-              <div className="h-24 w-24 rounded-[2rem] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shadow-sm border border-blue-100/50 dark:border-transparent">
-                <Search className="h-11 w-11 text-blue-600 dark:text-blue-400" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Visualizar Estoque</h3>
-                <p className="text-[15px] md:text-base text-slate-500 mt-2 font-medium max-w-xs mx-auto">Consulte a disponibilidade de ferramentas e materiais em tempo real.</p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* OS 2 BOTÕES PRINCIPAIS GIGANTES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+            
+            {/* CARTÃO 1: VISUALIZAR ESTOQUE (AZUL ROYALE) */}
+            <Card
+              onClick={() => navigate('/products')}
+              className="rounded-[2.5rem] border-none shadow-[0_12px_32px_rgba(0,51,160,0.25)] bg-gradient-to-br from-[#0044CC] via-[#0033A0] to-[#001A5C] cursor-pointer hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(0,51,160,0.4)] transition-all duration-500 ease-out group relative overflow-hidden"
+            >
+              {/* Efeito de luz */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen -mr-10 -mt-10" />
+              
+              <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[280px] relative z-10">
+                <div className="h-24 w-24 rounded-[2rem] bg-white/10 backdrop-blur-md flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] border border-white/20">
+                  <Search className="h-11 w-11 text-white" strokeWidth={2} />
+                </div>
+                <div>
+                  <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight">Visualizar Estoque</h3>
+                  <p className="text-[15px] md:text-base text-blue-100/80 mt-2 font-medium max-w-sm mx-auto">
+                    Consulte a disponibilidade de ferramentas e materiais em tempo real.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* CARTÃO 2: SOLICITAR MATERIAIS (MyRequests.tsx) */}
-          <Card
-            // IMPORTANTE: Aqui adicionei a rota '/minhas-solicitacoes', altere caso a sua rota configurada no sistema para o MyRequests.tsx seja outra (ex: '/requests')
-            onClick={() => navigate('/minhas-solicitacoes')}
-            className="rounded-[2.5rem] border border-emerald-200/60 dark:border-emerald-500/10 shadow-[0_8px_24px_rgba(0,0,0,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-2 hover:shadow-[0_12px_40px_rgba(16,185,129,0.12)] transition-all duration-500 ease-out group"
-          >
-            <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[300px]">
-              <div className="h-24 w-24 rounded-[2rem] bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500 shadow-sm border border-emerald-100/50 dark:border-transparent">
-                <PackagePlus className="h-11 w-11 text-emerald-600 dark:text-emerald-400" strokeWidth={2} />
-              </div>
-              <div>
-                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Solicitar Materiais</h3>
-                <p className="text-[15px] md:text-base text-slate-500 mt-2 font-medium max-w-xs mx-auto">Faça pedidos de novos materiais ou equipamentos para o seu setor.</p>
-              </div>
-            </CardContent>
-          </Card>
+            {/* CARTÃO 2: SOLICITAR MATERIAIS (VERDE ESMERALDA) */}
+            <Card
+              onClick={() => navigate('/minhas-solicitacoes')}
+              className="rounded-[2.5rem] border-none shadow-[0_12px_32px_rgba(16,185,129,0.25)] bg-gradient-to-br from-[#059669] via-[#047857] to-[#064E3B] cursor-pointer hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(16,185,129,0.4)] transition-all duration-500 ease-out group relative overflow-hidden"
+            >
+              {/* Efeito de luz */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen -mr-10 -mt-10" />
 
+              <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[280px] relative z-10">
+                <div className="h-24 w-24 rounded-[2rem] bg-white/10 backdrop-blur-md flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] border border-white/20">
+                  <PackagePlus className="h-11 w-11 text-white" strokeWidth={2} />
+                </div>
+                <div>
+                  <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight">Solicitar Materiais</h3>
+                  <p className="text-[15px] md:text-base text-emerald-100/80 mt-2 font-medium max-w-sm mx-auto">
+                    Faça pedidos de novos materiais ou equipamentos para o seu setor.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+
+          {/* SECÇÃO DE INFORMAÇÕES ÚTEIS */}
+          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] px-2 mt-4 hidden md:block">
+            Resumo Operacional
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            
+            {/* Info 1: Meus Pedidos */}
+            <Card className="rounded-[1.5rem] bg-white dark:bg-[#0A0A0A] border border-slate-200/60 dark:border-white/5 shadow-[0_4px_12px_rgba(0,0,0,0.02)] hover:shadow-md transition-shadow">
+              <CardContent className="p-6 flex items-start gap-4">
+                <div className="p-3 bg-amber-500/10 rounded-xl text-amber-600 dark:text-amber-500 shrink-0">
+                  <FileText className="h-6 w-6" strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Status dos Pedidos</p>
+                  <p className="text-[13px] text-slate-500 mt-1.5 leading-snug">
+                    Você tem <strong className="text-amber-600 dark:text-amber-500">{stats?.openRequests || 0} pedido(s)</strong> aguardando liberação no momento.
+                  </p>
+                  <Button variant="link" onClick={() => navigate('/minhas-solicitacoes')} className="px-0 h-auto text-blue-600 dark:text-blue-400 mt-2.5 text-[13px] font-bold">
+                    Acompanhar status &rarr;
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Info 2: Almoxarifado / Horário */}
+            <Card className="rounded-[1.5rem] bg-white dark:bg-[#0A0A0A] border border-slate-200/60 dark:border-white/5 shadow-[0_4px_12px_rgba(0,0,0,0.02)] hover:shadow-md transition-shadow">
+              <CardContent className="p-6 flex items-start gap-4">
+                <div className="p-3 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-500 shrink-0">
+                  <Clock className="h-6 w-6" strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Horário de Retirada</p>
+                  <p className="text-[13px] text-slate-500 mt-1.5 leading-snug">
+                    O almoxarifado atende solicitações das <strong className="text-slate-700 dark:text-slate-300">07:00 às 17:00</strong>. Planeje-se com antecedência.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Info 3: Boas Práticas / Avisos */}
+            <Card className="rounded-[1.5rem] bg-white dark:bg-[#0A0A0A] border border-slate-200/60 dark:border-white/5 shadow-[0_4px_12px_rgba(0,0,0,0.02)] hover:shadow-md transition-shadow">
+              <CardContent className="p-6 flex items-start gap-4">
+                <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-500 shrink-0">
+                  <AlertCircle className="h-6 w-6" strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Uso Consciente</p>
+                  <p className="text-[13px] text-slate-500 mt-1.5 leading-snug">
+                    A devolução de ferramentas e peças não utilizadas ajuda a manter o estoque sempre abastecido.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
         </div>
       )}
 
