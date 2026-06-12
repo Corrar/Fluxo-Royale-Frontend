@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -23,55 +23,72 @@ import {
 } from "lucide-react"; 
 import { useAuth } from "@/contexts/AuthContext";
 
-// Configuração de cores Premium com Efeito Glow no Dark Mode
-const roleStyles: Record<string, string> = {
-  admin: "bg-red-100/50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  gerente: "bg-orange-100/50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20",
-  almoxarife: "bg-blue-100/50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  setor: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
-  compras: "bg-purple-100/50 text-purple-700 border-purple-200 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20",
-  escritorio: "bg-emerald-100/50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20", 
-  financeiro: "bg-teal-100/50 text-teal-700 border-teal-200 hover:bg-teal-100 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/20",
-  chefe: "bg-amber-100/50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  assistente_tecnico: "bg-cyan-100/50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20",
-  engenharia: "bg-indigo-100/50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
-  prototipo: "bg-pink-100/50 text-pink-700 border-pink-200 hover:bg-pink-100 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20",
-  desenvolvimento: "bg-violet-100/50 text-violet-700 border-violet-200 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/20",
-  Ferro: "bg-zinc-100/50 text-zinc-700 border-zinc-200 hover:bg-zinc-100 dark:bg-zinc-500/10 dark:text-zinc-400 dark:border-zinc-500/20",
-  obras: "bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400", 
-};
-
-const ROLES = [
-  { value: "admin", label: "Administrador" },
-  { value: "gerente", label: "Gerente" },
-  { value: "almoxarife", label: "Almoxarife" },
-  { value: "compras", label: "Compras" },
-  { value: "setor", label: "Operacional" }, 
-  { value: "Ferro", label: "Ferro" }, 
-  { value: "obras", label: "Obras" }, 
-  { value: "escritorio", label: "Escritório" }, 
-  { value: "financeiro", label: "Financeiro" },
-  { value: "chefe", label: "Chefe" },
-  { value: "assistente_tecnico", label: "Técnico" },
-  { value: "engenharia", label: "Engenharia" },
-  { value: "prototipo", label: "Protótipo" },
-  { value: "desenvolvimento", label: "Desenvolvimento" },
+// --- NOVA ESTRUTURA UNIFICADA (Igual ao PermissionsPage) ---
+// Agrupa os Cargos por Setores e define as cores
+const DEPARTMENTS = [
+  {
+    id: "usinagem",
+    name: "Setor: Usinagem",
+    color: "bg-zinc-100/50 text-zinc-700 border-zinc-200 dark:bg-zinc-500/10 dark:text-zinc-400 dark:border-zinc-500/20",
+    roles: [
+      { id: "usinagem_lider", label: "Líder de Usinagem" },
+      { id: "usinagem_operador", label: "Operador / Funcionário" }
+    ]
+  },
+  {
+    id: "administracao",
+    name: "Administração e Gerência",
+    color: "bg-red-100/50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
+    roles: [
+      { id: "admin", label: "Administrador Global" },
+      { id: "gerente", label: "Gerente" },
+      { id: "escritorio", label: "Escritório" },
+      { id: "financeiro", label: "Financeiro" },
+      { id: "chefe", label: "Chefe" }
+    ]
+  },
+  {
+    id: "almoxarifado",
+    name: "Logística e Almoxarifado",
+    color: "bg-blue-100/50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
+    roles: [
+      { id: "almoxarife", label: "Almoxarife" },
+      { id: "compras", label: "Compras" }
+    ]
+  },
+  {
+    id: "engenharia",
+    name: "Engenharia e Projetos",
+    color: "bg-indigo-100/50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+    roles: [
+      { id: "engenharia", label: "Engenharia" },
+      { id: "prototipo", label: "Protótipo" },
+      { id: "desenvolvimento", label: "Desenvolvimento" },
+      { id: "assistente_tecnico", label: "Assistente Técnico" }
+    ]
+  },
+  {
+    id: "outros",
+    name: "Outros Setores",
+    color: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20",
+    roles: [
+      { id: "setor", label: "Setor Genérico" },
+      { id: "Ferro", label: "Ferro" },
+      { id: "obras", label: "Obras" }
+    ]
+  }
 ];
 
-const SECTOR_OPTIONS = ["Lavadora", "Flow", "Elétrica", "Esteira", "Usinagem", "Ferro", "Obras"]; 
-
-// 🟢 LÓGICA DE MAPEAMENTO CORRETA: Converte Cargos Específicos em Setores Específicos
-const getSectorForRole = (roleValue: string) => {
-  if (roleValue === "setor") return ""; 
-  if (roleValue === "engenharia") return "Engenharia";
-  if (roleValue === "prototipo") return "Protótipo";
-  if (roleValue === "desenvolvimento") return "Desenvolvimento";
-  if (roleValue === "Ferro") return "Ferro";
-  if (roleValue === "obras") return "Obras";
-  if (roleValue === "escritorio") return "Escritório";
-  if (roleValue === "assistente_tecnico") return "Assistente Técnico";
-  // Administradores, Almoxarifes e Gerentes vão para Geral
-  return "Geral";
+// Helper para encontrar os detalhes de um cargo com base no seu ID
+const getRoleDetails = (roleId: string) => {
+  for (const dept of DEPARTMENTS) {
+    const role = dept.roles.find(r => r.id === roleId);
+    if (role) {
+      return { deptName: dept.name, label: role.label, color: dept.color };
+    }
+  }
+  // Fallback para cargos antigos ou não mapeados
+  return { deptName: "Geral", label: roleId, color: "bg-slate-100 text-slate-700" };
 };
 
 export default function Users() {
@@ -80,7 +97,11 @@ export default function Users() {
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "setor", sector: "" });
+  
+  // Estado para criação em 2 passos
+  const [selectedDeptId, setSelectedDeptId] = useState("");
+  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "", sector: "" });
+  
   const [searchTerm, setSearchTerm] = useState("");
   
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -100,22 +121,27 @@ export default function Users() {
   const createUserMutation = useMutation({
     mutationFn: async (data: any) => {
       const emailFormatado = `${data.email.trim()}@fluxoroyale.local`;
-      // 🟢 O SEGREDO ESTÁ AQUI: Usa a função para gravar no banco o setor que corresponde ao cargo!
-      const setorFinal = data.role === "setor" ? data.sector : getSectorForRole(data.role);
-      await api.post("/auth/register", { ...data, email: emailFormatado, sector: setorFinal });
+      await api.post("/auth/register", { ...data, email: emailFormatado });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success("Utilizador criado com sucesso!", { icon: <CheckCircle2 className="text-emerald-500" /> });
       setIsCreateOpen(false);
-      setNewUser({ name: "", email: "", password: "", role: "setor", sector: "" });
+      setNewUser({ name: "", email: "", password: "", role: "", sector: "" });
+      setSelectedDeptId("");
       setShowPassword(false);
     },
     onError: (error: any) => toast.error(error.response?.data?.error || "Erro ao criar utilizador"),
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ id, role }: { id: string; role: string }) => await api.put(`/users/${id}/role`, { role }),
+    mutationFn: async ({ id, role, sector }: { id: string; role: string; sector: string }) => {
+      await api.put(`/users/${id}/role`, { role });
+      // Caso a sua API precise salvar o setor na tabela de utilizadores no mesmo momento:
+      if (sector) {
+        await api.put(`/users/${id}/sector`, { sector }).catch(() => {});
+      }
+    },
     onSuccess: () => { 
         queryClient.invalidateQueries({ queryKey: ["users"] }); 
         toast.success("Função atualizada com sucesso!"); 
@@ -167,11 +193,18 @@ export default function Users() {
     if (/^\d*$/.test(value)) setNewUser({ ...newUser, email: value });
   };
 
+  const handleDeptSelect = (deptId: string) => {
+    const dept = DEPARTMENTS.find(d => d.id === deptId);
+    setSelectedDeptId(deptId);
+    setNewUser({ ...newUser, role: "", sector: dept?.name || "" });
+  };
+
   const handleSubmitCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email || !newUser.password) return toast.warning("Preencha os campos obrigatórios");
     if (newUser.email.length < 3) return toast.warning("O ID deve ter no mínimo 3 números");
-    if (newUser.role === "setor" && !newUser.sector) return toast.warning("Selecione o Setor Operacional");
+    if (!selectedDeptId || !newUser.role) return toast.warning("Selecione o Setor e o Cargo do colaborador");
+    
     createUserMutation.mutate(newUser);
   };
 
@@ -183,12 +216,15 @@ export default function Users() {
   // Processamento de Dados (Busca e Estatísticas)
   const filteredUsers = useMemo(() => {
     if (!users) return [];
-    return users.filter((u: any) => 
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.sector && u.sector.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    return users.filter((u: any) => {
+      const details = getRoleDetails(u.role);
+      return (
+        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        details.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        details.deptName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
   }, [users, searchTerm]);
 
   const stats = useMemo(() => {
@@ -214,6 +250,11 @@ export default function Users() {
     if (!dateString) return false;
     return Math.abs(differenceInMinutes(new Date(), new Date(dateString))) < 5;
   };
+
+  // Cargos do departamento selecionado no modal
+  const selectedDeptRoles = useMemo(() => {
+    return DEPARTMENTS.find(d => d.id === selectedDeptId)?.roles || [];
+  }, [selectedDeptId]);
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20 max-w-[1600px] mx-auto px-4 md:px-8 pt-4 md:pt-8">
@@ -249,12 +290,12 @@ export default function Users() {
                </div>
                <DialogTitle className="text-2xl font-extrabold tracking-tight text-foreground">Registar Acesso</DialogTitle>
                <DialogDescription className="text-[13px] font-medium mt-2 text-muted-foreground max-w-[80%] mx-auto">
-                 Defina as credenciais e as permissões de acesso para o novo membro da plataforma.
+                 Defina as credenciais e aloque o membro no seu setor de atuação.
                </DialogDescription>
             </div>
 
             {/* Formulário de Criação */}
-            <form onSubmit={handleSubmitCreate} className="px-6 pb-8 space-y-6">
+            <form onSubmit={handleSubmitCreate} className="px-6 pb-8 space-y-5">
               
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Nome Completo</Label>
@@ -311,18 +352,18 @@ export default function Users() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Função / Cargo</Label>
-                {/* 🟢 O SEGREDO ESTÁ AQUI NA UI: Quando muda o cargo, usa a função para definir o setor correspondente */}
-                <Select value={newUser.role} onValueChange={v => setNewUser(prev => ({ ...prev, role: v, sector: getSectorForRole(v) }))}>
+              {/* ETAPA 1: Selecionar Setor */}
+              <div className="space-y-1.5 pt-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">1. Setor Operacional</Label>
+                <Select value={selectedDeptId} onValueChange={handleDeptSelect}>
                   <SelectTrigger className="h-14 rounded-xl bg-muted/40 border-border/50 focus:ring-primary/50 shadow-inner font-medium text-base transition-all">
-                    <SelectValue placeholder="Selecione o cargo principal..." />
+                    <SelectValue placeholder="Selecione o setor de atuação..." />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl shadow-2xl border-border/50 bg-card/95 backdrop-blur-xl">
                     <div className="max-h-[220px] overflow-y-auto custom-scrollbar p-1">
-                      {ROLES.map((role) => (
-                        <SelectItem key={role.value} value={role.value} className="py-3 cursor-pointer rounded-lg font-medium">
-                          {role.label}
+                      {DEPARTMENTS.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id} className="py-3 cursor-pointer rounded-lg font-bold">
+                          {dept.name}
                         </SelectItem>
                       ))}
                     </div>
@@ -330,17 +371,20 @@ export default function Users() {
                 </Select>
               </div>
 
-              {newUser.role === "setor" && (
+              {/* ETAPA 2: Selecionar Cargo (Dinâmico com base no Setor) */}
+              {selectedDeptId && (
                 <div className="space-y-1.5 animate-in slide-in-from-top-4 fade-in duration-300">
-                  <Label className="text-primary font-bold text-xs uppercase tracking-wider ml-1">Setor Operacional</Label>
-                  <Select value={newUser.sector} onValueChange={v => setNewUser({...newUser, sector: v})}>
+                  <Label className="text-primary font-bold text-xs uppercase tracking-wider ml-1">2. Cargo Específico</Label>
+                  <Select value={newUser.role} onValueChange={v => setNewUser({...newUser, role: v})}>
                     <SelectTrigger className="h-14 rounded-xl bg-primary/5 border-primary/20 focus:ring-primary/50 shadow-inner font-bold text-base text-primary transition-all">
-                        <SelectValue placeholder="Onde o colaborador vai atuar?" />
+                        <SelectValue placeholder="Selecione o cargo do colaborador..." />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl shadow-2xl border-border/50 bg-card/95 backdrop-blur-xl">
                       <div className="p-1">
-                        {SECTOR_OPTIONS.map((sector) => (
-                          <SelectItem key={sector} value={sector} className="py-3 cursor-pointer rounded-lg font-medium">{sector}</SelectItem>
+                        {selectedDeptRoles.map((role) => (
+                          <SelectItem key={role.id} value={role.id} className="py-3 cursor-pointer rounded-lg font-medium">
+                            {role.label}
+                          </SelectItem>
                         ))}
                       </div>
                     </SelectContent>
@@ -349,7 +393,7 @@ export default function Users() {
               )}
 
               <div className="pt-4 flex flex-col gap-3">
-                <Button type="submit" disabled={createUserMutation.isPending} className="w-full h-14 rounded-xl font-extrabold text-[15px] shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                <Button type="submit" disabled={createUserMutation.isPending || !selectedDeptId || !newUser.role} className="w-full h-14 rounded-xl font-extrabold text-[15px] shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
                     {createUserMutation.isPending ? "A Registar..." : "Confirmar e Registar"}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)} className="w-full h-12 rounded-xl text-muted-foreground hover:text-foreground font-semibold">
@@ -430,141 +474,145 @@ export default function Users() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 md:gap-6 mt-8">
           {filteredUsers?.map((user: any) => {
              const isOnline = isUserOnline(user.last_active, user.is_active);
+             const roleDetails = getRoleDetails(user.role);
              
              return (
                <Card key={user.id} className={`relative overflow-hidden group hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-primary/5 transition-all duration-300 bg-card/40 backdrop-blur-xl rounded-[2rem] ${user.is_active === false ? 'opacity-80 border-red-500/30' : 'border-border/30 hover:border-primary/30'}`}>
-                  {/* Glow Line Top (Vermelho se suspenso, Primary se ativo) */}
-                  <div className={`absolute top-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${user.is_active === false ? 'bg-gradient-to-r from-transparent via-red-500/50 to-transparent' : 'bg-gradient-to-r from-transparent via-primary/50 to-transparent'}`} />
+                 {/* Glow Line Top */}
+                 <div className={`absolute top-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${user.is_active === false ? 'bg-gradient-to-r from-transparent via-red-500/50 to-transparent' : 'bg-gradient-to-r from-transparent via-primary/50 to-transparent'}`} />
                   
-                  <CardContent className="p-6">
-                    {/* Header do Cartão */}
-                    <div className="flex justify-between items-start mb-5">
-                       <div className="relative flex-shrink-0">
-                          <Avatar className={`h-14 w-14 md:h-16 md:w-16 border-2 border-background shadow-md ${user.is_active === false ? 'grayscale opacity-50' : ''}`}>
-                            <AvatarFallback className={`${user.role === 'admin' ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary/80 to-primary text-white'} font-black text-lg md:text-xl`}>
-                              {user.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          {isOnline && (
-                             <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-background rounded-full shadow-sm"></span>
-                          )}
-                       </div>
+                 <CardContent className="p-6">
+                   {/* Header do Cartão */}
+                   <div className="flex justify-between items-start mb-5">
+                      <div className="relative flex-shrink-0">
+                         <Avatar className={`h-14 w-14 md:h-16 md:w-16 border-2 border-background shadow-md ${user.is_active === false ? 'grayscale opacity-50' : ''}`}>
+                           <AvatarFallback className={`${user.role === 'admin' ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary/80 to-primary text-white'} font-black text-lg md:text-xl`}>
+                             {user.name.substring(0, 2).toUpperCase()}
+                           </AvatarFallback>
+                         </Avatar>
+                         {isOnline && (
+                            <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-background rounded-full shadow-sm"></span>
+                         )}
+                      </div>
 
-                       {/* Menu de Ações (Dropdown) */}
-                       <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-full hover:bg-muted/80 focus-visible:ring-0 text-muted-foreground hover:text-foreground transition-colors">
-                              <span className="sr-only">Opções</span>
-                              <MoreVertical className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-[200px] rounded-2xl shadow-2xl p-1.5 border-border/50 bg-card/95 backdrop-blur-xl">
-                            <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-widest font-black px-2 py-1.5">Ações do Membro</DropdownMenuLabel>
-                            
-                            <DropdownMenuItem onClick={() => copyToClipboard(displayId(user.email))} className="cursor-pointer py-3 rounded-xl font-medium focus:bg-muted transition-colors">
-                              <Copy className="mr-3 h-4 w-4 text-slate-500" /> Copiar ID
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuItem onClick={() => { setUserToReset(user); setResetDialogOpen(true); }} className="cursor-pointer py-3 rounded-xl font-medium focus:bg-amber-500/10 focus:text-amber-600 dark:focus:text-amber-400 transition-colors">
-                              <KeyRound className="mr-3 h-4 w-4 text-amber-500" /> Redefinir Senha
-                            </DropdownMenuItem>
+                      {/* Menu de Ações (Dropdown) */}
+                      <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                           <Button variant="ghost" className="h-10 w-10 p-0 rounded-full hover:bg-muted/80 focus-visible:ring-0 text-muted-foreground hover:text-foreground transition-colors">
+                             <span className="sr-only">Opções</span>
+                             <MoreVertical className="h-5 w-5" />
+                           </Button>
+                         </DropdownMenuTrigger>
+                         <DropdownMenuContent align="end" className="w-[200px] rounded-2xl shadow-2xl p-1.5 border-border/50 bg-card/95 backdrop-blur-xl">
+                           <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-widest font-black px-2 py-1.5">Ações do Membro</DropdownMenuLabel>
+                           
+                           <DropdownMenuItem onClick={() => copyToClipboard(displayId(user.email))} className="cursor-pointer py-3 rounded-xl font-medium focus:bg-muted transition-colors">
+                             <Copy className="mr-3 h-4 w-4 text-slate-500" /> Copiar ID
+                           </DropdownMenuItem>
+                           
+                           <DropdownMenuItem onClick={() => { setUserToReset(user); setResetDialogOpen(true); }} className="cursor-pointer py-3 rounded-xl font-medium focus:bg-amber-500/10 focus:text-amber-600 dark:focus:text-amber-400 transition-colors">
+                             <KeyRound className="mr-3 h-4 w-4 text-amber-500" /> Redefinir Senha
+                           </DropdownMenuItem>
 
-                            {/* --- BOTÃO DE SUSPENDER/REATIVAR --- */}
-                            {user.id !== currentUser?.id && (
-                              <DropdownMenuItem 
-                                onClick={() => toggleStatusMutation.mutate({ id: user.id, is_active: user.is_active === false ? true : false })} 
-                                className={`cursor-pointer py-3 rounded-xl font-medium transition-colors ${user.is_active === false ? 'focus:bg-emerald-500/10 focus:text-emerald-600 dark:focus:text-emerald-400' : 'focus:bg-orange-500/10 focus:text-orange-600 dark:focus:text-orange-400'}`}
-                              >
-                                {user.is_active === false ? (
-                                  <><CheckCircle2 className="mr-3 h-4 w-4 text-emerald-500" /> Reativar Acesso</>
-                                ) : (
-                                  <><Ban className="mr-3 h-4 w-4 text-orange-500" /> Suspender Acesso</>
-                                )}
-                              </DropdownMenuItem>
-                            )}
+                           {/* --- BOTÃO DE SUSPENDER/REATIVAR --- */}
+                           {user.id !== currentUser?.id && (
+                             <DropdownMenuItem 
+                               onClick={() => toggleStatusMutation.mutate({ id: user.id, is_active: user.is_active === false ? true : false })} 
+                               className={`cursor-pointer py-3 rounded-xl font-medium transition-colors ${user.is_active === false ? 'focus:bg-emerald-500/10 focus:text-emerald-600 dark:focus:text-emerald-400' : 'focus:bg-orange-500/10 focus:text-orange-600 dark:focus:text-orange-400'}`}
+                             >
+                               {user.is_active === false ? (
+                                 <><CheckCircle2 className="mr-3 h-4 w-4 text-emerald-500" /> Reativar Acesso</>
+                               ) : (
+                                 <><Ban className="mr-3 h-4 w-4 text-orange-500" /> Suspender Acesso</>
+                               )}
+                             </DropdownMenuItem>
+                           )}
 
-                            <DropdownMenuSeparator className="bg-border/30 my-1" />
-                            
-                            <DropdownMenuItem 
-                              onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
-                              className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300 focus:bg-red-500/10 cursor-pointer py-3 rounded-xl font-bold transition-colors"
-                              disabled={user.id === currentUser?.id}
-                            >
-                              <Trash2 className="mr-3 h-4 w-4" /> Excluir Conta
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
+                           <DropdownMenuSeparator className="bg-border/30 my-1" />
+                           
+                           <DropdownMenuItem 
+                             onClick={() => { setUserToDelete(user); setDeleteDialogOpen(true); }}
+                             className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300 focus:bg-red-500/10 cursor-pointer py-3 rounded-xl font-bold transition-colors"
+                             disabled={user.id === currentUser?.id}
+                           >
+                             <Trash2 className="mr-3 h-4 w-4" /> Excluir Conta
+                           </DropdownMenuItem>
+                         </DropdownMenuContent>
+                      </DropdownMenu>
+                   </div>
 
-                    {/* Info do Usuário */}
-                    <div className="mb-5">
-                       <h3 className="text-lg md:text-xl font-extrabold text-foreground truncate flex items-center gap-2">
-                          {user.name}
-                          {user.role === 'admin' && <Shield className="h-4 w-4 text-red-500 fill-red-500/20 shrink-0" />}
-                          
-                          {/* ETIQUETA DE SUSPENSO */}
-                          {user.is_active === false && (
-                            <span className="ml-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border border-red-200 dark:border-red-900/50">
-                              Suspenso
-                            </span>
-                          )}
-                       </h3>
-                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-mono mt-0.5">
-                          <Fingerprint className="h-3.5 w-3.5 opacity-70" />
-                          {displayId(user.email)}
-                       </div>
-                    </div>
+                   {/* Info do Usuário */}
+                   <div className="mb-5">
+                      <h3 className="text-lg md:text-xl font-extrabold text-foreground truncate flex items-center gap-2">
+                         {user.name}
+                         {user.role === 'admin' && <Shield className="h-4 w-4 text-red-500 fill-red-500/20 shrink-0" />}
+                         
+                         {/* ETIQUETA DE SUSPENSO */}
+                         {user.is_active === false && (
+                           <span className="ml-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border border-red-200 dark:border-red-900/50">
+                             Suspenso
+                           </span>
+                         )}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-mono mt-0.5">
+                         <Fingerprint className="h-3.5 w-3.5 opacity-70" />
+                         {displayId(user.email)}
+                      </div>
+                   </div>
 
-                    {/* Badges e Edição Rápida */}
-                    <div className="flex flex-wrap gap-2 mb-6">
-                       <div className="relative group/role">
-                         {/* O Admin muda a Role aqui */}
-                         <Select 
-                            value={user.role} 
-                            onValueChange={(value) => updateRoleMutation.mutate({ id: user.id, role: value })} 
-                            disabled={user.id === currentUser?.id || user.is_active === false}
-                          >
-                            <SelectTrigger className={`h-8 text-[11px] font-black uppercase tracking-widest border border-border/20 shadow-sm w-auto gap-2 px-3 rounded-lg transition-all ${roleStyles[user.role] || "bg-gray-100 text-gray-700"} focus:ring-0 disabled:opacity-50`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl shadow-2xl border-border/50 bg-card/95 backdrop-blur-xl">
-                               <div className="p-1">
-                                 <p className="text-[10px] text-muted-foreground px-2 py-2 font-black uppercase tracking-widest">Mudar Função</p>
-                                 {ROLES.map((role) => (
-                                   <SelectItem key={role.value} value={role.value} className="text-xs font-bold cursor-pointer rounded-lg py-2">
-                                     {role.label}
-                                   </SelectItem>
-                                 ))}
-                               </div>
-                            </SelectContent>
-                          </Select>
-                       </div>
+                   {/* Badges e Edição Rápida */}
+                   <div className="flex flex-col gap-2 mb-6">
+                      <Select 
+                         value={user.role} 
+                         onValueChange={(value) => {
+                            const dept = DEPARTMENTS.find(d => d.roles.some(r => r.id === value));
+                            updateRoleMutation.mutate({ id: user.id, role: value, sector: dept?.name || "" });
+                         }} 
+                         disabled={user.id === currentUser?.id || user.is_active === false}
+                       >
+                         <SelectTrigger className={`h-8 text-[11px] font-black uppercase tracking-widest border border-border/20 shadow-sm w-auto gap-2 px-3 rounded-lg transition-all ${roleDetails.color} focus:ring-0 disabled:opacity-50`}>
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent className="rounded-xl shadow-2xl border-border/50 bg-card/95 backdrop-blur-xl">
+                            {DEPARTMENTS.map(dept => (
+                               <SelectGroup key={dept.id}>
+                                  <SelectLabel className="text-[10px] text-muted-foreground py-2 font-black uppercase tracking-widest">{dept.name}</SelectLabel>
+                                  {dept.roles.map(role => (
+                                    <SelectItem key={role.id} value={role.id} className="text-xs font-bold cursor-pointer rounded-lg py-2">
+                                      {role.label}
+                                    </SelectItem>
+                                  ))}
+                                  <DropdownMenuSeparator className="bg-border/20" />
+                               </SelectGroup>
+                            ))}
+                         </SelectContent>
+                       </Select>
 
-                       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-foreground/70 bg-muted/50 px-3 py-1.5 rounded-lg border border-border/30">
-                          <Building2 className="h-3.5 w-3.5 opacity-60" />
-                          <span className="truncate max-w-[100px]">{user.sector || "Geral"}</span>
-                       </div>
-                    </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-foreground/70 w-max">
+                         <Building2 className="h-3.5 w-3.5 opacity-60" />
+                         <span className="truncate max-w-[150px]">{roleDetails.deptName}</span>
+                      </div>
+                   </div>
 
-                    {/* Footer do Cartão (Estatísticas) */}
-                    <div className="pt-4 border-t border-border/30 flex items-center justify-between text-xs">
-                       <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tempo Útil</span>
-                          <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
-                             <Clock className="h-3.5 w-3.5 text-primary/70" />
-                             {formatTime(user.total_minutes)}
-                          </span>
-                       </div>
-                       <div className="flex flex-col gap-1 items-end text-right">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Última Ação</span>
-                          {isOnline ? (
-                             <span className="font-semibold text-emerald-600 dark:text-emerald-400">Agora</span>
-                          ) : (
-                             <span className="font-medium text-foreground">{user.last_active ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true, locale: ptBR }) : 'Nunca'}</span>
-                          )}
-                       </div>
-                    </div>
-                  </CardContent>
+                   {/* Footer do Cartão (Estatísticas) */}
+                   <div className="pt-4 border-t border-border/30 flex items-center justify-between text-xs">
+                      <div className="flex flex-col gap-1">
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tempo Útil</span>
+                         <span className="font-mono font-semibold text-foreground flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-primary/70" />
+                            {formatTime(user.total_minutes)}
+                         </span>
+                      </div>
+                      <div className="flex flex-col gap-1 items-end text-right">
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Última Ação</span>
+                         {isOnline ? (
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Agora</span>
+                         ) : (
+                            <span className="font-medium text-foreground">{user.last_active ? formatDistanceToNow(new Date(user.last_active), { addSuffix: true, locale: ptBR }) : 'Nunca'}</span>
+                         )}
+                      </div>
+                   </div>
+                 </CardContent>
                </Card>
              );
           })}
