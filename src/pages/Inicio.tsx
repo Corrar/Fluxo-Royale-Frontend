@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginAnnouncement } from "@/components/LoginAnnouncement";
-import { Button } from "@/components/ui/button"; // <-- Importação do Button
+import { Button } from "@/components/ui/button";
 import {
   Eye,
   EyeOff,
@@ -24,7 +24,8 @@ import {
   Sun,
   Moon,
   Sunrise,
-  Activity
+  Activity,
+  ShieldCheck
 } from "lucide-react";
 
 // --- UX/Engenharia: Contador Estabilizado com Tabular Nums ---
@@ -33,7 +34,7 @@ const AnimatedCounter = ({ value }: { value: number }) => {
 
   useEffect(() => {
     let startTimestamp: number | null = null;
-    const duration = 1800; // Tempo prolongado para o efeito dramático Apple
+    const duration = 1800;
     const startValue = 0;
 
     const step = (timestamp: number) => {
@@ -49,7 +50,6 @@ const AnimatedCounter = ({ value }: { value: number }) => {
   }, [value]);
 
   return (
-    // tabular-nums é CRUCIAL aqui para a largura dos números não tremer durante a animação
     <span className="tabular-nums">
       {new Intl.NumberFormat("pt-BR", {
         style: "currency",
@@ -85,15 +85,15 @@ export default function TelaInicialPremium() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [showValues, setShowValues] = useState(true);
-  const [timeState, setTimeState] = useState({ greeting: "Olá", Icon: Sun });
+  const [timeState, setTimeState] = useState({ greeting: "Olá", Icon: Sun, color: "text-amber-300" });
 
   const canSeeValues = ['admin', 'chefe', 'compras', 'almoxarife'].includes(profile?.role || '');
 
   useEffect(() => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) setTimeState({ greeting: "Bom dia", Icon: Sunrise });
-    else if (hour >= 12 && hour < 18) setTimeState({ greeting: "Boa tarde", Icon: Sun });
-    else setTimeState({ greeting: "Boa noite", Icon: Moon });
+    if (hour >= 5 && hour < 12) setTimeState({ greeting: "Bom dia", Icon: Sunrise, color: "text-amber-300" });
+    else if (hour >= 12 && hour < 18) setTimeState({ greeting: "Boa tarde", Icon: Sun, color: "text-orange-400" });
+    else setTimeState({ greeting: "Boa noite", Icon: Moon, color: "text-blue-200" });
   }, []);
 
   const { data: stats, isLoading: loadingStats, refetch: refetchStats, isRefetching: syncingStats } = useQuery({
@@ -109,19 +109,15 @@ export default function TelaInicialPremium() {
     queryFn: async () => {
       try {
         const response = await api.get("/transactions/recent"); 
-        
-        // Formata os dados vindos da API
         return response.data.map((item: any) => {
           const isEntrada = item.type === 'in' || item.type === 'ENTRADA' || item.quantidade > 0;
           const nomeProduto = item.product_name || item.produto?.nome || item.name || 'Produto Desconhecido';
-          
-          // Captura o SKU, mas NÃO o mistura com o título
           const skuProduto = item.product_sku || item.produto?.sku || item.sku || item.codigo || item.produto?.codigo || '';
           
           return {
             id: item.id,
-            title: `${isEntrada ? 'Entrada' : 'Retirada'}: ${nomeProduto}`, // Título limpo e legível
-            sku: skuProduto, // Enviamos o SKU de forma independente
+            title: `${isEntrada ? 'Entrada' : 'Retirada'}: ${nomeProduto}`,
+            sku: skuProduto,
             type: isEntrada ? 'in' : 'out',
             amount: Math.abs(item.amount || item.quantity || item.quantidade || 0),
             time: formatRelativeTime(item.created_at || item.createdAt || item.data)
@@ -140,7 +136,6 @@ export default function TelaInicialPremium() {
     refetchActivity();
   };
 
-  // --- UI: Botão com Glass Highlight (Borda de Vidro) ---
   const QuickAction = ({ icon: Icon, label, onClick }: { icon: any, label: string, onClick: () => void }) => (
     <button 
       onClick={onClick}
@@ -172,11 +167,10 @@ export default function TelaInicialPremium() {
   return (
     <div className="w-full pb-24 lg:pb-8 space-y-8 md:space-y-10 bg-[#FAFAFA] dark:bg-[#050505] min-h-screen selection:bg-blue-500/30 selection:text-blue-900 dark:selection:text-blue-100">
       
-      {/* --- COMPONENTE DE AVISO AQUI --- */}
       <LoginAnnouncement />
 
       {/* 1. O CARTÃO MASTER ULTRA PREMIUM */}
-      <section className="animate-in fade-in slide-in-from-top-6 duration-1000 ease-out bg-gradient-to-br from-[#0033A0] via-[#0044CC] to-[#001A5C] dark:from-[#0A101F] dark:via-[#0F172A] dark:to-[#020617] rounded-[2.5rem] p-7 md:p-10 text-white shadow-[0_24px_48px_-12px_rgba(0,68,204,0.4),inset_0_1px_1px_rgba(255,255,255,0.2)] dark:shadow-[0_24px_48px_-12px_rgba(0,0,0,1),inset_0_1px_1px_rgba(255,255,255,0.05)] relative overflow-hidden flex flex-col justify-between min-h-[220px] md:min-h-[260px] border border-blue-600/20 dark:border-white/5 group">
+      <section className="animate-in fade-in slide-in-from-top-6 duration-1000 ease-out bg-gradient-to-br from-[#0033A0] via-[#0044CC] to-[#001A5C] dark:from-[#0A101F] dark:via-[#0F172A] dark:to-[#020617] rounded-[2.5rem] p-7 md:p-10 text-white shadow-[0_24px_48px_-12px_rgba(0,68,204,0.4),inset_0_1px_1px_rgba(255,255,255,0.2)] dark:shadow-[0_24px_48px_-12px_rgba(0,0,0,1),inset_0_1px_1px_rgba(255,255,255,0.05)] relative overflow-hidden flex flex-col justify-between min-h-[220px] md:min-h-[280px] border border-blue-600/20 dark:border-white/5 group">
         
         {/* Luzes Refractivas que reagem subtilmente */}
         <div className="absolute top-0 right-0 -mr-32 -mt-32 w-[600px] h-[600px] rounded-full bg-blue-400/20 blur-[100px] pointer-events-none mix-blend-screen group-hover:bg-blue-400/30 transition-colors duration-1000" />
@@ -187,7 +181,6 @@ export default function TelaInicialPremium() {
             <div className="flex items-center justify-between">
               
               <div className="flex items-center gap-2.5 bg-black/10 backdrop-blur-2xl px-4 py-2 rounded-full border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]">
-                {/* UX: Ponto "Live" de ligação em tempo real */}
                 <span className="relative flex h-2 w-2 mr-1">
                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75 ${isSyncing ? 'duration-75' : 'duration-1000'}`}></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
@@ -216,15 +209,19 @@ export default function TelaInicialPremium() {
               </div>
             </div>
             
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2 text-blue-100/90 mb-2 opacity-90">
-                <timeState.Icon className="h-4 w-4" strokeWidth={2.5} />
-                {/* Alterado para o nome completo */}
-                <p className="text-[15px] font-semibold tracking-tight">{timeState.greeting}, {profile?.name}</p>
+            {/* SAUDAÇÃO COM ANIMAÇÕES (VIEW GESTÃO) */}
+            <div className="flex flex-col mt-4">
+              <div className="animate-in fade-in slide-in-from-left-4 duration-700 delay-100 fill-mode-both flex items-center gap-2.5 mb-2">
+                <div className="p-1.5 bg-white/10 rounded-full backdrop-blur-sm border border-white/10 shadow-inner">
+                   <timeState.Icon className={`h-4 w-4 ${timeState.color}`} strokeWidth={2.5} />
+                </div>
+                <p className="text-[16px] text-blue-100/90 font-medium tracking-tight">
+                   {timeState.greeting},
+                </p>
               </div>
               
               <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-5">
-                <div className="text-[44px] sm:text-6xl md:text-[84px] font-black tracking-tighter flex items-center leading-none drop-shadow-lg h-[1em]">
+                <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-200 fill-mode-both text-[44px] sm:text-6xl md:text-[84px] font-black tracking-tighter flex items-center leading-none drop-shadow-lg h-[1em]">
                   {showValues ? (
                      <AnimatedCounter value={stats?.totalValue || 0} />
                   ) : (
@@ -233,7 +230,7 @@ export default function TelaInicialPremium() {
                 </div>
                 
                 {showValues && (
-                  <div className="animate-in fade-in zoom-in duration-700 delay-500 flex items-center gap-1.5 bg-blue-500/20 text-blue-50 backdrop-blur-md px-3 py-1.5 rounded-full border border-blue-400/30 text-[11px] font-bold tracking-widest mb-2 md:mb-5 w-fit shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                  <div className="animate-in zoom-in-90 duration-700 delay-500 fill-mode-both flex items-center gap-1.5 bg-blue-500/20 text-blue-50 backdrop-blur-md px-3 py-1.5 rounded-full border border-blue-400/30 text-[11px] font-bold tracking-widest mb-2 md:mb-5 w-fit shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
                     <Activity className="h-3 w-3" strokeWidth={3} />
                     <span className="uppercase pt-0.5">Operacional</span>
                   </div>
@@ -242,16 +239,32 @@ export default function TelaInicialPremium() {
             </div>
           </div>
         ) : (
-          <div className="relative z-10 flex flex-col justify-end h-full gap-3">
-            <div className="flex items-center gap-2 text-blue-100/90 mb-1">
-                <timeState.Icon className="h-5 w-5" strokeWidth={2.5} />
-                <h2 className="text-xl md:text-2xl font-semibold tracking-tight">
+          // =========================================================================
+          // NOVA SAUDAÇÃO COM ANIMAÇÕES (VIEW OPERACIONAL)
+          // =========================================================================
+          <div className="relative z-10 flex flex-col justify-end h-full gap-2 mt-4 md:mt-0">
+            <div className="animate-in fade-in slide-in-from-left-4 duration-700 delay-100 fill-mode-both flex items-center gap-3 text-blue-100/90 mb-1">
+                <div className="p-2 bg-white/10 rounded-full backdrop-blur-sm border border-white/10 shadow-inner">
+                   <timeState.Icon className={`h-5 w-5 ${timeState.color}`} strokeWidth={2.5} />
+                </div>
+                <h2 className="text-xl md:text-2xl font-medium tracking-tight">
                   {timeState.greeting},
                 </h2>
             </div>
-            {/* Ajustado o tamanho da fonte e line-clamp para suportar nomes completos bem grandes sem partir o layout */}
-            <div className="text-4xl sm:text-5xl md:text-6xl lg:text-[72px] font-black text-white tracking-tighter drop-shadow-lg leading-tight md:leading-none line-clamp-2">
+            
+            {/* Texto Gradiente e Animado */}
+            <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300 fill-mode-both text-4xl sm:text-5xl md:text-6xl lg:text-[72px] font-black tracking-tighter drop-shadow-2xl leading-tight md:leading-none line-clamp-2 bg-clip-text text-transparent bg-gradient-to-br from-white via-blue-50 to-white/60 pb-2">
               {profile?.name || 'Utilizador'}
+            </div>
+            
+            {/* Badge do Cargo Animada */}
+            <div className="animate-in fade-in zoom-in duration-700 delay-500 fill-mode-both mt-1">
+               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-md shadow-lg w-fit">
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" strokeWidth={2.5} />
+                  <span className="text-[12px] font-bold text-blue-50 tracking-widest uppercase pt-0.5">
+                    {profile?.role?.replace('_', ' ') || 'Operacional'}
+                  </span>
+               </div>
             </div>
           </div>
         )}
@@ -431,8 +444,8 @@ export default function TelaInicialPremium() {
               onClick={() => navigate('/products')}
               className="rounded-[2.5rem] border-none shadow-[0_12px_32px_rgba(0,51,160,0.25)] bg-gradient-to-br from-[#0044CC] via-[#0033A0] to-[#001A5C] cursor-pointer hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(0,51,160,0.4)] transition-all duration-500 ease-out group relative overflow-hidden"
             >
-              {/* Efeito de luz */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen -mr-10 -mt-10" />
+              {/* Efeito de luz animado */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-700 mix-blend-screen -mr-10 -mt-10" />
               
               <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[280px] relative z-10">
                 <div className="h-24 w-24 rounded-[2rem] bg-white/10 backdrop-blur-md flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] border border-white/20">
@@ -449,11 +462,13 @@ export default function TelaInicialPremium() {
 
             {/* CARTÃO 2: SOLICITAR MATERIAIS (VERDE ESMERALDA) */}
             <Card
-              onClick={() => navigate('/minhas-solicitacoes')}
+              // 🟢 ROTA CORRIGIDA PARA A PÁGINA MYREQUESTS
+              // Verifica se no teu App.tsx a rota é "/my-requests" ou "/minhas-solicitacoes" e ajusta se necessário.
+              onClick={() => navigate('/my-requests')}
               className="rounded-[2.5rem] border-none shadow-[0_12px_32px_rgba(16,185,129,0.25)] bg-gradient-to-br from-[#059669] via-[#047857] to-[#064E3B] cursor-pointer hover:-translate-y-2 hover:shadow-[0_20px_48px_rgba(16,185,129,0.4)] transition-all duration-500 ease-out group relative overflow-hidden"
             >
-              {/* Efeito de luz */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen -mr-10 -mt-10" />
+              {/* Efeito de luz animado */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 group-hover:scale-110 transition-all duration-700 mix-blend-screen -mr-10 -mt-10" />
 
               <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[280px] relative z-10">
                 <div className="h-24 w-24 rounded-[2rem] bg-white/10 backdrop-blur-md flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] border border-white/20">
@@ -488,7 +503,8 @@ export default function TelaInicialPremium() {
                   <p className="text-[13px] text-slate-500 mt-1.5 leading-snug">
                     Você tem <strong className="text-amber-600 dark:text-amber-500">{stats?.openRequests || 0} pedido(s)</strong> aguardando liberação no momento.
                   </p>
-                  <Button variant="link" onClick={() => navigate('/minhas-solicitacoes')} className="px-0 h-auto text-blue-600 dark:text-blue-400 mt-2.5 text-[13px] font-bold">
+                  {/* Corrigido também o link do atalho rápido */}
+                  <Button variant="link" onClick={() => navigate('/my-requests')} className="px-0 h-auto text-blue-600 dark:text-blue-400 mt-2.5 text-[13px] font-bold">
                     Acompanhar status &rarr;
                   </Button>
                 </div>
