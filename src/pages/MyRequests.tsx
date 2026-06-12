@@ -144,8 +144,6 @@ export default function MyRequests() {
 
     const handleRefreshRequests = () => setTimeout(() => queryClient.invalidateQueries({ queryKey: ["my-requests"] }), Math.random() * 3000);
     const handleRefreshStock = () => setTimeout(() => queryClient.invalidateQueries({ queryKey: ["products-list"] }), Math.random() * 3000);
-    
-    // Sincronização extra para clientes
     const handleRefreshClients = () => setTimeout(() => queryClient.invalidateQueries({ queryKey: ["clients"] }), Math.random() * 3000);
 
     socket.on("new_request", handleNewRequest);
@@ -154,7 +152,6 @@ export default function MyRequests() {
     socket.on("refresh_requests", handleRefreshRequests);
     socket.on("refresh_stock", handleRefreshStock);
     socket.on("stock_updated", handleRefreshStock);
-    
     socket.on("clients_update", handleRefreshClients);
     socket.on("services_update", handleRefreshClients);
 
@@ -165,7 +162,6 @@ export default function MyRequests() {
       socket.off("refresh_requests", handleRefreshRequests);
       socket.off("refresh_stock", handleRefreshStock);
       socket.off("stock_updated", handleRefreshStock);
-      
       socket.off("clients_update", handleRefreshClients);
       socket.off("services_update", handleRefreshClients);
     };
@@ -185,9 +181,8 @@ export default function MyRequests() {
     placeholderData: keepPreviousData,
   });
 
-  // 🟢 MUDANÇA NA QUERY KEY PARA PARTILHAR CACHE COM A PÁGINA DE CLIENTES
   const { data: clientsData = [] } = useQuery({
-    queryKey: ["clients"], // Anteriormente "clients-ops"
+    queryKey: ["clients"],
     queryFn: async () => {
       try {
         const response = await api.get("/clients");
@@ -227,7 +222,8 @@ export default function MyRequests() {
     if (!products) return [];
     const tags = new Set<string>();
     const userSector = profile?.sector?.trim().toLowerCase() || "";
-    const isUsinagemOperador = profile?.role === 'usinagem_operador';
+    // 🟢 Correção TypeScript: Converte o role explicitamente para string
+    const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
     
     products.forEach((p: any) => {
       const pTags = getProductTags(p);
@@ -235,7 +231,7 @@ export default function MyRequests() {
       const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
       
       if (isFerroProduct && userSector !== 'ferro') return;
-      if (isUsinagemOperador && !hasUsinagemTag) return;
+      if (isUsinagemOperador && !hasUsinagemTag) return; 
       
       pTags.forEach((t: string) => tags.add(t));
     });
@@ -246,7 +242,8 @@ export default function MyRequests() {
     if (!products) return [];
     let result = products;
     const userSector = profile?.sector?.trim().toLowerCase() || "";
-    const isUsinagemOperador = profile?.role === 'usinagem_operador';
+    // 🟢 Correção TypeScript: Converte o role explicitamente para string
+    const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
 
     result = result.filter((p: any) => {
       const pTags = getProductTags(p);
@@ -254,7 +251,7 @@ export default function MyRequests() {
       const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
       if (isFerroProduct && userSector !== 'ferro') return false;
-      if (isUsinagemOperador && !hasUsinagemTag) return false;
+      if (isUsinagemOperador && !hasUsinagemTag) return false; 
 
       return true;
     });
@@ -383,7 +380,8 @@ export default function MyRequests() {
         const newCartItems = [...cart]; 
         const newUnmatched = [...unmatchedItems]; 
         const userSector = profile?.sector?.trim().toLowerCase() || "";
-        const isUsinagemOperador = profile?.role === 'usinagem_operador';
+        // 🟢 Correção TypeScript: Converte o role explicitamente para string
+        const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
 
         data.forEach((row: any, index: number) => {
           const getProp = (possibleKeys: string[]) => {
@@ -408,8 +406,9 @@ export default function MyRequests() {
               const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
               const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
-              const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
-              const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
+              // 🟢 Correção TypeScript: Converte o role explicitamente para string nas verificações
+              const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
+              const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
               const isRestrictedFerro = isFerro && userSector !== "ferro";
               const isRestrictedUsinagem = isUsinagemOperador && !hasUsinagemTag;
               
@@ -928,10 +927,11 @@ export default function MyRequests() {
                     const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
                     const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
-                    const isRestrictedCamiseta = isCamiseta && profile?.role !== "escritorio";
-                    const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(profile?.role?.toLowerCase() || "");
+                    // 🟢 Correção TypeScript: Converte o role explicitamente para string
+                    const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
+                    const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
                     const isRestrictedFerro = isFerro && userSector !== "ferro";
-                    const isRestrictedUsinagem = profile?.role === 'usinagem_operador' && !hasUsinagemTag;
+                    const isRestrictedUsinagem = String(profile?.role) === 'usinagem_operador' && !hasUsinagemTag;
 
                     const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem;
                     
