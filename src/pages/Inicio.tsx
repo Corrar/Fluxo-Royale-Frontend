@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LoginAnnouncement } from "@/components/LoginAnnouncement"; // <-- NOVA IMPORTAÇÃO
+import { LoginAnnouncement } from "@/components/LoginAnnouncement";
 import {
   Eye,
   EyeOff,
@@ -218,7 +218,8 @@ export default function TelaInicialPremium() {
             <div className="flex flex-col">
               <div className="flex items-center gap-2 text-blue-100/90 mb-2 opacity-90">
                 <timeState.Icon className="h-4 w-4" strokeWidth={2.5} />
-                <p className="text-[15px] font-semibold tracking-tight">{timeState.greeting}, {profile?.name?.split(' ')[0]}</p>
+                {/* Alterado para o nome completo */}
+                <p className="text-[15px] font-semibold tracking-tight">{timeState.greeting}, {profile?.name}</p>
               </div>
               
               <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-5">
@@ -247,174 +248,216 @@ export default function TelaInicialPremium() {
                   {timeState.greeting},
                 </h2>
             </div>
-            <div className="text-5xl md:text-[84px] font-black text-white tracking-tighter drop-shadow-lg leading-none">
-              {profile?.name?.split(' ')[0] || 'Utilizador'}
+            {/* Ajustado o tamanho da fonte e line-clamp para suportar nomes completos bem grandes sem partir o layout */}
+            <div className="text-4xl sm:text-5xl md:text-6xl lg:text-[72px] font-black text-white tracking-tighter drop-shadow-lg leading-tight md:leading-none line-clamp-2">
+              {profile?.name || 'Utilizador'}
             </div>
           </div>
         )}
       </section>
 
-      {/* 2. O GRID DE DADOS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-        
-        {/* COLUNA ESQUERDA */}
-        <div className="lg:col-span-8 space-y-10">
-          
-          <section className="relative animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 fill-mode-both ease-out">
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-5 px-2">
-              Ações Rápidas
-            </h3>
-            
-            <div className="absolute right-0 top-10 bottom-0 w-16 bg-gradient-to-l from-[#FAFAFA] dark:from-[#050505] to-transparent pointer-events-none z-10 lg:hidden" />
+      {/* 2. O GRID DE DADOS (Dinâmico consoante o Perfil) */}
+      {canSeeValues ? (
+        // =========================================================================
+        // VIEW PARA GESTÃO / CHEFIA (Extrato, Radar, etc.)
+        // =========================================================================
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+          {/* COLUNA ESQUERDA */}
+          <div className="lg:col-span-8 space-y-10">
+            <section className="relative animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 fill-mode-both ease-out">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-5 px-2">
+                Ações Rápidas
+              </h3>
+              
+              <div className="absolute right-0 top-10 bottom-0 w-16 bg-gradient-to-l from-[#FAFAFA] dark:from-[#050505] to-transparent pointer-events-none z-10 lg:hidden" />
 
-            <div className="flex gap-4 md:gap-5 overflow-x-auto pb-6 pt-2 px-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <QuickAction icon={ArrowDownUp} label="Movimentar" onClick={() => navigate('/withdrawal')} />
-              {canSeeValues && <QuickAction icon={PackagePlus} label="Novo Item" onClick={() => navigate('/products')} />}
-              <QuickAction icon={Search} label="Consultar" onClick={() => navigate('/stock-view')} />
-              <QuickAction icon={FileText} label="Relatórios" onClick={() => navigate('/reports')} />
-            </div>
-          </section>
+              <div className="flex gap-4 md:gap-5 overflow-x-auto pb-6 pt-2 px-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <QuickAction icon={ArrowDownUp} label="Movimentar" onClick={() => navigate('/withdrawal')} />
+                {canSeeValues && <QuickAction icon={PackagePlus} label="Novo Item" onClick={() => navigate('/products')} />}
+                <QuickAction icon={Search} label="Consultar" onClick={() => navigate('/stock-view')} />
+                <QuickAction icon={FileText} label="Relatórios" onClick={() => navigate('/reports')} />
+              </div>
+            </section>
 
-          <section className="space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both ease-out">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Extrato Recente</h3>
-              <button 
-                onClick={() => navigate('/reports')}
-                className="text-blue-600 dark:text-blue-400 font-bold text-[13px] flex items-center hover:bg-blue-50 dark:hover:bg-blue-900/20 px-4 py-2 rounded-full transition-all active:scale-95 duration-300 ease-out outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-              >
-                Ver tudo <ChevronRight className="h-4 w-4 ml-0.5" strokeWidth={2.5} />
-              </button>
-            </div>
+            <section className="space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both ease-out">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Extrato Recente</h3>
+                <button 
+                  onClick={() => navigate('/reports')}
+                  className="text-blue-600 dark:text-blue-400 font-bold text-[13px] flex items-center hover:bg-blue-50 dark:hover:bg-blue-900/20 px-4 py-2 rounded-full transition-all active:scale-95 duration-300 ease-out outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                >
+                  Ver tudo <ChevronRight className="h-4 w-4 ml-0.5" strokeWidth={2.5} />
+                </button>
+              </div>
 
-            <div className="bg-white dark:bg-[#0A0A0A] rounded-[2rem] p-3 shadow-[0_4px_24px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] border border-slate-200/50 dark:border-white/5">
-              {loadingActivity ? (
-                [1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 border-b border-slate-50 dark:border-white/5 last:border-0">
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-[42px] w-[42px] rounded-2xl bg-slate-100 dark:bg-slate-800" />
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-32 bg-slate-100 dark:bg-slate-800" />
-                        <Skeleton className="h-3 w-20 bg-slate-100 dark:bg-slate-800" />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : recentActivity.length === 0 ? (
-                <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-4">
-                  <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-                    <Clock className="h-7 w-7 text-slate-400" strokeWidth={1.5} />
-                  </div>
-                  <p className="font-semibold text-[13px] tracking-tight">O seu extrato está vazio.</p>
-                </div>
-              ) : (
-                recentActivity.map((activity: any, index: number) => (
-                  <div 
-                    key={activity.id} 
-                    className={`flex items-center justify-between p-4 hover:bg-slate-50/80 dark:hover:bg-white/[0.02] rounded-[1.5rem] transition-colors duration-300 cursor-pointer group ${index !== recentActivity.length - 1 ? 'border-b border-slate-50 dark:border-white/5' : ''}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`h-[44px] w-[44px] flex items-center justify-center rounded-2xl transition-all duration-500 ease-out shadow-[inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] ${activity.type === 'in' ? 'bg-[#F0F5FF] border border-blue-100/50 text-[#2563EB] dark:bg-blue-900/20 dark:border-blue-800/30 dark:text-blue-400' : 'bg-slate-50 border border-slate-200/50 text-slate-500 dark:bg-slate-800/30 dark:border-slate-700/30 dark:text-slate-400'}`}>
-                        {activity.type === 'in' ? <TrendingUp className="h-5 w-5 group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-500" strokeWidth={2.5} /> : <TrendingDown className="h-5 w-5 group-hover:scale-110 group-hover:translate-y-0.5 transition-transform duration-500" strokeWidth={2.5} />}
-                      </div>
-                      
-                      <div className="flex flex-col">
-                        {/* 1. O Título limpo e visível */}
-                        <p className="font-bold text-slate-900 dark:text-slate-100 text-[14px] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors tracking-tight">{activity.title}</p>
-                        
-                        {/* 2. Os Meta-dados (SKU e Hora) perfeitamente alinhados */}
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {activity.sku && (
-                            <>
-                              <span className="text-[12px] font-medium text-slate-400 dark:text-slate-500 font-mono tracking-tight">
-                                SKU: {activity.sku}
-                              </span>
-                              <span className="text-[10px] text-slate-300 dark:text-slate-700">•</span>
-                            </>
-                          )}
-                          <p className="text-[12px] text-slate-500 font-medium">{activity.time}</p>
+              <div className="bg-white dark:bg-[#0A0A0A] rounded-[2rem] p-3 shadow-[0_4px_24px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] border border-slate-200/50 dark:border-white/5">
+                {loadingActivity ? (
+                  [1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between p-4 border-b border-slate-50 dark:border-white/5 last:border-0">
+                      <div className="flex items-center gap-4">
+                        <Skeleton className="h-[42px] w-[42px] rounded-2xl bg-slate-100 dark:bg-slate-800" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-32 bg-slate-100 dark:bg-slate-800" />
+                          <Skeleton className="h-3 w-20 bg-slate-100 dark:bg-slate-800" />
                         </div>
                       </div>
-
                     </div>
-                    <div className={`font-black text-[15px] tracking-tight tabular-nums ${activity.type === 'in' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-slate-300'}`}>
-                      {activity.type === 'in' ? '+' : '-'}{activity.amount}
+                  ))
+                ) : recentActivity.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-4">
+                    <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+                      <Clock className="h-7 w-7 text-slate-400" strokeWidth={1.5} />
                     </div>
+                    <p className="font-semibold text-[13px] tracking-tight">O seu extrato está vazio.</p>
                   </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
+                ) : (
+                  recentActivity.map((activity: any, index: number) => (
+                    <div 
+                      key={activity.id} 
+                      className={`flex items-center justify-between p-4 hover:bg-slate-50/80 dark:hover:bg-white/[0.02] rounded-[1.5rem] transition-colors duration-300 cursor-pointer group ${index !== recentActivity.length - 1 ? 'border-b border-slate-50 dark:border-white/5' : ''}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`h-[44px] w-[44px] flex items-center justify-center rounded-2xl transition-all duration-500 ease-out shadow-[inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] ${activity.type === 'in' ? 'bg-[#F0F5FF] border border-blue-100/50 text-[#2563EB] dark:bg-blue-900/20 dark:border-blue-800/30 dark:text-blue-400' : 'bg-slate-50 border border-slate-200/50 text-slate-500 dark:bg-slate-800/30 dark:border-slate-700/30 dark:text-slate-400'}`}>
+                          {activity.type === 'in' ? <TrendingUp className="h-5 w-5 group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-500" strokeWidth={2.5} /> : <TrendingDown className="h-5 w-5 group-hover:scale-110 group-hover:translate-y-0.5 transition-transform duration-500" strokeWidth={2.5} />}
+                        </div>
+                        
+                        <div className="flex flex-col">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 text-[14px] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors tracking-tight">{activity.title}</p>
+                          
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {activity.sku && (
+                              <>
+                                <span className="text-[12px] font-medium text-slate-400 dark:text-slate-500 font-mono tracking-tight">
+                                  SKU: {activity.sku}
+                                </span>
+                                <span className="text-[10px] text-slate-300 dark:text-slate-700">•</span>
+                              </>
+                            )}
+                            <p className="text-[12px] text-slate-500 font-medium">{activity.time}</p>
+                          </div>
+                        </div>
 
-        {/* COLUNA DIREITA */}
-        <div className="lg:col-span-4 space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 fill-mode-both ease-out">
-          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-5 px-2 hidden lg:block">
-            Radar Operacional
-          </h3>
-          
-          {canSeeValues ? (
-            <Card 
-              onClick={() => navigate('/low-stock')}
-              className="rounded-[2rem] border-none shadow-[0_16px_32px_-12px_rgba(0,68,204,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] bg-[#0044CC] dark:bg-blue-900 cursor-pointer hover:-translate-y-1 hover:shadow-[0_24px_48px_-12px_rgba(0,68,204,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all duration-500 ease-out group active:scale-[0.96] relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen" />
-              
-              <CardContent className="p-7 md:p-8 flex items-center justify-between relative z-10">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2 text-blue-200">
-                    <AlertCircle className="h-4 w-4 opacity-90" strokeWidth={2.5} />
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] opacity-90 pt-0.5">Estoque Crítico</p>
+                      </div>
+                      <div className={`font-black text-[15px] tracking-tight tabular-nums ${activity.type === 'in' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-slate-300'}`}>
+                        {activity.type === 'in' ? '+' : '-'}{activity.amount}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* COLUNA DIREITA */}
+          <div className="lg:col-span-4 space-y-5 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 fill-mode-both ease-out">
+            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-5 px-2 hidden lg:block">
+              Radar Operacional
+            </h3>
+            
+            {canSeeValues ? (
+              <Card 
+                onClick={() => navigate('/low-stock')}
+                className="rounded-[2rem] border-none shadow-[0_16px_32px_-12px_rgba(0,68,204,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] bg-[#0044CC] dark:bg-blue-900 cursor-pointer hover:-translate-y-1 hover:shadow-[0_24px_48px_-12px_rgba(0,68,204,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] transition-all duration-500 ease-out group active:scale-[0.96] relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-colors duration-700 mix-blend-screen" />
+                
+                <CardContent className="p-7 md:p-8 flex items-center justify-between relative z-10">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-blue-200">
+                      <AlertCircle className="h-4 w-4 opacity-90" strokeWidth={2.5} />
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] opacity-90 pt-0.5">Estoque Crítico</p>
+                    </div>
+                    <p className="text-6xl font-black text-white mt-3 tracking-tighter leading-none">{stats?.lowStock || 0}</p>
+                    <p className="text-[13px] font-semibold text-blue-200 mt-2">Ação imediata</p>
                   </div>
-                  <p className="text-6xl font-black text-white mt-3 tracking-tighter leading-none">{stats?.lowStock || 0}</p>
-                  <p className="text-[13px] font-semibold text-blue-200 mt-2">Ação imediata</p>
-                </div>
-                <div className="h-10 w-10 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors duration-500 backdrop-blur-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
-                  <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
+                  <div className="h-10 w-10 rounded-2xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors duration-500 backdrop-blur-md shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]">
+                    <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card 
+                onClick={() => navigate('/requests')}
+                className="rounded-[2rem] border border-blue-100/50 dark:border-white/5 shadow-[0_8px_24px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] bg-[#F8FAFC] dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-1 transition-all duration-500 ease-out group active:scale-[0.96]"
+              >
+                <CardContent className="p-7 md:p-8 flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] pt-0.5">Aprovadas</p>
+                    </div>
+                    <p className="text-6xl font-black text-slate-900 dark:text-white mt-3 tracking-tighter leading-none">2</p>
+                    <p className="text-[13px] font-semibold text-slate-500 mt-2">Prontas para retirar</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-2xl bg-white dark:bg-white/5 flex items-center justify-center shadow-sm border border-slate-100/50 dark:border-transparent group-hover:bg-blue-50 dark:group-hover:bg-white/10 transition-colors duration-500">
+                    <ChevronRight className="h-5 w-5 text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card 
               onClick={() => navigate('/requests')}
-              className="rounded-[2rem] border border-blue-100/50 dark:border-white/5 shadow-[0_8px_24px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] bg-[#F8FAFC] dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-1 transition-all duration-500 ease-out group active:scale-[0.96]"
+              className="rounded-[2rem] border border-slate-200/60 dark:border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(0,0,0,0.05)] transition-all duration-500 ease-out group active:scale-[0.96]"
             >
               <CardContent className="p-7 md:p-8 flex items-center justify-between">
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-                    <TrendingUp className="h-4 w-4" strokeWidth={2.5} />
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] pt-0.5">Aprovadas</p>
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <FileText className="h-4 w-4" strokeWidth={2.5} />
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] pt-0.5">Pendências</p>
                   </div>
-                  <p className="text-6xl font-black text-slate-900 dark:text-white mt-3 tracking-tighter leading-none">2</p>
-                  <p className="text-[13px] font-semibold text-slate-500 mt-2">Prontas para retirar</p>
+                  <p className="text-6xl font-black text-blue-600 dark:text-blue-400 mt-3 tracking-tighter leading-none">{stats?.openRequests || stats?.pendingRequests || 0}</p>
+                  <p className="text-[13px] font-semibold text-slate-500 mt-2">Aguardar revisão</p>
                 </div>
-                <div className="h-10 w-10 rounded-2xl bg-white dark:bg-white/5 flex items-center justify-center shadow-sm border border-slate-100/50 dark:border-transparent group-hover:bg-blue-50 dark:group-hover:bg-white/10 transition-colors duration-500">
-                  <ChevronRight className="h-5 w-5 text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
+                <div className="h-10 w-10 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center border border-slate-100/50 dark:border-transparent group-hover:bg-blue-50 dark:group-hover:bg-white/10 transition-colors duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-none">
+                  <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
                 </div>
               </CardContent>
             </Card>
-          )}
-
-          <Card 
-            onClick={() => navigate('/requests')}
-            className="rounded-[2rem] border border-slate-200/60 dark:border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.02),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(0,0,0,0.05)] transition-all duration-500 ease-out group active:scale-[0.96]"
+          </div>
+        </div>
+      ) : (
+        // =========================================================================
+        // VIEW SIMPLIFICADA PARA SETORES OPERACIONAIS (Apenas 2 Botões Gigantes)
+        // =========================================================================
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-150 ease-out max-w-5xl mx-auto">
+          
+          {/* CARTÃO 1: VISUALIZAR ESTOQUE (Products.tsx) */}
+          <Card
+            onClick={() => navigate('/products')}
+            className="rounded-[2.5rem] border border-blue-200/60 dark:border-blue-500/10 shadow-[0_8px_24px_rgba(0,0,0,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-2 hover:shadow-[0_12px_40px_rgba(37,99,235,0.12)] transition-all duration-500 ease-out group"
           >
-            <CardContent className="p-7 md:p-8 flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <FileText className="h-4 w-4" strokeWidth={2.5} />
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] pt-0.5">Pendências</p>
-                </div>
-                <p className="text-6xl font-black text-blue-600 dark:text-blue-400 mt-3 tracking-tighter leading-none">{stats?.openRequests || stats?.pendingRequests || 0}</p>
-                <p className="text-[13px] font-semibold text-slate-500 mt-2">Aguardar revisão</p>
+            <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[300px]">
+              <div className="h-24 w-24 rounded-[2rem] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shadow-sm border border-blue-100/50 dark:border-transparent">
+                <Search className="h-11 w-11 text-blue-600 dark:text-blue-400" strokeWidth={2} />
               </div>
-              <div className="h-10 w-10 rounded-2xl bg-slate-50 dark:bg-white/5 flex items-center justify-center border border-slate-100/50 dark:border-transparent group-hover:bg-blue-50 dark:group-hover:bg-white/10 transition-colors duration-500 shadow-[inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-none">
-                <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-transform duration-500 ease-out" strokeWidth={2.5} />
+              <div>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Visualizar Estoque</h3>
+                <p className="text-[15px] md:text-base text-slate-500 mt-2 font-medium max-w-xs mx-auto">Consulte a disponibilidade de ferramentas e materiais em tempo real.</p>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-      </div>
+          {/* CARTÃO 2: SOLICITAR MATERIAIS (MyRequests.tsx) */}
+          <Card
+            // IMPORTANTE: Aqui adicionei a rota '/minhas-solicitacoes', altere caso a sua rota configurada no sistema para o MyRequests.tsx seja outra (ex: '/requests')
+            onClick={() => navigate('/minhas-solicitacoes')}
+            className="rounded-[2.5rem] border border-emerald-200/60 dark:border-emerald-500/10 shadow-[0_8px_24px_rgba(0,0,0,0.02)] bg-white dark:bg-[#0A0A0A] cursor-pointer hover:-translate-y-2 hover:shadow-[0_12px_40px_rgba(16,185,129,0.12)] transition-all duration-500 ease-out group"
+          >
+            <CardContent className="p-10 md:p-12 flex flex-col items-center justify-center text-center gap-6 min-h-[260px] md:min-h-[300px]">
+              <div className="h-24 w-24 rounded-[2rem] bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500 shadow-sm border border-emerald-100/50 dark:border-transparent">
+                <PackagePlus className="h-11 w-11 text-emerald-600 dark:text-emerald-400" strokeWidth={2} />
+              </div>
+              <div>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Solicitar Materiais</h3>
+                <p className="text-[15px] md:text-base text-slate-500 mt-2 font-medium max-w-xs mx-auto">Faça pedidos de novos materiais ou equipamentos para o seu setor.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+      )}
+
     </div>
   );
 }
