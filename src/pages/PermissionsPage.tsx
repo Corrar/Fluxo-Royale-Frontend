@@ -1,3 +1,5 @@
+// src/pages/PermissionsPage.tsx
+
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
@@ -68,16 +70,64 @@ const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "permissoes", label: "Matriz Permissões", category: "Administração", description: "Esta tela de segurança", actions: ["view", "edit"] },
 ];
 
-// --- NOVA ESTRUTURA DE DEPARTAMENTOS E CARGOS ---
-// Em vez de uma lista plana, agrupamos os "roles" dentro de setores.
-// Nota: O 'id' do cargo (ex: 'usinagem_lider') é o que será salvo na base de dados no campo 'role' do utilizador.
-const DEPARTMENTS = [
+// --- NOVA ESTRUTURA GLOBAL E DETALHADA DE DEPARTAMENTOS ---
+const BASE_DEPARTMENTS = [
   {
     id: "usinagem",
     name: "Setor: Usinagem",
     roles: [
       { id: "usinagem_lider", label: "Líder de Usinagem" },
-      { id: "usinagem_operador", label: "Operador / Funcionário" }
+      { id: "usinagem_operador", label: "Operador de Usinagem" }
+    ]
+  },
+  {
+    id: "lavadora",
+    name: "Setor: Lavadora",
+    roles: [
+      { id: "lavadora_lider", label: "Líder de Lavadora" },
+      { id: "lavadora_operador", label: "Operador de Lavadora" }
+    ]
+  },
+  {
+    id: "flow",
+    name: "Setor: Flow",
+    roles: [
+      { id: "flow_lider", label: "Líder de Flow" },
+      { id: "flow_operador", label: "Operador de Flow" }
+    ]
+  },
+  {
+    id: "eletrica_setor",
+    name: "Setor: Elétrica",
+    roles: [
+      { id: "eletrica_lider", label: "Líder de Elétrica" },
+      { id: "eletrica_operador", label: "Operador de Elétrica" }
+    ]
+  },
+  {
+    id: "esteira",
+    name: "Setor: Esteira",
+    roles: [
+      { id: "esteira_lider", label: "Líder de Esteira" },
+      { id: "esteira_operador", label: "Operador de Esteira" }
+    ]
+  },
+  {
+    id: "ferro",
+    name: "Setor: Ferro",
+    roles: [
+      { id: "Ferro", label: "Ferro (Geral/Antigo)" },
+      { id: "ferro_lider", label: "Líder de Ferro" },
+      { id: "ferro_operador", label: "Operador de Ferro" }
+    ]
+  },
+  {
+    id: "obras",
+    name: "Setor: Obras",
+    roles: [
+      { id: "obras", label: "Obras (Geral/Antigo)" },
+      { id: "obras_lider", label: "Líder de Obras" },
+      { id: "obras_operador", label: "Operador de Obras" }
     ]
   },
   {
@@ -110,10 +160,10 @@ const DEPARTMENTS = [
     ]
   },
   {
-    id: "outros",
-    name: "Outros Setores",
+    id: "legado",
+    name: "Outros / Em Transição",
     roles: [
-      { id: "setor", label: "Setor Genérico" }
+      { id: "setor", label: "Operacional (Antigo/Genérico)" }
     ]
   }
 ];
@@ -131,6 +181,23 @@ export default function PermissionsPage() {
     queryKey: ["users-list"],
     queryFn: async () => (await api.get("/users")).data,
   });
+
+  // SISTEMA INTELIGENTE: Cria uma aba para cargos antigos que não estejam listados acima, 
+  // garantindo que NUNCA um utilizador desaparece desta página.
+  const processedDepartments = useMemo(() => {
+    const deps = [...BASE_DEPARTMENTS];
+    const allKnownRoles = deps.flatMap(d => d.roles.map(r => r.id));
+    const unknownRoles = Array.from(new Set(users.filter(u => !allKnownRoles.includes(u.role)).map(u => u.role)));
+    
+    if (unknownRoles.length > 0) {
+      deps.push({
+        id: "desconhecidos",
+        name: "Cargos Não Mapeados (Legado)",
+        roles: unknownRoles.map(role => ({ id: role, label: `Cargo: ${role}` }))
+      });
+    }
+    return deps;
+  }, [users]);
 
   const hasChanges = useMemo(() => {
     return JSON.stringify(rolePermissions) !== JSON.stringify(originalRolePermissions) || 
@@ -173,8 +240,8 @@ export default function PermissionsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Extrai todos os IDs de roles de todos os departamentos para salvar
-      const allRoleIds = DEPARTMENTS.flatMap(d => d.roles.map(r => r.id));
+      // Usar a lista dinâmica para garantir que tudo salva
+      const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
       
       const rolePromises = allRoleIds.map(roleId => 
         api.post("/admin/permissions/roles", { role: roleId, permissions: rolePermissions[roleId] || [] })
@@ -195,10 +262,9 @@ export default function PermissionsPage() {
     }
   };
 
-  // Agrupa utilizadores pelo ID do cargo (role)
   const usersByRole = useMemo(() => {
     const grouped: Record<string, User[]> = {};
-    const allRoleIds = DEPARTMENTS.flatMap(d => d.roles.map(r => r.id));
+    const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
     allRoleIds.forEach(roleId => grouped[roleId] = []);
     users.forEach(user => { 
       if (grouped[user.role]) {
@@ -206,10 +272,10 @@ export default function PermissionsPage() {
       }
     });
     return grouped;
-  }, [users]);
+  }, [users, processedDepartments]);
 
   // =======================================================================
-  // COMPONENTE DE MATRIZ AGRUPADA (REUTILIZÁVEL)
+  // COMPONENTE DE MATRIZ AGRUPADA
   // =======================================================================
   const PermissionsMatrix = ({ targetId, isUser, perms, parentPerms = [] }: { targetId: string, isUser: boolean, perms: string[], parentPerms?: string[] }) => {
     const groupedPages = useMemo(() => {
@@ -310,30 +376,28 @@ export default function PermissionsPage() {
       {/* BUSCA */}
       <div className="relative shrink-0">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-        <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 h-14 rounded-2xl bg-[#0f172a]/60 border-white/10 text-white" />
+        <Input placeholder="Buscar por setor ou cargo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 h-14 rounded-2xl bg-[#0f172a]/60 border-white/10 text-white" />
       </div>
 
-      {/* ACORDEÃO PRINCIPAL: DEPARTAMENTOS */}
+      {/* ACORDEÃO PRINCIPAL: DEPARTAMENTOS DINÂMICOS */}
       <Card className="flex-1 border border-white/5 shadow-2xl bg-[#0f172a]/60 backdrop-blur-xl rounded-3xl overflow-hidden min-h-0">
         <ScrollArea className="h-full p-4 lg:p-6">
           {loading ? (
              <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl bg-white/5" />)}</div>
           ) : (
             <Accordion type="multiple" className="space-y-4 pb-20">
-              {DEPARTMENTS.map(dept => {
+              {processedDepartments.map(dept => {
                 
-                // Verifica se deve mostrar o departamento baseado na busca e se tem utilizadores nos seus cargos
                 const matchesSearch = dept.name.toLowerCase().includes(searchTerm.toLowerCase());
                 const totalUsersInDept = dept.roles.reduce((total, role) => total + (usersByRole[role.id]?.length || 0), 0);
                 
                 if (!matchesSearch && searchTerm !== '') return null;
-                // Opcional: esconder setores vazios (remova a condição se quiser mostrar sempre todos os setores)
-                if (totalUsersInDept === 0 && dept.id !== 'administracao') return null;
+                // Esconde departamentos onde ainda não existe ninguem, exceto nos setores base
+                if (totalUsersInDept === 0 && dept.id === 'desconhecidos') return null;
 
                 return (
                   <AccordionItem key={dept.id} value={dept.id} className="border rounded-2xl bg-black/20 border-white/10 overflow-hidden shadow-sm">
                     
-                    {/* GATILHO DO SETOR (NÍVEL 1) */}
                     <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-white/5">
                       <div className="flex items-center gap-4 text-left">
                         <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
@@ -341,14 +405,14 @@ export default function PermissionsPage() {
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-xl text-white">{dept.name}</span>
-                          <span className="text-sm text-slate-400">{totalUsersInDept} membro(s) no setor</span>
+                          <span className={cn("text-sm", totalUsersInDept > 0 ? "text-emerald-400" : "text-slate-500")}>
+                            {totalUsersInDept} membro(s) no setor
+                          </span>
                         </div>
                       </div>
                     </AccordionTrigger>
                     
                     <AccordionContent className="px-4 lg:px-8 pb-8 pt-4 border-t border-white/5">
-                      
-                      {/* ACORDEÃO SECUNDÁRIO: CARGOS DENTRO DO SETOR */}
                       <Accordion type="multiple" className="space-y-4">
                         {dept.roles.map(role => {
                           const roleUsers = usersByRole[role.id] || [];
@@ -358,28 +422,30 @@ export default function PermissionsPage() {
                             <AccordionItem key={role.id} value={role.id} className="border rounded-xl bg-white/5 border-white/10 overflow-hidden">
                               <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-white/10">
                                 <div className="flex items-center gap-3">
-                                  <Shield className="h-5 w-5 text-emerald-400"/>
+                                  <Shield className={cn("h-5 w-5", roleUsers.length > 0 ? "text-emerald-400" : "text-slate-600")}/>
                                   <span className="font-bold text-lg text-slate-200">{role.label}</span>
-                                  <Badge variant="secondary" className="ml-2 bg-slate-800 text-slate-300">
-                                    {roleUsers.length} membro(s)
-                                  </Badge>
+                                  {roleUsers.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2 bg-slate-800 text-slate-300">
+                                      {roleUsers.length} membro(s)
+                                    </Badge>
+                                  )}
                                 </div>
                               </AccordionTrigger>
                               
                               <AccordionContent className="px-4 pb-6 pt-4 border-t border-white/10 bg-black/30">
-                                {/* 1. PERMISSÕES DA CLASSE/CARGO */}
+                                {/* 1. PERMISSÕES BASE DA CLASSE/CARGO */}
                                 <div className="mb-8 p-4 rounded-xl bg-black/40 border border-white/5">
                                   <h3 className="text-sm font-black text-blue-400 mb-6 uppercase tracking-widest flex items-center gap-2">
-                                    Permissões Base: {role.label}
+                                    Permissões Globais da Classe: {role.label}
                                   </h3>
                                   <PermissionsMatrix targetId={role.id} isUser={false} perms={rPerms} />
                                 </div>
 
-                                {/* 2. EXCEÇÕES POR USUÁRIO (Dentro deste cargo) */}
+                                {/* 2. EXCEÇÕES INDIVIDUAIS (Membros com esta Classe) */}
                                 {roleUsers.length > 0 && (
                                   <div>
                                     <h3 className="text-sm font-black text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2 mt-8">
-                                      <UserCog className="h-5 w-5"/> Exceções Individuais
+                                      <UserCog className="h-5 w-5"/> Exceções Exclusivas
                                     </h3>
                                     <Accordion type="single" collapsible className="space-y-3">
                                       {roleUsers.map(user => {
@@ -391,7 +457,7 @@ export default function PermissionsPage() {
                                                 <span className="text-slate-200 font-bold text-base">{user.name || user.email}</span>
                                                 {uPerms.length > 0 && (
                                                   <Badge variant="outline" className="text-emerald-400 bg-emerald-500/10 px-3 py-1">
-                                                    +{uPerms.length} regras extra
+                                                    +{uPerms.length} regalia(s)
                                                   </Badge>
                                                 )}
                                               </div>
