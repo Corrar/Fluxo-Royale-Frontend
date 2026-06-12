@@ -11,14 +11,13 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Save, RefreshCw, Search, Layers,
   UserCog, Shield, Users, Lock,
-  Eye, Plus, Pencil, Trash2
+  Eye, Plus, Pencil, Trash2, Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 // --- TIPAGEM ---
-// ADICIONADA A CATEGORIA "Produção" AQUI
 type PermissionCategory = "Geral" | "Gestão" | "Movimentação" | "Produção" | "Relatórios" | "Administração";
 type ActionType = "view" | "add" | "edit" | "delete";
 
@@ -37,7 +36,7 @@ interface User {
   name?: string;
 }
 
-// Configuração visual e ordem estrita das ações para alinhamento em colunas
+// Configuração visual das ações
 const ACTION_TYPES: ActionType[] = ["view", "add", "edit", "delete"];
 
 const ACTION_MAP = {
@@ -47,42 +46,76 @@ const ACTION_MAP = {
   delete: { label: "Excluir", icon: Trash2, color: "text-red-400", bg: "data-[state=checked]:bg-red-600" }
 };
 
-// --- CONFIGURAÇÃO DE DADOS ---
+// --- CONFIGURAÇÃO DE DADOS (PÁGINAS) ---
 const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "dashboard", label: "Dashboard / Tarefas", category: "Geral", description: "Visão geral e métricas", actions: ["view"] },
   { key: "tarefas_eletrica", label: "Quadro Elétrica", category: "Geral", description: "Acesso ao quadro", actions: ["view", "add", "edit", "delete"] },
   { key: "avisos", label: "Avisos (Quadro)", category: "Geral", description: "Mural de recados", actions: ["view", "add", "delete"] },
-  
   { key: "produtos", label: "Produtos (Catálogo)", category: "Gestão", description: "Cadastro de catálogo", actions: ["view", "add", "edit", "delete"] },
-  
-  // ---> NOVOS MÓDULOS DE ESTOQUE ADICIONADOS AQUI <---
   { key: "entradas", label: "Entradas de Material", category: "Gestão", description: "Novos, Devoluções e Reaproveitados", actions: ["view", "add"] },
   { key: "saidas", label: "Saídas de Material", category: "Gestão", description: "Retirada manual para setores", actions: ["view", "add"] },
-  
   { key: "estoque", label: "Estoque (Físico)", category: "Gestão", description: "Ajuste manual (Inventário)", actions: ["view", "edit"] },
   { key: "consultar", label: "Consulta Estoque", category: "Gestão", description: "Verificação de saldos", actions: ["view"] },
   { key: "valores", label: "Valores Financeiros", category: "Gestão", description: "Ver/Editar Custo e Venda", actions: ["view", "edit"] },
-  
   { key: "solicitacoes", label: "Gestão Solicitações", category: "Movimentação", description: "Aprovar pedidos", actions: ["view", "edit", "delete"] },
   { key: "minhas_solicitacoes", label: "Meus Pedidos", category: "Movimentação", description: "Criar próprios pedidos", actions: ["view", "add", "delete"] },
-  
-  // 🟢 CORREÇÃO: Adicionado 'add' e 'delete' às ações permitidas para as Separações
   { key: "separacoes", label: "Separações", category: "Movimentação", description: "Fila do almoxarifado", actions: ["view", "add", "edit", "delete"] },
-  
-  // ---> MÓDULOS DE PRODUÇÃO 3D ADICIONADOS AQUI <---
   { key: "producao_3d", label: "Módulo Produção 3D", category: "Produção", description: "Acesso à Fábrica 3D", actions: ["view", "add", "edit", "delete"] },
   { key: "solicitar_3d", label: "Solicitar Peças 3D", category: "Produção", description: "Vitrine para setores pedirem peças", actions: ["view", "add"] },
-  
   { key: "relatorios", label: "Relatórios BI", category: "Relatórios", description: "Gráficos gerenciais", actions: ["view"] },
   { key: "clientes", label: "Clientes e OPs", category: "Administração", description: "Cadastros base", actions: ["view", "add", "edit", "delete"] },
   { key: "usuarios", label: "Usuários", category: "Administração", description: "Gestão de acessos", actions: ["view", "add", "edit", "delete"] },
   { key: "permissoes", label: "Matriz Permissões", category: "Administração", description: "Esta tela de segurança", actions: ["view", "edit"] },
 ];
 
-const ROLES = [
-  "admin", "gerente", "almoxarife", "compras", "setor", 
-  "escritorio", "financeiro", "chefe", "assistente_tecnico",
-  "engenharia", "prototipo", "desenvolvimento"  
+// --- NOVA ESTRUTURA DE DEPARTAMENTOS E CARGOS ---
+// Em vez de uma lista plana, agrupamos os "roles" dentro de setores.
+// Nota: O 'id' do cargo (ex: 'usinagem_lider') é o que será salvo na base de dados no campo 'role' do utilizador.
+const DEPARTMENTS = [
+  {
+    id: "usinagem",
+    name: "Setor: Usinagem",
+    roles: [
+      { id: "usinagem_lider", label: "Líder de Usinagem" },
+      { id: "usinagem_operador", label: "Operador / Funcionário" }
+    ]
+  },
+  {
+    id: "administracao",
+    name: "Administração e Gerência",
+    roles: [
+      { id: "admin", label: "Administrador Global" },
+      { id: "gerente", label: "Gerente" },
+      { id: "escritorio", label: "Escritório" },
+      { id: "financeiro", label: "Financeiro" },
+      { id: "chefe", label: "Chefe" }
+    ]
+  },
+  {
+    id: "almoxarifado",
+    name: "Logística e Almoxarifado",
+    roles: [
+      { id: "almoxarife", label: "Almoxarife" },
+      { id: "compras", label: "Compras" }
+    ]
+  },
+  {
+    id: "engenharia",
+    name: "Engenharia e Projetos",
+    roles: [
+      { id: "engenharia", label: "Engenharia" },
+      { id: "prototipo", label: "Protótipo" },
+      { id: "desenvolvimento", label: "Desenvolvimento" },
+      { id: "assistente_tecnico", label: "Assistente Técnico" }
+    ]
+  },
+  {
+    id: "outros",
+    name: "Outros Setores",
+    roles: [
+      { id: "setor", label: "Setor Genérico" }
+    ]
+  }
 ];
 
 export default function PermissionsPage() {
@@ -140,9 +173,13 @@ export default function PermissionsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const rolePromises = ROLES.map(role => 
-        api.post("/admin/permissions/roles", { role, permissions: rolePermissions[role] || [] })
+      // Extrai todos os IDs de roles de todos os departamentos para salvar
+      const allRoleIds = DEPARTMENTS.flatMap(d => d.roles.map(r => r.id));
+      
+      const rolePromises = allRoleIds.map(roleId => 
+        api.post("/admin/permissions/roles", { role: roleId, permissions: rolePermissions[roleId] || [] })
       );
+      
       const userPromises = Object.keys(userPermissions).map(userId => 
         api.post(`/admin/permissions/users`, { userId, permissions: userPermissions[userId] || [] })
       );
@@ -158,23 +195,23 @@ export default function PermissionsPage() {
     }
   };
 
+  // Agrupa utilizadores pelo ID do cargo (role)
   const usersByRole = useMemo(() => {
     const grouped: Record<string, User[]> = {};
-    ROLES.forEach(role => grouped[role] = []);
-    users.forEach(user => { if (grouped[user.role]) grouped[user.role].push(user); });
+    const allRoleIds = DEPARTMENTS.flatMap(d => d.roles.map(r => r.id));
+    allRoleIds.forEach(roleId => grouped[roleId] = []);
+    users.forEach(user => { 
+      if (grouped[user.role]) {
+        grouped[user.role].push(user); 
+      }
+    });
     return grouped;
   }, [users]);
-
-  const filteredRoles = ROLES.filter(role => 
-    role.includes(searchTerm.toLowerCase()) || 
-    (usersByRole[role] || []).some(u => u.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
 
   // =======================================================================
   // COMPONENTE DE MATRIZ AGRUPADA (REUTILIZÁVEL)
   // =======================================================================
   const PermissionsMatrix = ({ targetId, isUser, perms, parentPerms = [] }: { targetId: string, isUser: boolean, perms: string[], parentPerms?: string[] }) => {
-    // Agrupa as páginas pelas suas categorias lógicas
     const groupedPages = useMemo(() => {
       const groups: Record<string, PermissionItem[]> = {};
       AVAILABLE_PAGES.forEach(page => {
@@ -188,28 +225,19 @@ export default function PermissionsPage() {
       <div className="space-y-6">
         {Object.entries(groupedPages).map(([category, pages]) => (
           <div key={category} className="bg-black/20 rounded-2xl border border-white/10 overflow-hidden shadow-inner">
-            
-            {/* CABEÇALHO DA CATEGORIA */}
             <div className="bg-white/5 px-5 py-3 border-b border-white/5 flex items-center gap-2">
               <Layers className="h-4 w-4 text-blue-400" />
               <h4 className="text-sm font-bold text-white uppercase tracking-widest">{category}</h4>
             </div>
-
-            {/* LINHAS DA MATRIZ */}
             <div className="p-2 space-y-1">
               {pages.map(page => (
                 <div key={page.key} className="flex flex-col xl:flex-row xl:items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors gap-4">
-                  
-                  {/* Info do Módulo */}
                   <div className="flex flex-col min-w-[220px]">
                     <span className="text-sm font-bold text-slate-200">{page.label}</span>
                     <span className="text-[11px] text-slate-500">{page.description}</span>
                   </div>
-
-                  {/* Ações Alinhadas em Grid Estrito (Tabela) */}
                   <div className="grid grid-cols-4 gap-2 md:gap-8 w-full xl:w-auto">
                     {ACTION_TYPES.map(action => {
-                      // Se a página não suporta esta ação, renderiza um espaço vazio para manter o alinhamento
                       if (!page.actions.includes(action)) {
                         return (
                           <div key={action} className="min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center opacity-20">
@@ -217,7 +245,6 @@ export default function PermissionsPage() {
                           </div>
                         );
                       }
-
                       const combinedKey = `${page.key}:${action}`;
                       const isGranted = perms.includes(combinedKey);
                       const isInherited = isUser && parentPerms.includes(combinedKey);
@@ -263,7 +290,7 @@ export default function PermissionsPage() {
             <Lock className="h-6 w-6 text-yellow-400" /> Matriz de Permissões
           </h1>
           <p className="text-sm text-slate-400 mt-1 hidden md:block">
-            Controle granular agrupado por módulos.
+            Controle granular agrupado por setores e classes.
           </p>
         </div>
         
@@ -275,7 +302,7 @@ export default function PermissionsPage() {
           )}
           <Button onClick={handleSave} disabled={!hasChanges || saving} className={cn("flex-1 md:flex-none h-10 rounded-xl font-bold shadow-lg", hasChanges ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-slate-700 text-slate-400')}>
             {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            {hasChanges ? "Salvar Matriz" : "Salvo"}
+            {hasChanges ? "Salvar Matrizes" : "Salvo"}
           </Button>
         </div>
       </div>
@@ -283,81 +310,106 @@ export default function PermissionsPage() {
       {/* BUSCA */}
       <div className="relative shrink-0">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-        <Input placeholder="Buscar setor ou usuário..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 h-14 rounded-2xl bg-[#0f172a]/60 border-white/10 text-white" />
+        <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 h-14 rounded-2xl bg-[#0f172a]/60 border-white/10 text-white" />
       </div>
 
-      {/* ACORDEÃO PRINCIPAL */}
+      {/* ACORDEÃO PRINCIPAL: DEPARTAMENTOS */}
       <Card className="flex-1 border border-white/5 shadow-2xl bg-[#0f172a]/60 backdrop-blur-xl rounded-3xl overflow-hidden min-h-0">
         <ScrollArea className="h-full p-4 lg:p-6">
           {loading ? (
              <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl bg-white/5" />)}</div>
           ) : (
             <Accordion type="multiple" className="space-y-4 pb-20">
-              {filteredRoles.map(role => {
-                const roleUsers = usersByRole[role] || [];
-                const rPerms = rolePermissions[role] || [];
+              {DEPARTMENTS.map(dept => {
                 
-                if (roleUsers.length === 0 && role !== 'admin') return null;
+                // Verifica se deve mostrar o departamento baseado na busca e se tem utilizadores nos seus cargos
+                const matchesSearch = dept.name.toLowerCase().includes(searchTerm.toLowerCase());
+                const totalUsersInDept = dept.roles.reduce((total, role) => total + (usersByRole[role.id]?.length || 0), 0);
+                
+                if (!matchesSearch && searchTerm !== '') return null;
+                // Opcional: esconder setores vazios (remova a condição se quiser mostrar sempre todos os setores)
+                if (totalUsersInDept === 0 && dept.id !== 'administracao') return null;
 
                 return (
-                  <AccordionItem key={role} value={role} className="border rounded-2xl bg-black/20 border-white/10 overflow-hidden shadow-sm">
+                  <AccordionItem key={dept.id} value={dept.id} className="border rounded-2xl bg-black/20 border-white/10 overflow-hidden shadow-sm">
                     
-                    {/* GATILHO SETOR */}
+                    {/* GATILHO DO SETOR (NÍVEL 1) */}
                     <AccordionTrigger className="px-6 py-5 hover:no-underline hover:bg-white/5">
                       <div className="flex items-center gap-4 text-left">
-                        <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
-                          <Shield className="h-6 w-6"/>
+                        <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+                          <Building2 className="h-6 w-6"/>
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-bold text-xl text-white capitalize">{role.replace('_', ' ')}</span>
-                          <span className="text-sm text-slate-400">{roleUsers.length} membro(s) vinculados</span>
+                          <span className="font-bold text-xl text-white">{dept.name}</span>
+                          <span className="text-sm text-slate-400">{totalUsersInDept} membro(s) no setor</span>
                         </div>
                       </div>
                     </AccordionTrigger>
                     
                     <AccordionContent className="px-4 lg:px-8 pb-8 pt-4 border-t border-white/5">
                       
-                      {/* 1. PERMISSÕES GLOBAIS DO SETOR */}
-                      <div className="mb-8 p-6 rounded-2xl bg-white/5 border border-white/10">
-                        <h3 className="text-sm font-black text-blue-400 mb-6 uppercase tracking-widest flex items-center gap-2">
-                           Regras Padrão do Setor
-                        </h3>
-                        {/* Invoca a Matriz Reutilizável para o Setor */}
-                        <PermissionsMatrix targetId={role} isUser={false} perms={rPerms} />
-                      </div>
+                      {/* ACORDEÃO SECUNDÁRIO: CARGOS DENTRO DO SETOR */}
+                      <Accordion type="multiple" className="space-y-4">
+                        {dept.roles.map(role => {
+                          const roleUsers = usersByRole[role.id] || [];
+                          const rPerms = rolePermissions[role.id] || [];
 
-                      {/* 2. EXCEÇÕES POR USUÁRIO */}
-                      {roleUsers.length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-black text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2 mt-10">
-                            <UserCog className="h-5 w-5"/> Exceções por Membro
-                          </h3>
-                          <Accordion type="single" collapsible className="space-y-3">
-                            {roleUsers.map(user => {
-                              const uPerms = userPermissions[user.id] || [];
-                              return (
-                                <AccordionItem key={user.id} value={user.id} className="border border-white/10 rounded-xl bg-black/20">
-                                  <AccordionTrigger className="px-5 py-4 hover:no-underline">
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-slate-200 font-bold text-base">{user.name || user.email}</span>
-                                      {uPerms.length > 0 && (
-                                        <Badge variant="outline" className="text-emerald-400 bg-emerald-500/10 px-3 py-1">
-                                          +{uPerms.length} regras extra
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent className="px-5 pb-6 pt-4 border-t border-white/5 bg-black/40">
-                                    {/* Invoca a Matriz Reutilizável para o Utilizador Individual */}
-                                    <PermissionsMatrix targetId={user.id} isUser={true} perms={uPerms} parentPerms={rPerms} />
-                                  </AccordionContent>
-                                </AccordionItem>
-                              )
-                            })}
-                          </Accordion>
-                        </div>
-                      )}
+                          return (
+                            <AccordionItem key={role.id} value={role.id} className="border rounded-xl bg-white/5 border-white/10 overflow-hidden">
+                              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-white/10">
+                                <div className="flex items-center gap-3">
+                                  <Shield className="h-5 w-5 text-emerald-400"/>
+                                  <span className="font-bold text-lg text-slate-200">{role.label}</span>
+                                  <Badge variant="secondary" className="ml-2 bg-slate-800 text-slate-300">
+                                    {roleUsers.length} membro(s)
+                                  </Badge>
+                                </div>
+                              </AccordionTrigger>
+                              
+                              <AccordionContent className="px-4 pb-6 pt-4 border-t border-white/10 bg-black/30">
+                                {/* 1. PERMISSÕES DA CLASSE/CARGO */}
+                                <div className="mb-8 p-4 rounded-xl bg-black/40 border border-white/5">
+                                  <h3 className="text-sm font-black text-blue-400 mb-6 uppercase tracking-widest flex items-center gap-2">
+                                    Permissões Base: {role.label}
+                                  </h3>
+                                  <PermissionsMatrix targetId={role.id} isUser={false} perms={rPerms} />
+                                </div>
 
+                                {/* 2. EXCEÇÕES POR USUÁRIO (Dentro deste cargo) */}
+                                {roleUsers.length > 0 && (
+                                  <div>
+                                    <h3 className="text-sm font-black text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2 mt-8">
+                                      <UserCog className="h-5 w-5"/> Exceções Individuais
+                                    </h3>
+                                    <Accordion type="single" collapsible className="space-y-3">
+                                      {roleUsers.map(user => {
+                                        const uPerms = userPermissions[user.id] || [];
+                                        return (
+                                          <AccordionItem key={user.id} value={user.id} className="border border-white/10 rounded-xl bg-black/40">
+                                            <AccordionTrigger className="px-5 py-4 hover:no-underline">
+                                              <div className="flex items-center gap-3">
+                                                <span className="text-slate-200 font-bold text-base">{user.name || user.email}</span>
+                                                {uPerms.length > 0 && (
+                                                  <Badge variant="outline" className="text-emerald-400 bg-emerald-500/10 px-3 py-1">
+                                                    +{uPerms.length} regras extra
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="px-5 pb-6 pt-4 border-t border-white/5 bg-black/60">
+                                              <PermissionsMatrix targetId={user.id} isUser={true} perms={uPerms} parentPerms={rPerms} />
+                                            </AccordionContent>
+                                          </AccordionItem>
+                                        )
+                                      })}
+                                    </Accordion>
+                                  </div>
+                                )}
+                              </AccordionContent>
+                            </AccordionItem>
+                          );
+                        })}
+                      </Accordion>
                     </AccordionContent>
                   </AccordionItem>
                 )
