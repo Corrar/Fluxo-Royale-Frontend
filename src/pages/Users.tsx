@@ -136,15 +136,12 @@ export default function Users() {
 
   const updateRoleMutation = useMutation({
     mutationFn: async ({ id, role, sector }: { id: string; role: string; sector: string }) => {
-      await api.put(`/users/${id}/role`, { role });
-      // Caso a sua API precise salvar o setor na tabela de utilizadores no mesmo momento:
-      if (sector) {
-        await api.put(`/users/${id}/sector`, { sector }).catch(() => {});
-      }
+      // 🟢 OTIMIZAÇÃO APLICADA: Enviamos os dois dados numa única chamada para bater com o backend atualizado
+      await api.put(`/users/${id}/role`, { role, sector });
     },
     onSuccess: () => { 
         queryClient.invalidateQueries({ queryKey: ["users"] }); 
-        toast.success("Função atualizada com sucesso!"); 
+        toast.success("Função e Setor atualizados com sucesso!"); 
     },
     onError: () => toast.error("Erro ao atualizar função"),
   });
