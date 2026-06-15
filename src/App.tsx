@@ -43,7 +43,7 @@ import DevDashboard from "./pages/DevDashboard";
 import Clients from "./pages/Clients";
 import MaterialEntries from "./pages/MaterialEntries"; 
 import MaterialWithdrawals from "./pages/MaterialWithdrawals"; 
-import SystemSettings from "./pages/SystemSettings"; // <-- ADICIONADO: Importação da página de configurações
+import SystemSettings from "./pages/SystemSettings";
 
 // === PÁGINAS DO MÓDULO 3D ===
 import Dashboard3D from "./pages/Producao3D/Dashboard3D";
@@ -51,6 +51,9 @@ import Catalogo3D from "./pages/Producao3D/Catalogo3D";
 import Demandas3D from "./pages/Producao3D/Demandas3D";
 import Producao3D from "./pages/Producao3D/Producao3D"; 
 import Request3DPage from "./pages/Request3DPage"; 
+
+// === NOVA PÁGINA: CENTRAL DE DEVOLUÇÕES ===
+import CentralDevolucoesSetor from "./pages/CentralDevolucoesSetor"; // <-- ADICIONADO AQUI
 
 // =====================================================================
 // 🛑 CONFIGURAÇÃO GLOBAL DO REACT QUERY - SALVAÇÃO DO NEONDB FREE TIER
@@ -203,6 +206,16 @@ const App = () => {
                       element={
                         <ProtectedRoute>
                           <Layout><Inicio /></Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    {/* NOVA ROTA DE DEVOLUÇÕES OPs (Visão Setor) */}
+                    <Route
+                      path="/devolucoes-setor"
+                      element={
+                        <ProtectedRoute pageKey="devolucoes_setor">
+                          <Layout><CentralDevolucoesSetor /></Layout>
                         </ProtectedRoute>
                       }
                     />
