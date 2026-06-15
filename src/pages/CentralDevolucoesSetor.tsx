@@ -101,7 +101,8 @@ export default function CentralDevolucoesSetor() {
               </div>
               Devolução de OP · Setor
             </h1>
-            <p style={{ color: "#94a3b8", fontSize: 14, marginTop: 4, marginBotoom: 0 }}>
+            {/* O ERRO FOI CORRIGIDO AQUI: marginBottom no lugar de marginBotoom */}
+            <p style={{ color: "#94a3b8", fontSize: 14, marginTop: 4, marginBottom: 0 }}>
               Gerencie o retorno de materiais excedentes para o almoxarifado
             </p>
           </div>
