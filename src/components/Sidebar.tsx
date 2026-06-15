@@ -5,7 +5,7 @@ import {
   Calculator, Eye, ClipboardList, Bell, ChevronLeft, ChevronRight,
   AlertTriangle, ShieldCheck, Lock, Sparkles, Kanban, Zap, ChevronDown, Search, ArrowUpCircle,
   Briefcase, RefreshCw, ArchiveRestore, Terminal, Building2,
-  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings // <-- ADICIONADO: Ícone Settings
+  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings // Ícones mantidos
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -111,9 +111,9 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
   };
   // -----------------------------------------------------
 
-  // Agrupamentos dinâmicos
+  // Agrupamentos dinâmicos (Atualizado para incluir a permissão de devoluções)
   const showEstoqueGroup = canAccess('produtos') || canAccess('estoque') || canAccess('consultar') || canAccess('entradas') || canAccess('saidas');
-  const showOperacionalGroup = canAccess('solicitacoes') || canAccess('minhas_solicitacoes') || canAccess('separacoes') || canAccess('reposicoes') || canAccess('confronto_viagem') || canAccess('solicitar_3d');
+  const showOperacionalGroup = canAccess('solicitacoes') || canAccess('minhas_solicitacoes') || canAccess('separacoes') || canAccess('reposicoes') || canAccess('confronto_viagem') || canAccess('solicitar_3d') || canAccess('devolucoes_setor') || isSetor;
   const showAdminGroup = canAccess('clientes') || canAccess('office_dashboard') || canAccess('estoque_critico') || canAccess('relatorios') || canAccess('usuarios') || canAccess('logs') || canAccess('permissoes') || isAdmin;
 
   const desktopBaseClass = "flex items-center gap-3.5 rounded-[14px] px-3.5 py-3 text-[15px] font-semibold transition-all duration-200 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/80 dark:hover:bg-white/5 active:scale-[0.98] group relative";
@@ -317,11 +317,8 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
                 <NavGroup title="Estoque" isCollapsed={isCollapsed} isMobileMenu={isMobileMenu}>
                   <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
                     {canAccess('produtos') && renderLink("/products", <Package className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Catálogo")}
-                    
-                    {/* ---> AQUI ESTÃO OS DOIS NOVOS LINKS (Entradas e Saídas) <--- */}
                     {canAccess('entradas') && renderLink("/entradas", <ArrowDownToLine className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Entradas")}
                     {canAccess('saidas') && renderLink("/saidas", <LogOut className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Saídas")}
-
                     {canAccess('estoque') && renderLink("/stock", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Movimentação")}
                     {canAccess('consultar') && renderLink("/stock-view", <Eye className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Visão Geral")}
                   </div>
@@ -336,6 +333,10 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
                   <div className={!isMobileMenu ? "px-2" : "flex flex-col gap-2.5 w-full"}>
                     {canAccess('solicitacoes') && renderLink("/requests", <FileText className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Solicitações")}
                     {canAccess('minhas_solicitacoes') && renderLink("/my-requests", <ShoppingCart className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Meus Pedidos")}
+                    
+                    {/* ---> ADICIONADO: NOVA ROTA DE DEVOLUÇÕES DE OP AQUI <--- */}
+                    {(canAccess('devolucoes_setor') || isSetor || isAdmin) && renderLink("/devolucoes-setor", <ArrowLeftRight className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Devoluções OP")}
+
                     {canAccess('solicitar_3d') && renderLink("/solicitar-3d", <Printer className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Encomendar 3D")}
                     {canAccess('separacoes') && renderLink("/separations", <Kanban className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Quadro Gestão")}
                     {canAccess('reposicoes') && renderLink("/replenishments", <RefreshCw className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Reposições")}
