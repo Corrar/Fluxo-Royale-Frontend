@@ -1,15 +1,10 @@
-// src/pages/CentralDevolucoesSetor.tsx
 import React, { useState } from "react";
 import { 
   Package, Truck, CheckCircle, Clock, Plus, Search, 
-  ArrowLeftRight, FileText 
+  ArrowLeftRight, FileText, ChevronRight
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 
-// Interface para simular os dados das Devoluções de OP
+// Interface para as Devoluções
 interface DevolucaoOP {
   id: string;
   op: string;
@@ -19,7 +14,9 @@ interface DevolucaoOP {
   stepAtual: number;
 }
 
-// Componente da Linha do Tempo (Extraído e adaptado do seu HTML)
+// ============================================================================
+// COMPONENTE DA LINHA DO TEMPO (EXATAMENTE COMO NO SEU HTML)
+// ============================================================================
 const TimelineTracker = ({ currentStep }: { currentStep: number }) => {
   const steps = [
     { title: "Solicitado", sub: "Setor", icon: Clock },
@@ -29,37 +26,48 @@ const TimelineTracker = ({ currentStep }: { currentStep: number }) => {
   ];
 
   return (
-    <div className="flex items-start w-full overflow-x-auto py-4">
+    <div style={{ display: "flex", width: "100%", overflowX: "auto", padding: "16px 0", msOverflowStyle: "none", scrollbarWidth: "none" }}>
       {steps.map((step, i) => {
         const Icon = step.icon;
-        const isCompleted = i <= currentStep;
+        const on = i <= currentStep;
         
         return (
           <React.Fragment key={i}>
-            {/* Círculo e Textos */}
-            <div className="flex flex-col items-center gap-2 w-[120px] sm:w-[150px]">
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, width: 120, flexShrink: 0 }}>
               <div 
-                className={`w-10 h-10 rounded-full grid place-items-center transition-colors duration-300
-                ${isCompleted 
-                  ? 'bg-emerald-500 text-white shadow-md' 
-                  : 'bg-secondary text-muted-foreground border border-border'}`}
+                style={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: "50%", 
+                  display: "grid", 
+                  placeItems: "center",
+                  background: on ? "#34d27f" : "#1e293b", // Verde idêntico ou fundo escuro
+                  color: on ? "#06210f" : "#94a3b8",      // Contraste do ícone
+                  border: on ? "none" : "1px solid #334155",
+                  transition: "all 0.3s ease"
+                }}
               >
-                <Icon size={20} />
+                <Icon size={20} strokeWidth={on ? 2.5 : 2} />
               </div>
-              <div className="text-center mt-1">
-                <div className={`text-[12.5px] font-semibold leading-tight ${isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: on ? "#ffffff" : "#94a3b8", lineHeight: 1.25, transition: "color 0.3s ease" }}>
                   {step.title}
                 </div>
-                <div className="text-[11px] text-muted-foreground">{step.sub}</div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                  {step.sub}
+                </div>
               </div>
             </div>
             
             {/* Linha Conectora */}
             {i < steps.length - 1 && (
-              <div className="flex-none w-8 sm:w-12 h-[2px] mt-5 bg-border relative">
-                <div 
-                  className={`absolute top-0 left-0 h-full bg-emerald-500 transition-all duration-500 ${isCompleted ? 'w-full' : 'w-0'}`} 
-                />
+              <div style={{ flex: "none", width: 48, height: 2, background: "#334155", marginTop: 19, position: "relative" }}>
+                 <div style={{ 
+                   position: "absolute", top: 0, left: 0, height: "100%", 
+                   background: "#34d27f", 
+                   width: i < currentStep ? "100%" : "0%",
+                   transition: "width 0.5s ease" 
+                 }}></div>
               </div>
             )}
           </React.Fragment>
@@ -72,7 +80,7 @@ const TimelineTracker = ({ currentStep }: { currentStep: number }) => {
 export default function CentralDevolucoesSetor() {
   const [busca, setBusca] = useState("");
 
-  // Dados mockados para visualização inicial
+  // Dados mockados
   const devolucoes: DevolucaoOP[] = [
     { id: "DEV-1001", op: "OP-4590", material: "Cabo de Cobre 4mm", quantidade: 15, dataSolicitacao: "15/06/2026", stepAtual: 1 },
     { id: "DEV-1002", op: "OP-4591", material: "Disjuntor 32A", quantidade: 5, dataSolicitacao: "14/06/2026", stepAtual: 3 },
@@ -80,60 +88,87 @@ export default function CentralDevolucoesSetor() {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <ArrowLeftRight className="text-emerald-600" />
-            Central de Devolução
-          </h1>
-          <p className="text-muted-foreground text-sm">Gerencie o retorno de materiais excedentes das OPs (Visão Setor)</p>
+    // Fundo da página usando a cor exata do seu HTML (#090d13)
+    <div style={{ backgroundColor: "#090d13", minHeight: "100vh", padding: "24px", color: "#ffffff", fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+        
+        {/* Cabeçalho Fiel */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, display: "flex", alignItems: "center", gap: 12, margin: 0 }}>
+              <div style={{ background: "rgba(52, 210, 127, 0.1)", padding: 8, borderRadius: 8 }}>
+                <ArrowLeftRight size={24} color="#34d27f" />
+              </div>
+              Devolução de OP · Setor
+            </h1>
+            <p style={{ color: "#94a3b8", fontSize: 14, marginTop: 4, marginBotoom: 0 }}>
+              Gerencie o retorno de materiais excedentes para o almoxarifado
+            </p>
+          </div>
+          <button 
+            style={{ 
+              background: "#34d27f", color: "#06210f", border: "none", borderRadius: 8, 
+              padding: "10px 16px", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8,
+              cursor: "pointer", outline: "none"
+            }}
+          >
+            <Plus size={18} /> Nova Devolução
+          </button>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
-          <Plus className="mr-2 h-4 w-4" /> Nova Devolução
-        </Button>
-      </div>
 
-      {/* Barra de Ferramentas */}
-      <Card>
-        <CardContent className="p-4 flex gap-4 items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
+        {/* Barra de Busca e Filtros */}
+        <div style={{ background: "#172030", border: "1px solid #1e293b", borderRadius: 12, padding: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, position: "relative", minWidth: 250 }}>
+            <Search size={18} color="#64748b" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} />
+            <input 
+              type="text" 
               placeholder="Buscar por OP ou ID de Devolução..." 
-              className="pl-9"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
+              style={{ 
+                width: "100%", background: "#090d13", border: "1px solid #334155", color: "#fff",
+                borderRadius: 8, padding: "10px 14px 10px 40px", fontSize: 14, outline: "none"
+              }}
             />
           </div>
-          <Button variant="outline"><FileText className="mr-2 h-4 w-4" /> Relatório</Button>
-        </CardContent>
-      </Card>
+          <button style={{ background: "transparent", border: "1px solid #334155", color: "#e2e8f0", borderRadius: 8, padding: "0 16px", fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <FileText size={16} /> Relatório
+          </button>
+        </div>
 
-      {/* Lista de Devoluções Ativas */}
-      <div className="grid gap-6">
-        {devolucoes.map((dev) => (
-          <Card key={dev.id} className="overflow-hidden">
-            <CardHeader className="bg-muted/30 pb-4 border-b">
-              <div className="flex justify-between items-start">
+        {/* Lista de Devoluções */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {devolucoes.map((dev) => (
+            <div key={dev.id} style={{ background: "#172030", border: "1px solid #1e293b", borderRadius: 16, overflow: "hidden" }}>
+              
+              {/* Topo do Card */}
+              <div style={{ padding: "20px 24px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
                 <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {dev.id} <Badge variant="outline">{dev.op}</Badge>
-                  </CardTitle>
-                  <CardDescription className="mt-1">
-                    {dev.quantidade}x {dev.material} • Solicitado em {dev.dataSolicitacao}
-                  </CardDescription>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "#f8fafc" }}>{dev.id}</h3>
+                    <span style={{ background: "rgba(242, 169, 59, 0.15)", color: "#f2a93b", border: "1px solid rgba(242, 169, 59, 0.3)", padding: "4px 10px", borderRadius: 100, fontSize: 12, fontWeight: 600 }}>
+                      {dev.op}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 14, color: "#94a3b8", marginTop: 8 }}>
+                    <strong style={{ color: "#e2e8f0" }}>{dev.quantidade}x</strong> {dev.material} • Solicitado em {dev.dataSolicitacao}
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm">Ver Detalhes</Button>
+                
+                <button style={{ background: "transparent", border: "none", color: "#34d27f", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  Ver Detalhes <ChevronRight size={16} />
+                </button>
               </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {/* Aqui renderizamos o componente de Tracking extraído do seu modelo */}
-              <TimelineTracker currentStep={dev.stepAtual} />
-            </CardContent>
-          </Card>
-        ))}
+
+              {/* Área do Tracker (Linha do Tempo) */}
+              <div style={{ padding: "16px 24px", background: "rgba(9, 13, 19, 0.3)" }}>
+                <TimelineTracker currentStep={dev.stepAtual} />
+              </div>
+
+            </div>
+          ))}
+        </div>
+
       </div>
     </div>
   );
