@@ -649,13 +649,28 @@ export default function Reports() {
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
-    const hoje = new Date();
-    
+    // 1. Identificar produtos que tiveram movimento NO PERÍODO SELECIONADO
+    const itensMovimentadosNoPeriodo = new Set();
+
+    todasEntradas.forEach((cur: any) => {
+        const d = new Date(cur.data || cur.created_at);
+        if (d >= sDate && d <= eDate) {
+            itensMovimentadosNoPeriodo.add(cur.produto);
+        }
+    });
+
+    todasSaidas.forEach((cur: any) => {
+        const d = new Date(cur.data || cur.created_at);
+        if (d >= sDate && d <= eDate) {
+            itensMovimentadosNoPeriodo.add(cur.produto);
+        }
+    });
+
+    // 2. Filtrar o estoque para encontrar os obsoletos no período
     const obsoletos = estoque.filter((item: any) => {
         const qTotal = Number(item.quantidade_total || item.quantidade || 0);
         if (qTotal <= 0) return false; 
-        if (!item.ultima_movimentacao) return true;
-        return differenceInDays(hoje, new Date(item.ultima_movimentacao)) > 90;
+        return !itensMovimentadosNoPeriodo.has(item.produto);
     }).sort((a: any, b: any) => {
         if (!a.ultima_movimentacao) return -1;
         if (!b.ultima_movimentacao) return 1;
@@ -1426,7 +1441,7 @@ export default function Reports() {
                 <AlertCard 
                     icon={Clock} 
                     title="Alerta de Obsolescência" 
-                    desc={`Detectados ${analytics.obsoletos.length} itens parados há mais de 90 dias sem movimentação.`} 
+                    desc={`Detectados ${analytics.obsoletos.length} itens sem qualquer movimentação no período selecionado.`} 
                     variant="rose" 
                 />
             )}
