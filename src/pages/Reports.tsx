@@ -399,7 +399,6 @@ export default function Reports() {
   }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
-    // 1. Correção de Timezone: Forçamos a hora com base no fuso horário local
     const sDate = new Date(`${startDate}T00:00:00`);
     const eDate = new Date(`${endDate}T23:59:59`);
 
@@ -416,13 +415,15 @@ export default function Reports() {
     const min = totalTimeMinutes % 60;
     const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
 
-    // 2. Cálculo de Média Diária Perfeito: Evita contar os dias não passados se selecionou uma data no futuro
-    const today = new Date();
-    const maxEndDate = eDate > today ? today : eDate;
-    let diasFiltrados = differenceInDays(maxEndDate, sDate) + 1;
-    if (diasFiltrados < 1) diasFiltrados = 1;
+    // --- NOVA LÓGICA DE MÉDIA DIÁRIA ---
+    // Mapeia todas as datas de produção (ignorando a hora) e cria um Set para remover os dias duplicados
+    const diasUnicos = new Set(filtered.map((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        return format(d, 'yyyy-MM-dd');
+    })).size;
     
-    const mediaDiaria = Math.round(totalPieces / diasFiltrados);
+    // Calcula a média com base apenas nos dias em que a produção ocorreu
+    const mediaDiaria = diasUnicos > 0 ? Number((totalPieces / diasUnicos).toFixed(1)) : 0;
 
     const timelineMap = new Map();
     filtered.forEach((p: any) => {
@@ -2254,7 +2255,7 @@ export default function Reports() {
             <KPICard 
                 title="Média Diária" 
                 value={`${formatNumber(metrics3D.mediaDiaria)} un/d`} 
-                subtext="Peças por dia computado" 
+                subtext="Peças / dia (nos dias com produção)" 
                 icon={TrendingUp} iconColor="text-rose-600 dark:text-rose-400" 
                 gradientClass="bg-rose-500/20"
             />
