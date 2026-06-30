@@ -415,14 +415,12 @@ export default function Reports() {
     const min = totalTimeMinutes % 60;
     const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
 
-    // --- NOVA LÓGICA DE MÉDIA DIÁRIA ---
-    // Mapeia todas as datas de produção (ignorando a hora) e cria um Set para remover os dias duplicados
+    // --- LÓGICA DE MÉDIA DIÁRIA ---
     const diasUnicos = new Set(filtered.map((p: any) => {
         const d = new Date(p.date || p.created_at);
         return format(d, 'yyyy-MM-dd');
     })).size;
     
-    // Calcula a média com base apenas nos dias em que a produção ocorreu
     const mediaDiaria = diasUnicos > 0 ? Number((totalPieces / diasUnicos).toFixed(1)) : 0;
 
     const timelineMap = new Map();
@@ -537,7 +535,6 @@ export default function Reports() {
 
     const entradasPuras = reportData.entradas || [];
     
-    // 🟢 APLICAMOS A CORREÇÃO DE SETORES AQUI, ASSIM REFLETE EM TODO LADO
     const saidasManuaisPuras = (reportData.saidas_separacoes || []).map((i: any) => ({ 
         ...i, 
         origem_tipo: 'MANUAL',
@@ -659,7 +656,6 @@ export default function Reports() {
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
-    // 1. Identificar produtos que tiveram movimento NO PERÍODO SELECIONADO
     const itensMovimentadosNoPeriodo = new Set();
 
     todasEntradas.forEach((cur: any) => {
@@ -676,7 +672,6 @@ export default function Reports() {
         }
     });
 
-    // 2. Filtrar o estoque para encontrar os obsoletos no período
     const obsoletos = estoque.filter((item: any) => {
         const qTotal = Number(item.quantidade_total || item.quantidade || 0);
         if (qTotal <= 0) return false; 
@@ -727,7 +722,6 @@ export default function Reports() {
         const qtd = Number(s.quantidade || 0);
         const val = qtd * precoItem;
         
-        // 🟢 O setor já vem extraído inteligentemente graças ao extractSectorName!
         const setor = s.destino_setor; 
         
         valorPorSetorMap.set(setor, (valorPorSetorMap.get(setor) || 0) + val);
@@ -793,6 +787,11 @@ export default function Reports() {
             totalItems: qtdItensPorOpMap.get(op_code),
             items: itemsPorOpMap.get(op_code) || []
         }))
+        // 🟢 REMOÇÃO DAS OPs FINALIZADAS DA VISTA DO RELATÓRIO
+        .filter((op) => {
+            const st = String(op.status).toLowerCase();
+            return !st.includes('finalizada') && !st.includes('encerrada') && !st.includes('concluíd') && !st.includes('concluid');
+        })
         .sort((a, b) => b.totalValue - a.totalValue); 
 
     const timelineMap = new Map();
@@ -888,7 +887,6 @@ export default function Reports() {
         const precoItem = Number(s.preco_unitario) || getPrecoEstoque(s.produto);
         const val = Number(s.quantidade || 0) * precoItem;
         
-        // 🟢 O setor já vem extraído inteligentemente graças ao extractSectorName!
         const setor = s.destino_setor; 
         
         const dateObj = new Date(s.data);
@@ -968,7 +966,6 @@ export default function Reports() {
         { Metrica: "Capital Físico em Estoque", Valor: analytics.valorTotalEstoque },
         { Metrica: "Total Entradas (Sem Acertos)", Valor: analytics.opsEntrada },
         { Metrica: "Qtd. Solicitações via Sistema", Valor: analytics.saidasSolicitacaoTotal },
-        { Metrica: "Qtd. Saídas Manuais", Valor: analytics.saidasManuaisTotal },
         { Metrica: "Valor Obsoleto / Parado", Valor: analytics.valorTotalObsoletos },
         { Metrica: "Ganhos de Venda (Reposição)", Valor: analytics.valorRep },
         { Metrica: "Perdas Operacionais (Garantia)", Valor: analytics.valorGar }
@@ -1150,8 +1147,7 @@ export default function Reports() {
         currentY += 10;
         drawPremiumKpiCard(margin, currentY, kpiW, kpiH, "Entradas NFe", formatCurrencyNoDecimals(analytics.valorEntradasNFe), 'primary');
         drawPremiumKpiCard(margin + kpiW + kpiGap, currentY, kpiW, kpiH, "Valor Poupado", formatCurrencyNoDecimals(analytics.valorEntradasReuso), 'success');
-        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 2, currentY, kpiW, kpiH, "Ent. Manuais", formatCurrencyNoDecimals(analytics.valorEntradasManuais), 'primary');
-        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 3, currentY, kpiW, kpiH, "Custo Saída", formatCurrencyNoDecimals(analytics.valorTotalSaidas), 'alert');
+        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 2, currentY, kpiW, kpiH, "Custo Saída", formatCurrencyNoDecimals(analytics.valorTotalSaidas), 'alert');
 
         currentY += kpiH + 15;
         doc.setFontSize(12); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
@@ -1585,7 +1581,7 @@ export default function Reports() {
         {/* ===================== ABA: MOVIMENTAÇÕES ================================ */}
         {/* ========================================================================= */}
         <TabsContent value="movimentacoes" className={tabContentClass}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-6">
               <KPICard 
                   title="Entradas NFe" 
                   value={formatCurrency(analytics?.valorEntradasNFe || 0)} 
@@ -1601,13 +1597,6 @@ export default function Reports() {
                   icon={Recycle} iconColor="text-amber-600 dark:text-amber-500" 
                   trend="up" trendValue="Economia Direta"
                   gradientClass="bg-amber-500/20"
-              />
-              <KPICard 
-                  title="Entradas Manuais" 
-                  value={formatCurrency(analytics?.valorEntradasManuais || 0)} 
-                  subtext="Origens alternativas e avulsas" 
-                  icon={FileBox} iconColor="text-blue-600 dark:text-blue-400" 
-                  gradientClass="bg-blue-500/20"
               />
               <KPICard 
                   title="Custo de Saída" 
