@@ -378,8 +378,8 @@ export default function Reports() {
   });
 
   const metricsReplenishments = useMemo(() => {
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const filtered = replenishments.filter((r: any) => {
       const d = new Date(r.created_at);
@@ -399,8 +399,9 @@ export default function Reports() {
   }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    // 1. Correção de Timezone: Forçamos a hora com base no fuso horário local
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const filtered = productions3D.filter((p: any) => {
       const d = new Date(p.date || p.created_at);
@@ -414,6 +415,14 @@ export default function Reports() {
     const horas = Math.floor(totalTimeMinutes / 60);
     const min = totalTimeMinutes % 60;
     const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
+
+    // 2. Cálculo de Média Diária Perfeito: Evita contar os dias não passados se selecionou uma data no futuro
+    const today = new Date();
+    const maxEndDate = eDate > today ? today : eDate;
+    let diasFiltrados = differenceInDays(maxEndDate, sDate) + 1;
+    if (diasFiltrados < 1) diasFiltrados = 1;
+    
+    const mediaDiaria = Math.round(totalPieces / diasFiltrados);
 
     const timelineMap = new Map();
     filtered.forEach((p: any) => {
@@ -433,7 +442,7 @@ export default function Reports() {
         return m1 - m2 || d1 - d2;
     });
 
-    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length, chartData };
+    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length, chartData, mediaDiaria };
   }, [productions3D, startDate, endDate]);
 
   useGSAP(() => {
@@ -551,8 +560,8 @@ export default function Reports() {
     let entradasComConfronto = [...entradasPuras];
     let saidasComConfronto = [...saidasManuaisPuras, ...saidasSistemaPuras, ...saidasReposicoesPuras];
 
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const reconciledOrders = travelOrders.filter((order: any) => {
         if (order.status !== 'reconciled') return false;
@@ -1247,8 +1256,7 @@ export default function Reports() {
         
         currentY += 10;
         
-        const diasFiltrados = Math.max(1, differenceInDays(new Date(endDate), new Date(startDate)) + 1);
-        const mediaDiaria = Math.round(metrics3D.totalPieces / diasFiltrados);
+        const mediaDiaria = metrics3D.mediaDiaria;
 
         drawPremiumKpiCard(margin, currentY, kpiW, kpiH, "Peças (Unid.)", formatNumber(metrics3D.totalPieces), 'primary');
         drawPremiumKpiCard(margin + kpiW + kpiGap, currentY, kpiW, kpiH, "Matéria Prima", `${formatNumber(metrics3D.totalFilament)}g`, 'success');
@@ -1369,7 +1377,7 @@ export default function Reports() {
         setStartDate(now.toISOString().split('T')[0]);
         setEndDate(now.toISOString().split('T')[0]);
     } else if (type === 'week') {
-        setStartDate(subDays(now, 7).toISOString().split('T')[0]);
+        setStartDate(subDays(now, 6).toISOString().split('T')[0]);
         setEndDate(now.toISOString().split('T')[0]);
     }
   };
@@ -2214,7 +2222,7 @@ export default function Reports() {
              <p className="text-[11px] sm:text-sm font-medium text-slate-500 tracking-wide mt-1.5 sm:mt-2 ml-10 sm:ml-14">Desempenho da manufatura aditiva, tempos operacionais e volume de material.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
             <KPICard 
                 title="Peças Manufaturadas" 
                 value={formatNumber(metrics3D.totalPieces)} 
@@ -2242,6 +2250,13 @@ export default function Reports() {
                 subtext="Ordens de impressão" 
                 icon={CheckCircle2} iconColor="text-purple-600 dark:text-purple-400" 
                 gradientClass="bg-purple-500/20"
+            />
+            <KPICard 
+                title="Média Diária" 
+                value={`${formatNumber(metrics3D.mediaDiaria)} un/d`} 
+                subtext="Peças por dia computado" 
+                icon={TrendingUp} iconColor="text-rose-600 dark:text-rose-400" 
+                gradientClass="bg-rose-500/20"
             />
           </div>
 
