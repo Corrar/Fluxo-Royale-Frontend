@@ -1380,8 +1380,10 @@ export default function Separations() {
   const [showStockOnly, setShowStockOnly] = useState(false); 
 
   // ===================== IMPORTAÇÃO DE EXCEL =====================
+  // Referência para o input de arquivo oculto
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Função responsável por processar a importação do Excel
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -1392,6 +1394,8 @@ export default function Separations() {
           try {
               const binaryStr = evt.target?.result;
               const workbook = XLSX.read(binaryStr, { type: "binary" });
+              
+              // Lê a primeira aba da planilha
               const firstSheetName = workbook.SheetNames[0];
               const worksheet = workbook.Sheets[firstSheetName];
               const data = XLSX.utils.sheet_to_json(worksheet);
@@ -1399,47 +1403,57 @@ export default function Separations() {
               let importedCount = 0;
               let notFoundCount = 0;
               
+              // Clona o carrinho atual para não perder o que já foi selecionado
               const newCart = { ...selectedProducts };
 
               data.forEach((row: any) => {
-                  const skuStr = String(row.SKU || row.sku || "").trim();
-                  const qtyStr = row.Quantidade || row.quantidade || row.Qtd || row.qtd || row.QUANTIDADE || 1;
-                  const qty = parseFloat(qtyStr as string);
+                  // 🟢 CORREÇÃO: Adicionada a leitura da coluna "CÓDIGO" (com e sem acento)
+                  const skuStr = String(row['CÓDIGO'] || row.codigo || row.Codigo || row.SKU || row.sku || "").trim();
+                  
+                  // 🟢 CORREÇÃO: Adicionada a leitura da coluna "QUANT."
+                  const qtyRaw = row['QUANT.'] || row.QUANT || row.Quantidade || row.quantidade || row.Qtd || row.qtd || row.QUANTIDADE || 1;
+                  const qty = parseFloat(qtyRaw as string);
 
+                  // Valida se a linha tem um código e uma quantidade válida
                   if (skuStr && !isNaN(qty) && qty > 0) {
+                      // Busca o produto no catálogo comparando o código em letras maiúsculas
                       const product = (products as any[]).find(
                           (p) => String(p.sku).trim().toUpperCase() === skuStr.toUpperCase()
                       );
 
                       if (product) {
+                          // Se encontrar, soma a quantidade
                           newCart[product.id] = (newCart[product.id] || 0) + qty;
                           importedCount++;
                       } else {
+                          // Se não encontrar, regista o aviso
                           notFoundCount++;
-                          console.warn("SKU não encontrado no sistema:", skuStr);
+                          console.warn("Código não encontrado no sistema:", skuStr);
                       }
                   }
               });
 
+              // Atualiza o estado do carrinho com os novos itens
               setSelectedProducts(newCart);
 
+              // Exibe os alertas de feedback
               if (importedCount > 0) {
                   toast.success(`${importedCount} itens importados com sucesso!`);
               }
               if (notFoundCount > 0) {
-                  toast.warning(`${notFoundCount} SKUs não encontrados no catálogo.`);
+                  toast.warning(`${notFoundCount} códigos não encontrados no catálogo.`);
               }
           } catch (error) {
-              console.error("Erro ao ler o ficheiro Excel:", error);
-              toast.error("Erro ao importar. O arquivo precisa ser Excel válido.");
+              console.error("Erro ao ler o arquivo Excel:", error);
+              toast.error("Erro ao importar. O arquivo precisa ser um Excel válido.");
           } finally {
+              // Reseta o input para permitir importar o mesmo arquivo novamente se necessário
               if (fileInputRef.current) fileInputRef.current.value = "";
           }
       };
       
       reader.readAsBinaryString(file);
   };
-
   // ===================== ESTADO DO DROPDOWN DA OP =====================
   const [isOpDropdownOpen, setIsOpDropdownOpen] = useState(false);
   const opInputRef = useRef<HTMLDivElement>(null);
