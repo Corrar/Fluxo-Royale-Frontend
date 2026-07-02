@@ -378,8 +378,8 @@ export default function Reports() {
   });
 
   const metricsReplenishments = useMemo(() => {
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const filtered = replenishments.filter((r: any) => {
       const d = new Date(r.created_at);
@@ -399,8 +399,8 @@ export default function Reports() {
   }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const filtered = productions3D.filter((p: any) => {
       const d = new Date(p.date || p.created_at);
@@ -414,6 +414,14 @@ export default function Reports() {
     const horas = Math.floor(totalTimeMinutes / 60);
     const min = totalTimeMinutes % 60;
     const tempoFormatado = horas > 0 ? `${horas}h ${min}m` : `${min}m`;
+
+    // --- LÓGICA DE MÉDIA DIÁRIA ---
+    const diasUnicos = new Set(filtered.map((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        return format(d, 'yyyy-MM-dd');
+    })).size;
+    
+    const mediaDiaria = diasUnicos > 0 ? Number((totalPieces / diasUnicos).toFixed(1)) : 0;
 
     const timelineMap = new Map();
     filtered.forEach((p: any) => {
@@ -433,7 +441,7 @@ export default function Reports() {
         return m1 - m2 || d1 - d2;
     });
 
-    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length, chartData };
+    return { totalPieces, totalFilament, tempoFormatado, ordensFinalizadas: filtered.length, chartData, mediaDiaria };
   }, [productions3D, startDate, endDate]);
 
   useGSAP(() => {
@@ -527,7 +535,6 @@ export default function Reports() {
 
     const entradasPuras = reportData.entradas || [];
     
-    // 🟢 APLICAMOS A CORREÇÃO DE SETORES AQUI, ASSIM REFLETE EM TODO LADO
     const saidasManuaisPuras = (reportData.saidas_separacoes || []).map((i: any) => ({ 
         ...i, 
         origem_tipo: 'MANUAL',
@@ -551,8 +558,8 @@ export default function Reports() {
     let entradasComConfronto = [...entradasPuras];
     let saidasComConfronto = [...saidasManuaisPuras, ...saidasSistemaPuras, ...saidasReposicoesPuras];
 
-    const sDate = new Date(startDate); sDate.setHours(0,0,0,0);
-    const eDate = new Date(endDate); eDate.setHours(23,59,59,999);
+    const sDate = new Date(`${startDate}T00:00:00`);
+    const eDate = new Date(`${endDate}T23:59:59`);
 
     const reconciledOrders = travelOrders.filter((order: any) => {
         if (order.status !== 'reconciled') return false;
@@ -649,13 +656,26 @@ export default function Reports() {
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
-    const hoje = new Date();
-    
+    const itensMovimentadosNoPeriodo = new Set();
+
+    todasEntradas.forEach((cur: any) => {
+        const d = new Date(cur.data || cur.created_at);
+        if (d >= sDate && d <= eDate) {
+            itensMovimentadosNoPeriodo.add(cur.produto);
+        }
+    });
+
+    todasSaidas.forEach((cur: any) => {
+        const d = new Date(cur.data || cur.created_at);
+        if (d >= sDate && d <= eDate) {
+            itensMovimentadosNoPeriodo.add(cur.produto);
+        }
+    });
+
     const obsoletos = estoque.filter((item: any) => {
         const qTotal = Number(item.quantidade_total || item.quantidade || 0);
         if (qTotal <= 0) return false; 
-        if (!item.ultima_movimentacao) return true;
-        return differenceInDays(hoje, new Date(item.ultima_movimentacao)) > 90;
+        return !itensMovimentadosNoPeriodo.has(item.produto);
     }).sort((a: any, b: any) => {
         if (!a.ultima_movimentacao) return -1;
         if (!b.ultima_movimentacao) return 1;
@@ -702,7 +722,6 @@ export default function Reports() {
         const qtd = Number(s.quantidade || 0);
         const val = qtd * precoItem;
         
-        // 🟢 O setor já vem extraído inteligentemente graças ao extractSectorName!
         const setor = s.destino_setor; 
         
         valorPorSetorMap.set(setor, (valorPorSetorMap.get(setor) || 0) + val);
@@ -768,6 +787,11 @@ export default function Reports() {
             totalItems: qtdItensPorOpMap.get(op_code),
             items: itemsPorOpMap.get(op_code) || []
         }))
+        // 🟢 REMOÇÃO DAS OPs FINALIZADAS DA VISTA DO RELATÓRIO
+        .filter((op) => {
+            const st = String(op.status).toLowerCase();
+            return !st.includes('finalizada') && !st.includes('encerrada') && !st.includes('concluíd') && !st.includes('concluid');
+        })
         .sort((a, b) => b.totalValue - a.totalValue); 
 
     const timelineMap = new Map();
@@ -863,7 +887,6 @@ export default function Reports() {
         const precoItem = Number(s.preco_unitario) || getPrecoEstoque(s.produto);
         const val = Number(s.quantidade || 0) * precoItem;
         
-        // 🟢 O setor já vem extraído inteligentemente graças ao extractSectorName!
         const setor = s.destino_setor; 
         
         const dateObj = new Date(s.data);
@@ -943,7 +966,6 @@ export default function Reports() {
         { Metrica: "Capital Físico em Estoque", Valor: analytics.valorTotalEstoque },
         { Metrica: "Total Entradas (Sem Acertos)", Valor: analytics.opsEntrada },
         { Metrica: "Qtd. Solicitações via Sistema", Valor: analytics.saidasSolicitacaoTotal },
-        { Metrica: "Qtd. Saídas Manuais", Valor: analytics.saidasManuaisTotal },
         { Metrica: "Valor Obsoleto / Parado", Valor: analytics.valorTotalObsoletos },
         { Metrica: "Ganhos de Venda (Reposição)", Valor: analytics.valorRep },
         { Metrica: "Perdas Operacionais (Garantia)", Valor: analytics.valorGar }
@@ -1125,8 +1147,7 @@ export default function Reports() {
         currentY += 10;
         drawPremiumKpiCard(margin, currentY, kpiW, kpiH, "Entradas NFe", formatCurrencyNoDecimals(analytics.valorEntradasNFe), 'primary');
         drawPremiumKpiCard(margin + kpiW + kpiGap, currentY, kpiW, kpiH, "Valor Poupado", formatCurrencyNoDecimals(analytics.valorEntradasReuso), 'success');
-        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 2, currentY, kpiW, kpiH, "Ent. Manuais", formatCurrencyNoDecimals(analytics.valorEntradasManuais), 'primary');
-        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 3, currentY, kpiW, kpiH, "Custo Saída", formatCurrencyNoDecimals(analytics.valorTotalSaidas), 'alert');
+        drawPremiumKpiCard(margin + (kpiW + kpiGap) * 2, currentY, kpiW, kpiH, "Custo Saída", formatCurrencyNoDecimals(analytics.valorTotalSaidas), 'alert');
 
         currentY += kpiH + 15;
         doc.setFontSize(12); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold");
@@ -1232,8 +1253,7 @@ export default function Reports() {
         
         currentY += 10;
         
-        const diasFiltrados = Math.max(1, differenceInDays(new Date(endDate), new Date(startDate)) + 1);
-        const mediaDiaria = Math.round(metrics3D.totalPieces / diasFiltrados);
+        const mediaDiaria = metrics3D.mediaDiaria;
 
         drawPremiumKpiCard(margin, currentY, kpiW, kpiH, "Peças (Unid.)", formatNumber(metrics3D.totalPieces), 'primary');
         drawPremiumKpiCard(margin + kpiW + kpiGap, currentY, kpiW, kpiH, "Matéria Prima", `${formatNumber(metrics3D.totalFilament)}g`, 'success');
@@ -1354,7 +1374,7 @@ export default function Reports() {
         setStartDate(now.toISOString().split('T')[0]);
         setEndDate(now.toISOString().split('T')[0]);
     } else if (type === 'week') {
-        setStartDate(subDays(now, 7).toISOString().split('T')[0]);
+        setStartDate(subDays(now, 6).toISOString().split('T')[0]);
         setEndDate(now.toISOString().split('T')[0]);
     }
   };
@@ -1426,7 +1446,7 @@ export default function Reports() {
                 <AlertCard 
                     icon={Clock} 
                     title="Alerta de Obsolescência" 
-                    desc={`Detectados ${analytics.obsoletos.length} itens parados há mais de 90 dias sem movimentação.`} 
+                    desc={`Detectados ${analytics.obsoletos.length} itens sem qualquer movimentação no período selecionado.`} 
                     variant="rose" 
                 />
             )}
@@ -1561,7 +1581,7 @@ export default function Reports() {
         {/* ===================== ABA: MOVIMENTAÇÕES ================================ */}
         {/* ========================================================================= */}
         <TabsContent value="movimentacoes" className={tabContentClass}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-6">
               <KPICard 
                   title="Entradas NFe" 
                   value={formatCurrency(analytics?.valorEntradasNFe || 0)} 
@@ -1577,13 +1597,6 @@ export default function Reports() {
                   icon={Recycle} iconColor="text-amber-600 dark:text-amber-500" 
                   trend="up" trendValue="Economia Direta"
                   gradientClass="bg-amber-500/20"
-              />
-              <KPICard 
-                  title="Entradas Manuais" 
-                  value={formatCurrency(analytics?.valorEntradasManuais || 0)} 
-                  subtext="Origens alternativas e avulsas" 
-                  icon={FileBox} iconColor="text-blue-600 dark:text-blue-400" 
-                  gradientClass="bg-blue-500/20"
               />
               <KPICard 
                   title="Custo de Saída" 
@@ -2199,7 +2212,7 @@ export default function Reports() {
              <p className="text-[11px] sm:text-sm font-medium text-slate-500 tracking-wide mt-1.5 sm:mt-2 ml-10 sm:ml-14">Desempenho da manufatura aditiva, tempos operacionais e volume de material.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
             <KPICard 
                 title="Peças Manufaturadas" 
                 value={formatNumber(metrics3D.totalPieces)} 
@@ -2227,6 +2240,13 @@ export default function Reports() {
                 subtext="Ordens de impressão" 
                 icon={CheckCircle2} iconColor="text-purple-600 dark:text-purple-400" 
                 gradientClass="bg-purple-500/20"
+            />
+            <KPICard 
+                title="Média Diária" 
+                value={`${formatNumber(metrics3D.mediaDiaria)} un/d`} 
+                subtext="Peças / dia (nos dias com produção)" 
+                icon={TrendingUp} iconColor="text-rose-600 dark:text-rose-400" 
+                gradientClass="bg-rose-500/20"
             />
           </div>
 

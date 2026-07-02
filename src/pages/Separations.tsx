@@ -16,6 +16,7 @@ import { useSocket } from "@/contexts/SocketContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { exportToExcel } from "@/utils/exportUtils"; // 🟢 IMPORTAÇÃO DO EXCEL
+import * as XLSX from "xlsx"; // 🟢 BIBLIOTECA PARA LER EXCEL
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1378,6 +1379,67 @@ export default function Separations() {
   const [selectedProducts, setSelectedProducts] = useLocalStorage<Record<string, number>>("rascunho_carrinho", {});
   const [showStockOnly, setShowStockOnly] = useState(false); 
 
+  // ===================== IMPORTAÇÃO DE EXCEL =====================
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      
+      reader.onload = (evt) => {
+          try {
+              const binaryStr = evt.target?.result;
+              const workbook = XLSX.read(binaryStr, { type: "binary" });
+              const firstSheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[firstSheetName];
+              const data = XLSX.utils.sheet_to_json(worksheet);
+
+              let importedCount = 0;
+              let notFoundCount = 0;
+              
+              const newCart = { ...selectedProducts };
+
+              data.forEach((row: any) => {
+                  const skuStr = String(row.SKU || row.sku || "").trim();
+                  const qtyStr = row.Quantidade || row.quantidade || row.Qtd || row.qtd || row.QUANTIDADE || 1;
+                  const qty = parseFloat(qtyStr as string);
+
+                  if (skuStr && !isNaN(qty) && qty > 0) {
+                      const product = (products as any[]).find(
+                          (p) => String(p.sku).trim().toUpperCase() === skuStr.toUpperCase()
+                      );
+
+                      if (product) {
+                          newCart[product.id] = (newCart[product.id] || 0) + qty;
+                          importedCount++;
+                      } else {
+                          notFoundCount++;
+                          console.warn("SKU não encontrado no sistema:", skuStr);
+                      }
+                  }
+              });
+
+              setSelectedProducts(newCart);
+
+              if (importedCount > 0) {
+                  toast.success(`${importedCount} itens importados com sucesso!`);
+              }
+              if (notFoundCount > 0) {
+                  toast.warning(`${notFoundCount} SKUs não encontrados no catálogo.`);
+              }
+          } catch (error) {
+              console.error("Erro ao ler o ficheiro Excel:", error);
+              toast.error("Erro ao importar. O arquivo precisa ser Excel válido.");
+          } finally {
+              if (fileInputRef.current) fileInputRef.current.value = "";
+          }
+      };
+      
+      reader.readAsBinaryString(file);
+  };
+
   // ===================== ESTADO DO DROPDOWN DA OP =====================
   const [isOpDropdownOpen, setIsOpDropdownOpen] = useState(false);
   const opInputRef = useRef<HTMLDivElement>(null);
@@ -2108,9 +2170,30 @@ export default function Separations() {
                                         className="pl-12 h-14 rounded-2xl bg-card border-border shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] focus:border-primary focus:ring-4 ring-primary/10 text-base font-medium"
                                     />
                                 </div>
-                                <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-5 h-14 shadow-sm shrink-0">
-                                    <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
-                                    <Label htmlFor="stock-filter" className="text-sm font-bold cursor-pointer">Apenas com estoque</Label>
+
+                                {/* 🟢 BOTÃO DE IMPORTAR E SWITCH DE ESTOQUE */}
+                                <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0 shrink-0">
+                                    <input 
+                                        type="file" 
+                                        accept=".xlsx, .xls, .csv" 
+                                        className="hidden" 
+                                        ref={fileInputRef} 
+                                        onChange={handleImportExcel} 
+                                    />
+                                    <m.button 
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-2xl px-5 h-14 shadow-sm font-bold transition-all shrink-0"
+                                        title="Importar de Planilha Excel"
+                                    >
+                                        <FileSpreadsheet className="h-5 w-5" />
+                                        <span className="hidden lg:block">Importar</span>
+                                    </m.button>
+
+                                    <div className="flex items-center gap-3 bg-card border border-border rounded-2xl px-5 h-14 shadow-sm shrink-0">
+                                        <Switch id="stock-filter" checked={showStockOnly} onCheckedChange={setShowStockOnly} />
+                                        <Label htmlFor="stock-filter" className="text-sm font-bold cursor-pointer whitespace-nowrap">Apenas com estoque</Label>
+                                    </div>
                                 </div>
                             </div>
 

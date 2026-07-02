@@ -509,31 +509,54 @@ export default function Requests() {
   // ==========================================
   const filteredRequests = useMemo(() => {
     if (!requests) return [];
-    
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-    const now = new Date().getTime();
+
+    // Função utilitária para normalizar texto (remove acentos e põe em minúsculas)
+    // Assim, se o utilizador pesquisar "cabo", encontra "Cabo", "CABO", etc.
+    const normalize = (text?: string) => 
+      (text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+    const normalizedSearch = normalize(searchTerm);
+
+    // Variáveis para sabermos qual é o mês e ano atuais
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
 
     return requests.filter((request: any) => {
-      
-      const reqDate = new Date(request.created_at).getTime();
-      const isOlderThan30Days = (now - reqDate) > THIRTY_DAYS_MS;
-      if (isOlderThan30Days && (request.status === "entregue" || request.status === "rejeitado" || request.status === "devolvido")) {
+      // 1. LÓGICA DE DATAS (Mês Atual em vez de 30 dias rolando)
+      const reqDate = new Date(request.created_at);
+      const isCompleted = request.status === "entregue" || request.status === "rejeitado" || request.status === "devolvido";
+      const isCurrentMonth = reqDate.getMonth() === currentMonth && reqDate.getFullYear() === currentYear;
+
+      // Se o pedido já estiver fechado E NÃO for deste mês, ocultamos da tela principal
+      if (!isCurrentMonth && isCompleted) {
         return false;
       }
 
-      const safeOpCode = String(request.op_code || "").toLowerCase();
+      // 2. LÓGICA DE PESQUISA MELHORADA
+      const sectorName = normalize(request.sector);
+      const requesterName = normalize(request.requester?.name); // Quem solicitou
+      const safeOpCode = normalize(String(request.op_code || ""));
 
       const matchesSearch = 
-        searchTerm === "" ||
-        request.sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.requester?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        safeOpCode.includes(searchTerm.toLowerCase()) || 
-        request.request_items?.some((item: any) => 
-            (item.products?.name || item.custom_product_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (item.client_service || "").toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        normalizedSearch === "" ||
+        sectorName.includes(normalizedSearch) ||
+        requesterName.includes(normalizedSearch) ||
+        safeOpCode.includes(normalizedSearch) || 
+        request.request_items?.some((item: any) => {
+            const itemName = normalize(item.products?.name || item.custom_product_name); // Item
+            const itemSku = normalize(item.products?.sku); // SKU adicionado!
+            const itemOs = normalize(item.client_service);
+
+            // Retorna verdadeiro se o termo pesquisado bater com o Nome do item, SKU ou OS
+            return (
+              itemName.includes(normalizedSearch) ||
+              itemSku.includes(normalizedSearch) || 
+              itemOs.includes(normalizedSearch)
+            );
+        });
       
-      // 🟢 O filtro entende agora se clicar na tab "devolvido" mesmo sendo entregue e parcial
+      // 3. LÓGICA DE STATUS (Mantida a tua lógica original)
       const totalReturned = request.request_items?.reduce((sum: number, item: any) => sum + parseFloat(item.quantity_returned ?? 0), 0) || 0;
       const displayStatusMatch = (statusFilter === 'devolvido' && totalReturned > 0) ? true : request.status === statusFilter;
       const matchesStatus = statusFilter === "all" || displayStatusMatch;
@@ -556,7 +579,7 @@ export default function Requests() {
         </h1>
         <p className="text-sm md:text-[15px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2">
           <ShieldAlert className="h-4 w-4 text-blue-500 shrink-0" />
-          O histórico arquiva automaticamente itens inativos há mais de 30 dias.
+          O histórico arquiva automaticamente itens inativos após o mês corrente.
         </p>
       </div>
 

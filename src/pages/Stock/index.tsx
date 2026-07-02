@@ -56,7 +56,7 @@ export default function Stock() {
   const isAdmin = profile?.role === "admin";
   const isCompras = profile?.role === "compras";
   const isAlmoxarife = profile?.role === "almoxarife";
-  const userSector = profile?.sector?.toLowerCase() || "";
+  const isUsinagemLider = profile?.role === "usinagem_lider";
 
   const canEditStock = isAlmoxarife || isAdmin;
   const canEditCost = isCompras || isAdmin || isEscritorio; 
@@ -64,11 +64,15 @@ export default function Stock() {
   const canEditSalesPrice = isEscritorio || isAdmin; 
 
   const canEditItem = (stockItem: any) => {
+    // Se for Admin ou Almoxarife, edita tudo
     if (canEditStock) return true;
-    if (userSector === "usinagem") {
+    
+    // 🟢 CORREÇÃO: Em vez de verificar userSector, verificamos o cargo isUsinagemLider
+    if (isUsinagemLider) {
       const tags = stockItem.products?.tags || [];
       return Array.isArray(tags) && tags.some((t: string) => t.toLowerCase() === "usinagem");
     }
+    
     return false;
   };
 

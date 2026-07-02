@@ -22,7 +22,9 @@ type UserRole =
   | "prototipo"
   | "gerente"
   | "Ferro"
-  | "desenvolvimento";
+  | "desenvolvimento"
+  | "usinagem_lider"      // 🟢 ADICIONADO AQUI
+  | "usinagem_operador";  // 🟢 ADICIONADO AQUI
 
 interface User {
   id: string;

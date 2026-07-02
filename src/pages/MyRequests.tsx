@@ -63,7 +63,8 @@ interface UnmatchedItem {
   reason: "Sem stock" | "Stock parcial" | "Não encontrado" | "Restrito";
 }
 
-// === FUNÇÕES DE PESQUISA INTELIGENTE (FUZZY SEARCH & NORMALIZAÇÃO) ===
+// === FUNÇÕES DE PESQUISA E VALIDAÇÃO CENTRALIZADAS ===
+
 const normalizeString = (str: string) => {
   if (!str) return "";
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -88,6 +89,14 @@ const levenshteinDistance = (a: string, b: string): number => {
     }
   }
   return matrix[b.length][a.length];
+};
+
+// Nova Função: Centraliza a verificação de itens isentos de OP
+const isItemExemptFromOp = (tags?: string[]) => {
+  if (!tags) return false;
+  return tags.some(t => [
+    'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
+  ].includes(t.trim().toUpperCase()));
 };
 
 export default function MyRequests() {
@@ -222,7 +231,6 @@ export default function MyRequests() {
     if (!products) return [];
     const tags = new Set<string>();
     const userSector = profile?.sector?.trim().toLowerCase() || "";
-    // 🟢 Correção TypeScript: Converte o role explicitamente para string
     const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
     
     products.forEach((p: any) => {
@@ -242,7 +250,6 @@ export default function MyRequests() {
     if (!products) return [];
     let result = products;
     const userSector = profile?.sector?.trim().toLowerCase() || "";
-    // 🟢 Correção TypeScript: Converte o role explicitamente para string
     const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
 
     result = result.filter((p: any) => {
@@ -380,7 +387,6 @@ export default function MyRequests() {
         const newCartItems = [...cart]; 
         const newUnmatched = [...unmatchedItems]; 
         const userSector = profile?.sector?.trim().toLowerCase() || "";
-        // 🟢 Correção TypeScript: Converte o role explicitamente para string
         const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
 
         data.forEach((row: any, index: number) => {
@@ -406,7 +412,6 @@ export default function MyRequests() {
               const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
               const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
-              // 🟢 Correção TypeScript: Converte o role explicitamente para string nas verificações
               const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
               const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
               const isRestrictedFerro = isFerro && userSector !== "ferro";
@@ -495,19 +500,9 @@ export default function MyRequests() {
     mutationFn: async (data: { sector: string; opCode: string; validItems: CartItem[] }) => {
       const { sector, opCode, validItems } = data;
 
-      const requiresOpItems = validItems.filter(i => {
-        const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
-        ].includes(t.trim().toUpperCase()));
-        return !isExempt;
-      });
-
-      const exemptItems = validItems.filter(i => {
-        const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
-        ].includes(t.trim().toUpperCase()));
-        return isExempt;
-      });
+      // Usando a nossa função centralizada para separar itens!
+      const requiresOpItems = validItems.filter(i => !isItemExemptFromOp(i.tags));
+      const exemptItems = validItems.filter(i => isItemExemptFromOp(i.tags));
 
       const requestsToMake = [];
 
@@ -567,12 +562,8 @@ export default function MyRequests() {
     const validItems = cart.filter(i => i.quantity > 0);
     if (validItems.length === 0) return toast.error("Adicione quantidades válidas.");
 
-    const requiresOp = validItems.some(i => {
-      const isExempt = i.tags?.some(t => [
-          'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
-      ].includes(t.trim().toUpperCase()));
-      return !isExempt;
-    });
+    // Usando a função centralizada de verificação
+    const requiresOp = validItems.some(i => !isItemExemptFromOp(i.tags));
 
     if (requiresOp && (!opCode || opCode.trim() === '')) {
         return toast.error("É obrigatório selecionar a OP para os materiais selecionados.");
@@ -585,12 +576,8 @@ export default function MyRequests() {
   };
 
   const renderCartListContent = () => {
-    const isOpRequiredForCart = cart.some(i => {
-        const isExempt = i.tags?.some(t => [
-            'CAMISETAS', 'CAMISETA', 'EPI', 'FERRAMENTAS', 'FERRAMENTA', 'INSUMOS', 'INSUMO', 'FEIRA'
-        ].includes(t.trim().toUpperCase()));
-        return !isExempt;
-    });
+    // Usando a função centralizada de verificação
+    const isOpRequiredForCart = cart.some(i => !isItemExemptFromOp(i.tags));
 
     return (
       <div className="flex flex-col h-full bg-background relative">
@@ -927,7 +914,6 @@ export default function MyRequests() {
                     const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
                     const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
 
-                    // 🟢 Correção TypeScript: Converte o role explicitamente para string
                     const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
                     const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
                     const isRestrictedFerro = isFerro && userSector !== "ferro";
