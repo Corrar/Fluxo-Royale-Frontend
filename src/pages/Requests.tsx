@@ -21,8 +21,11 @@ import {
   Check, X, Package, Search, Trash2, Truck, 
   Clock, CheckCircle2, XCircle, ChevronRight,
   ClipboardList, PackageOpen, MapPin, AlertTriangle, ShieldAlert, Inbox, UserCircle, Briefcase, RotateCcw,
-  CheckSquare, FileWarning
+  CheckSquare, FileWarning, FileDown
 } from "lucide-react";
+
+// Função de exportação para PDF importada
+import { exportToPDF } from "@/utils/exportUtils";
 
 // ==========================================
 // 🎨 TIPAGENS E CONFIGURAÇÕES VISUAIS
@@ -262,6 +265,8 @@ export default function Requests() {
 
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+
+  const canManage = profile?.role === "admin" || profile?.role === "almoxarife";
 
   useEffect(() => {
     markRequestsAsRead();
@@ -504,6 +509,47 @@ export default function Requests() {
     setDeleteDialogOpen(true);
   };
 
+  // --- NOVA LÓGICA DE EXPORTAÇÃO PARA PDF ---
+  const handleExportRejectedPDF = () => {
+    if (!requests) return;
+
+    // Filtra os pedidos para encontrar apenas os que foram recusados
+    const rejectedRequests = requests.filter((req: any) => req.status === "rejeitado");
+
+    if (rejectedRequests.length === 0) {
+      toast.warning("Não há solicitações recusadas para exportar no histórico atual.");
+      return;
+    }
+
+    // Configuração das colunas do documento
+    const columns = [
+      { header: "ID", dataKey: "id" },
+      { header: "Data", dataKey: "data" },
+      { header: "Solicitante", dataKey: "solicitante" },
+      { header: "Setor", dataKey: "setor" },
+      { header: "Motivo da Recusa", dataKey: "motivo" }
+    ];
+
+    // Mapeamento dos dados extraídos do pedido
+    const data = rejectedRequests.map((req: any) => ({
+      id: `REQ-${req.id.substring(0, 8).toUpperCase()}`,
+      data: format(new Date(req.created_at), "dd/MM/yyyy HH:mm"),
+      solicitante: req.requester?.name || "Desconhecido",
+      setor: req.sector || "N/A",
+      motivo: req.rejection_reason || "Sem motivo especificado"
+    }));
+
+    // Geração do PDF chamando a utilitária
+    exportToPDF(
+      "Relatório de Solicitações Recusadas",
+      columns,
+      data,
+      "pedidos_recusados"
+    );
+    
+    toast.success("Relatório gerado com sucesso!");
+  };
+
   // ==========================================
   // 🔍 FILTRAGEM INTELIGENTE E LIMPEZA AUTOMÁTICA
   // ==========================================
@@ -565,7 +611,6 @@ export default function Requests() {
     });
   }, [requests, searchTerm, statusFilter]);
 
-  const canManage = profile?.role === "admin" || profile?.role === "almoxarife";
   const modalDisplayInfo = selectedRequest ? getRequestDisplayInfo(selectedRequest) : null;
 
   return (
@@ -585,14 +630,28 @@ export default function Requests() {
 
       {/* BARRA DE FERRAMENTAS E FILTROS */}
       <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center w-full mb-8">
-         <div className="relative w-full xl:w-96 group shrink-0">
-            <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={2.5} />
-            <Input 
-                placeholder="Procurar por setor, OP, solicitante ou item..." 
-                className="pl-11 h-12 bg-white dark:bg-[#111] border border-slate-200/60 dark:border-white/5 rounded-full focus:bg-white dark:focus:bg-[#111] focus:ring-2 focus:ring-blue-500/30 transition-all font-medium text-[14px] w-full shadow-[0_4px_20px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-            />
+         <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto shrink-0">
+            <div className="relative w-full sm:w-80 xl:w-96 group">
+                <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" strokeWidth={2.5} />
+                <Input 
+                    placeholder="Procurar por setor, OP, solicitante ou item..." 
+                    className="pl-11 h-12 bg-white dark:bg-[#111] border border-slate-200/60 dark:border-white/5 rounded-full focus:bg-white dark:focus:bg-[#111] focus:ring-2 focus:ring-blue-500/30 transition-all font-medium text-[14px] w-full shadow-[0_4px_20px_rgba(0,0,0,0.03),inset_0_1px_1px_rgba(255,255,255,1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+            
+            {/* NOVO BOTÃO DE EXPORTAR PDF */}
+            {canManage && (
+              <Button 
+                  variant="outline" 
+                  className="h-12 px-5 rounded-full border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-900/30 font-bold transition-all shadow-sm"
+                  onClick={handleExportRejectedPDF}
+              >
+                  <FileDown className="h-5 w-5 sm:mr-2 shrink-0" />
+                  <span className="hidden sm:inline">PDF Recusadas</span>
+              </Button>
+            )}
          </div>
          
          <div className="w-full overflow-x-auto custom-scrollbar pb-1 sm:pb-0 snap-x scroll-smooth">
