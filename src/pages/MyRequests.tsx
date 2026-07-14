@@ -572,6 +572,34 @@ export default function MyRequests() {
     const isMissingObs = validItems.some(i => i.tags?.some(t => ['EPI', 'CAMISETA', 'FERRAMENTAS'].includes(t.trim().toUpperCase())) && (!i.observation || i.observation.trim() === ''));
     if (isMissingObs) return toast.error("Preencha para quem é o item (EPI/Camiseta/Ferramenta) nos itens assinalados.");
 
+    // ==========================================
+    // 🛑 NOVA VALIDAÇÃO: Cliente DESPESAS / 2026
+    // ==========================================
+    if (opCode) {
+      // 1. Encontrar a qual cliente a OP selecionada pertence
+      const selectedClient = clientsData.find((client: any) => 
+        (client.services || []).some((op: any) => String(op.op_code) === String(opCode))
+      );
+
+      // 2. Se o cliente for o "DESPESAS / 2026", aplicamos a regra restrita de tags
+      if (selectedClient && selectedClient.name.toUpperCase().includes("DESPESAS") && selectedClient.name.includes("2026")) {
+        
+        // Procuramos no carrinho se existe ALGUM item que NÃO tenha a tag "DESPESAS"
+        const hasInvalidItems = validItems.some(item => {
+          const itemTags = item.tags || [];
+          return !itemTags.some(tag => tag.trim().toUpperCase() === "DESPESAS");
+        });
+
+        // Se encontrou item sem a tag DESPESAS, bloqueia o envio
+        if (hasInvalidItems) {
+          return toast.error(
+            "Operação não permitida. Para a OP 'DESPESAS / 2026', você só pode solicitar itens que possuam a tag 'DESPESAS'."
+          );
+        }
+      }
+    }
+    // ==========================================
+
     createRequestMutation.mutate({ sector, opCode, validItems });
   };
 
