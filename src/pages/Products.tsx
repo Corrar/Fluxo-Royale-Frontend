@@ -579,7 +579,7 @@ export default function Products() {
           <div className="flex flex-col gap-1.5 text-white">
             <div className="flex items-center gap-2 font-bold text-[11px] sm:text-[12px] uppercase tracking-widest mb-1 opacity-80">
               {isPurchaseMode ? <ShoppingBag className="h-4 w-4" /> : (canViewTotalValue ? <TrendingUp className="h-4 w-4" /> : <Package className="h-4 w-4" />)}
-              <span>{isPurchaseMode ? "Área de Compras" : (canViewTotalValue ? "Patrimônio Total" : "Produtos Cadastrados")}</span>
+              <span>{isPurchaseMode ? "Área de Compras" : (canViewTotalValue ? "Almoxarifado" : "Produtos Cadastrados")}</span>
               {!isPurchaseMode && (
                 <button onClick={() => setIsVisible(!isVisible)} className="p-1.5 hover:bg-white/20 rounded-full transition-colors ml-1 active:scale-90">
                   {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -590,11 +590,11 @@ export default function Products() {
             <div className="flex items-baseline gap-1 sm:gap-2 drop-shadow-sm">
               {!isPurchaseMode && canViewTotalValue && <span className="text-xl sm:text-2xl font-medium opacity-90">R$</span>}
               <h1 className="text-4xl sm:text-5xl md:text-[64px] leading-none font-black tracking-tighter">
-                {isPurchaseMode 
-                  ? "Catálogo" 
-                  : (canViewTotalValue 
-                      ? (isVisible ? totalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••")
-                      : (isVisible ? totalItems : "••") 
+                {isPurchaseMode
+                  ? "Catálogo"
+                  : (canViewTotalValue
+                      ? (isVisible ? valorOutros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••")
+                      : (isVisible ? totalItems : "••")
                     )}
               </h1>
             </div>
@@ -606,8 +606,8 @@ export default function Products() {
                      <span className="text-lg sm:text-xl font-black">R$ {isVisible ? valorUsinagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2 border border-white/20">
-                     <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-80 block mb-0.5">Outros Materiais</span>
-                     <span className="text-lg sm:text-xl font-black">R$ {isVisible ? valorOutros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
+                     <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-80 block mb-0.5">Patrimônio Total</span>
+                     <span className="text-lg sm:text-xl font-black">R$ {isVisible ? totalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
                   </div>
                </div>
             )}
