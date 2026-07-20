@@ -635,13 +635,17 @@ export default function Reports() {
     const compMesAnterior = reportData.comparativo_mes_anterior || { entradas: 0, saidas: 0 };
 
     const getEstoqueItem = (produtoNome: string) => {
-        return estoque.find((e:any) => 
-            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() || 
+        return estoque.find((e:any) =>
+            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() ||
             e.name?.trim().toLowerCase() === produtoNome?.trim().toLowerCase()
         );
     };
 
-    const getPrecoEstoque = (produtoNome: string) => Number(getEstoqueItem(produtoNome)?.preco) || 0;
+    // ⚠️ Desativado para valoração: o backend já envia preco_unitario com o custo
+    // HISTÓRICO do momento (fallback para o preço atual por ID). Buscar por nome
+    // pegava o preço de HOJE, zerava produtos renomeados e confundia homônimos.
+    // Mantida retornando 0 para preservar as chamadas existentes (`|| 0` efetivo).
+    const getPrecoEstoque = (_produtoNome: string) => 0;
     const getSkuEstoque = (produtoNome: string) => getEstoqueItem(produtoNome)?.sku || 'N/A';
 
     const valorTotalEstoque = estoque.reduce((acc: number, item: any) => acc + (Number(item.quantidade_total || item.quantidade || 0) * Number(item.preco || 0)), 0);
@@ -651,7 +655,7 @@ export default function Reports() {
     let valorEntradasManuais = 0;
 
     todasEntradas.forEach((cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        const preco = Number(cur.preco_unitario) || 0;
         const valTotalItem = Number(cur.quantidade) * preco;
         const categoria = obterCategoriaEntrada(cur);
 
@@ -663,7 +667,7 @@ export default function Reports() {
     const valorTotalEntradas = valorEntradasNFe + valorEntradasReuso + valorEntradasManuais;
 
     const valorTotalSaidas = todasSaidas.reduce((acc: number, cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        const preco = Number(cur.preco_unitario) || 0;
         return acc + (Number(cur.quantidade) * preco);
     }, 0);
 
