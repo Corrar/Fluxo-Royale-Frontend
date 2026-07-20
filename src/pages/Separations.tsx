@@ -1764,13 +1764,17 @@ export default function Separations() {
 
   const handleSaveAuth = () => {
     if (!selectedSeparation) return;
-    const payload = selectedSeparation.items.map((i) => {
-      const inc = parseFloat(inputIncrements[i.id] || "0") || 0;
-      return {
+    // Envia o INCREMENTO (a intenção do operador), não a quantidade absoluta:
+    // o backend soma sobre o valor atual do banco, então dois usuários mexendo
+    // no mesmo pedido nunca sobrescrevem o trabalho um do outro.
+    const payload = selectedSeparation.items
+      .map((i) => ({
         id: i.id,
-        quantity: i.quantity + inc,
-      };
-    });
+        increment: parseFloat(inputIncrements[i.id] || "0") || 0,
+      }))
+      .filter((i) => i.increment !== 0);
+
+    if (payload.length === 0) return;
     authorizeMutation.mutate({ id: selectedSeparation.id, items: payload, statusAction: "reservar" });
   };
 
@@ -1790,13 +1794,13 @@ export default function Separations() {
 
   const executeDelivery = () => {
     if (!selectedSeparation) return;
-    const payload = selectedSeparation.items.map((i) => {
-        const inc = parseFloat(inputIncrements[i.id] || "0") || 0;
-        return {
-            id: i.id,
-            quantity: i.quantity + inc,
-        };
-    });
+    // Na entrega TODOS os itens vão no payload (o backend baixa o físico de
+    // cada um), mas como incremento: o total entregue = valor atual do banco
+    // + o que o operador acabou de digitar, imune a cache defasado.
+    const payload = selectedSeparation.items.map((i) => ({
+        id: i.id,
+        increment: parseFloat(inputIncrements[i.id] || "0") || 0,
+    }));
     authorizeMutation.mutate({ id: selectedSeparation.id, items: payload, statusAction: "entregar" });
   };
 
