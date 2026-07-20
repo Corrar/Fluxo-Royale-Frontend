@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSocket } from "@/contexts/SocketContext";
 import { Sidebar } from "./Sidebar";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Sheet, SheetContent } from "./ui/sheet"; 
@@ -14,7 +15,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 // Novos ícones importados para a barra dinâmica e menu do usuário
-import { Home, Package, FileText, Menu, Search, Settings, BarChart3, Sparkles, Eye, LogOut, UserCircle } from "lucide-react";
+import { Home, Package, FileText, Menu, Search, Settings, BarChart3, Sparkles, Eye, LogOut, UserCircle, WifiOff } from "lucide-react";
 
 // Importação do Toast para as notificações
 import { toast } from "sonner";
@@ -48,7 +49,12 @@ const BottomNavButton = ({ to, icon, label }: { to: string, icon: ReactNode, lab
 export function Layout({ children }: LayoutProps) {
   // --- EXTRAÇÃO DO CANACCESS E SIGNOUT ---
   const { profile, canAccess, signOut } = useAuth();
+  const { isConnected, hasEverConnected } = useSocket();
   const isSetor = profile?.role === "setor";
+
+  // Só mostra o aviso de offline se a conexão JÁ existiu e caiu — evita o
+  // banner piscar durante o carregamento inicial da página.
+  const showOfflineBanner = hasEverConnected && !isConnected;
   
   // --- Lógica de Navegação e Pesquisa ---
   const navigate = useNavigate(); 
@@ -266,6 +272,14 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </div>
         </header>
+
+        {/* AVISO DE CONEXÃO EM TEMPO REAL PERDIDA */}
+        {showOfflineBanner && (
+          <div className="shrink-0 w-full bg-amber-500/95 dark:bg-amber-600/95 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-semibold shadow-md animate-in slide-in-from-top-2 duration-300 z-40">
+            <WifiOff className="h-4 w-4 shrink-0" />
+            <span>Sem conexão em tempo real — os dados exibidos podem estar desatualizados. Reconectando...</span>
+          </div>
+        )}
 
         {/* ÁREA DE CONTEÚDO */}
         <main className="flex-1 overflow-y-auto custom-scrollbar relative z-0 pb-32 lg:pb-0">

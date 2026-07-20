@@ -8,16 +8,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Search, ShoppingCart, Trash2, LogOut, Loader2, Minus, Plus, Download, FileUp, PackageOpen } from "lucide-react";
 
 const SECTORS = [
-  "Elétrica", "Flow", "Esteira", "Lavadora", "Usinagem", 
-  "Desenvolvimento", "Protótipo", "Engenharia", "Outros", 
+  "Elétrica", "Flow", "Esteira", "Lavadora", "Usinagem",
+  "Desenvolvimento", "Protótipo", "Engenharia", "Outros",
   "Viagem", "Terceiros", "Acumulador", "Reposição"
 ];
 
-interface CartItem { 
-  product_id: string; name: string; sku: string; unit: string; current_stock: number; quantity: number | string; 
+// Mesmas tags isentas de OP usadas pelo backend em manualWithdrawal
+const OP_EXEMPT_TAGS = ["camisetas", "epi", "ferramentas"];
+
+const isProductOpExempt = (rawTags: any): boolean => {
+  let tags: string[] = [];
+  if (Array.isArray(rawTags)) {
+    tags = rawTags.map((t: any) => String(t).trim().toLowerCase());
+  } else if (typeof rawTags === "string" && rawTags.trim() !== "") {
+    try {
+      const parsed = JSON.parse(rawTags);
+      if (Array.isArray(parsed)) tags = parsed.map((t: any) => String(t).trim().toLowerCase());
+      else tags = [rawTags.trim().toLowerCase()];
+    } catch {
+      tags = [rawTags.trim().toLowerCase()];
+    }
+  }
+  return tags.some(t => OP_EXEMPT_TAGS.includes(t));
+};
+
+interface CartItem {
+  product_id: string; name: string; sku: string; unit: string; current_stock: number; quantity: number | string;
+  isOpExempt: boolean;
 }
 
 export default function MaterialWithdrawals() {
@@ -26,7 +56,9 @@ export default function MaterialWithdrawals() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [destination, setDestination] = useState("");
   const [opCode, setOpCode] = useState("");
-  
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isRevalidating, setIsRevalidating] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: stocks, isLoading } = useQuery({
@@ -57,12 +89,16 @@ export default function MaterialWithdrawals() {
     const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
     if (available <= 0) return toast.error("Sem estoque disponível para saída.");
 
-    setCart([...cart, { 
-      product_id: stock.products.id, name: stock.products.name, sku: stock.products.sku, 
-      unit: stock.products.unit, current_stock: available, quantity: 1 
+    setCart([...cart, {
+      product_id: stock.products.id, name: stock.products.name, sku: stock.products.sku,
+      unit: stock.products.unit, current_stock: available, quantity: 1,
+      isOpExempt: isProductOpExempt(stock.products.tags)
     }]);
-    setSearchTerm(""); 
+    setSearchTerm("");
   };
+
+  // OP é obrigatória se qualquer item do carrinho não for isento (mesma regra do backend)
+  const requiresOp = cart.length > 0 && cart.some(i => !i.isOpExempt);
 
   const updateQuantity = (productId: string, delta: number) => {
     setCart(cart.map(item => {
@@ -99,6 +135,51 @@ export default function MaterialWithdrawals() {
 
   const removeFromCart = (productId: string) => {
     setCart(cart.filter(item => item.product_id !== productId));
+  };
+
+  // Antes de confirmar, busca o estoque FRESCO no servidor e revalida o carrinho:
+  // o "disponível" mostrado pode ter mudado enquanto a lista era montada
+  // (outro usuário retirando/reservando). Assim o problema aparece ANTES do
+  // envio, com a lista intacta para ajustar.
+  const revalidateAndConfirm = async () => {
+    if (cart.length === 0) return toast.warning("Adicione itens à lista.");
+    if (cart.some(i => !i.quantity || Number(i.quantity) < 1)) return toast.warning("Verifique as quantidades dos itens.");
+    if (!destination) return toast.warning("Selecione o setor de destino.");
+    if (requiresOp && !opCode.trim()) return toast.warning("Informe o número da OP: há itens no carrinho que exigem OP.");
+
+    setIsRevalidating(true);
+    try {
+      const { data: freshStocks } = await api.get("/stock");
+      queryClient.setQueryData(["stocks"], freshStocks);
+
+      const availableById = new Map<string, number>(
+        (freshStocks || []).map((s: any) => [
+          s.products?.id,
+          (Number(s.quantity_on_hand) || 0) - (Number(s.quantity_reserved) || 0),
+        ])
+      );
+
+      const problems: string[] = [];
+      const updatedCart = cart.map(item => {
+        const freshAvailable = availableById.get(item.product_id) ?? 0;
+        if (Number(item.quantity) > freshAvailable) {
+          problems.push(`${item.name} (pedido: ${item.quantity}, disponível agora: ${freshAvailable})`);
+        }
+        return { ...item, current_stock: freshAvailable };
+      });
+      setCart(updatedCart);
+
+      if (problems.length > 0) {
+        toast.error(`O estoque mudou enquanto você montava a lista. Ajuste: ${problems.join("; ")}`, { duration: 8000 });
+        return;
+      }
+
+      setConfirmOpen(true);
+    } catch {
+      toast.error("Não foi possível revalidar o estoque. Tente novamente.");
+    } finally {
+      setIsRevalidating(false);
+    }
   };
 
   const downloadTemplate = () => {
@@ -145,7 +226,8 @@ export default function MaterialWithdrawals() {
                     sku: stockItem.products.sku,
                     unit: stockItem.products.unit,
                     current_stock: available,
-                    quantity: qty
+                    quantity: qty,
+                    isOpExempt: isProductOpExempt(stockItem.products.tags)
                   });
                 }
                 itemsAdded++;
@@ -330,37 +412,77 @@ export default function MaterialWithdrawals() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider">OP / Observação <span className="font-normal normal-case text-slate-400 dark:text-slate-500">(Opcional)</span></Label>
-                <Input 
-                  placeholder="Ex: OP-1234" 
-                  value={opCode} 
-                  onChange={(e) => setOpCode(e.target.value)} 
-                  className="h-12 bg-slate-50 dark:bg-background border-slate-200 dark:border-border rounded-xl focus-visible:ring-purple-500/20 dark:focus-visible:ring-purple-500/40 text-slate-900 dark:text-foreground" 
+                <Label className="text-xs font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider">
+                  {requiresOp ? (
+                    <>Número da OP <span className="normal-case text-red-500 dark:text-red-400">* Obrigatória para itens da lista</span></>
+                  ) : (
+                    <>OP / Observação <span className="font-normal normal-case text-slate-400 dark:text-slate-500">(Opcional)</span></>
+                  )}
+                </Label>
+                <Input
+                  placeholder="Ex: OP-1234"
+                  value={opCode}
+                  onChange={(e) => setOpCode(e.target.value)}
+                  className={`h-12 bg-slate-50 dark:bg-background rounded-xl focus-visible:ring-purple-500/20 dark:focus-visible:ring-purple-500/40 text-slate-900 dark:text-foreground ${requiresOp && !opCode.trim() ? "border-red-300 dark:border-red-800" : "border-slate-200 dark:border-border"}`}
                 />
               </div>
 
-              <Button 
-                className="w-full h-14 text-base font-bold shadow-[0_4px_14px_0_rgb(138,5,190,0.39)] dark:shadow-none hover:shadow-[0_6px_20px_rgba(138,5,190,0.23)] dark:hover:bg-purple-600 bg-purple-600 dark:bg-purple-700 text-white rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]" 
-                disabled={cart.length === 0 || manualExitMutation.isPending}
-                onClick={() => {
-                  if (cart.length === 0) return toast.warning("Adicione itens à lista.");
-                  if (cart.some(i => !i.quantity || Number(i.quantity) < 1)) return toast.warning("Verifique as quantidades dos itens.");
-                  if (!destination) return toast.warning("Selecione o setor de destino.");
-                  
-                  manualExitMutation.mutate({ 
-                    sector: destination, 
-                    op_code: opCode.trim(), 
-                    items: cart.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) })) 
-                  });
-                }}
+              <Button
+                className="w-full h-14 text-base font-bold shadow-[0_4px_14px_0_rgb(138,5,190,0.39)] dark:shadow-none hover:shadow-[0_6px_20px_rgba(138,5,190,0.23)] dark:hover:bg-purple-600 bg-purple-600 dark:bg-purple-700 text-white rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                disabled={cart.length === 0 || manualExitMutation.isPending || isRevalidating}
+                onClick={revalidateAndConfirm}
               >
-                {manualExitMutation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                {manualExitMutation.isPending ? "Processando..." : "Confirmar Saída"}
+                {(manualExitMutation.isPending || isRevalidating) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                {isRevalidating ? "Verificando estoque..." : manualExitMutation.isPending ? "Processando..." : "Confirmar Saída"}
               </Button>
             </div>
           </Card>
         </div>
       </div>
+
+      {/* CONFIRMAÇÃO COM RESUMO: última chance de revisar antes de baixar o estoque */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="rounded-3xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-extrabold">Confirmar saída de materiais?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2">
+                <div className="text-sm">
+                  Destino: <span className="font-bold text-slate-900 dark:text-foreground">{destination}</span>
+                  {opCode.trim() && <> · OP: <span className="font-bold text-slate-900 dark:text-foreground">{opCode.trim()}</span></>}
+                </div>
+                <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-border divide-y divide-slate-100 dark:divide-border">
+                  {cart.map(item => (
+                    <div key={item.product_id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="font-medium text-slate-700 dark:text-foreground pr-3">{item.name}</span>
+                      <span className="font-bold text-slate-900 dark:text-foreground whitespace-nowrap">{item.quantity} {item.unit}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-muted-foreground">
+                  Estas quantidades serão baixadas do estoque imediatamente.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 mt-2">
+            <AlertDialogCancel className="rounded-xl h-11 font-bold flex-1">Revisar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl h-11 font-bold flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                setConfirmOpen(false);
+                manualExitMutation.mutate({
+                  sector: destination,
+                  op_code: opCode.trim(),
+                  items: cart.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) }))
+                });
+              }}
+            >
+              Confirmar Saída
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

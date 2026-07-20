@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { Bell } from 'lucide-react';
-import { api } from '@/services/api'; 
+import { api } from '@/services/api';
 
 // Chave Pública VAPID
 const VAPID_PUBLIC_KEY = "BMNY3LkuWRwc81P1xGvWiZ6-hzfu4kbkoh3V0gzJRiOn1ag0hv65VN4dm_ZlTf4TuowjljtzEnwti0d1oV1YHlA"; 
@@ -11,8 +12,9 @@ const VAPID_PUBLIC_KEY = "BMNY3LkuWRwc81P1xGvWiZ6-hzfu4kbkoh3V0gzJRiOn1ag0hv65VN
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
-  hasUnreadRequests: boolean; 
-  unreadCount: number;        
+  hasEverConnected: boolean;
+  hasUnreadRequests: boolean;
+  unreadCount: number;
   markRequestsAsRead: () => void;
   requestNotificationPermission: () => void;
 }
@@ -20,6 +22,7 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
+  hasEverConnected: false,
   hasUnreadRequests: false,
   unreadCount: 0,
   markRequestsAsRead: () => {},
@@ -40,8 +43,15 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, updatePermissions } = useAuth();
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [hasEverConnected, setHasEverConnected] = useState(false);
+
+  // Marca se já houve uma conexão nesta sessão: usado para diferenciar a
+  // primeira conexão (não precisa re-sincronizar) de uma RE-conexão
+  // (precisa, pois eventos podem ter sido perdidos durante a queda).
+  const wasConnectedBeforeRef = useRef(false);
 
   // --- CONTROLE DE DUPLICIDADE ---
   const processedIdsRef = useRef<Set<string>>(new Set());
@@ -199,8 +209,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // Configuração do Socket
     const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace('/api', '');
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket'], 
-      reconnectionAttempts: 5,
+      transports: ['websocket'],
+      // Sem limite de tentativas: com limite, após algumas falhas o socket
+      // desistia para sempre e o usuário continuava vendo dados congelados
+      // sem nenhum aviso.
+      reconnection: true,
+      reconnectionDelayMax: 10000,
     });
 
     setSocket(newSocket);
@@ -209,13 +223,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const handleConnect = () => {
       console.log("✅ Socket Conectado!");
       setIsConnected(true);
-      
+      setHasEverConnected(true);
+
       if (profile.role) newSocket.emit('join_room', profile.role);
-      
+
       if (profile.role === 'admin') {
           newSocket.emit('join_room', 'almoxarife');
           newSocket.emit('join_room', 'compras');
       }
+
+      // RE-conexão: eventos de estoque/pedidos podem ter sido perdidos
+      // enquanto estávamos offline — re-sincroniza tudo com o servidor.
+      if (wasConnectedBeforeRef.current) {
+        queryClient.invalidateQueries();
+      }
+      wasConnectedBeforeRef.current = true;
 
       if (Notification.permission === 'granted') {
          subscribeUserToPush();
@@ -224,6 +246,38 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on('connect', handleConnect);
     newSocket.on('disconnect', () => setIsConnected(false));
+
+    // =========================================================================
+    // SINCRONIZAÇÃO GLOBAL DE CACHE: qualquer tela aberta atualiza quando o
+    // servidor avisa que estoque/pedidos mudaram — antes só as páginas com
+    // listener próprio atualizavam (ex.: Saída de Materiais ficava com o
+    // "disponível" desatualizado).
+    // =========================================================================
+    const invalidateStockData = () => {
+      queryClient.invalidateQueries({ queryKey: ['stocks'] });
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-list'] });
+    };
+    const invalidateRequestData = () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+    };
+    const invalidateSeparations = () => {
+      queryClient.invalidateQueries({ queryKey: ['separations'] });
+      invalidateStockData();
+    };
+    const invalidateTravels = () => {
+      queryClient.invalidateQueries({ queryKey: ['travel-orders'] });
+      invalidateStockData();
+    };
+
+    newSocket.on('stock_updated', invalidateStockData);
+    newSocket.on('refresh_stock', invalidateStockData);
+    newSocket.on('request_updated', invalidateRequestData);
+    newSocket.on('refresh_requests', invalidateRequestData);
+    newSocket.on('separations_update', invalidateSeparations);
+    newSocket.on('travel_orders_update', invalidateTravels);
 
     // --- RECEBE NOTIFICAÇÃO VIA SOCKET ---
     const handleNewRequestNotification = (data: any) => {
@@ -296,22 +350,29 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       newSocket.off('new_request_notification', handleNewRequestNotification);
       newSocket.off('new_request', handleNewRequest);
       newSocket.off('permissions_updated', handlePermissionsUpdated);
+      newSocket.off('stock_updated', invalidateStockData);
+      newSocket.off('refresh_stock', invalidateStockData);
+      newSocket.off('request_updated', invalidateRequestData);
+      newSocket.off('refresh_requests', invalidateRequestData);
+      newSocket.off('separations_update', invalidateSeparations);
+      newSocket.off('travel_orders_update', invalidateTravels);
       newSocket.disconnect();
       setIsConnected(false);
       
       window.removeEventListener('click', handleFirstInteraction); 
       window.removeEventListener('touchstart', handleFirstInteraction);
     };
-  }, [user, profile, incrementCount, updatePermissions]);
+  }, [user, profile, incrementCount, updatePermissions, queryClient]);
 
   return (
-    <SocketContext.Provider value={{ 
-      socket, 
-      isConnected, 
-      hasUnreadRequests, 
-      unreadCount, 
-      markRequestsAsRead, 
-      requestNotificationPermission 
+    <SocketContext.Provider value={{
+      socket,
+      isConnected,
+      hasEverConnected,
+      hasUnreadRequests,
+      unreadCount,
+      markRequestsAsRead,
+      requestNotificationPermission
     }}>
       {children}
     </SocketContext.Provider>
