@@ -33,6 +33,7 @@ import { exportToExcel, exportToPDF } from "@/utils/exportUtils";
 // Traduz ações antigas (Inglês) para manter o histórico coerente
 const ACTION_DICTIONARY: Record<string, string> = {
   "LOGIN": "Acesso ao Sistema",
+  "LOGIN_FALHOU": "Tentativa de Login Falhada",
   "LOGOUT": "Saída do Sistema",
   "CREATE": "Criação de Registo",
   "UPDATE": "Atualização de Dados",
@@ -79,6 +80,23 @@ const KEY_DICTIONARY: Record<string, string> = {
   "alteracoes": "Alterações",
   "edicoes": "Edições",
   "novo_status": "Novo Status",
+  "estoque_fisico": "Estoque Físico",
+  "reservado": "Reservado",
+  "preco_unitario": "Preço Unitário",
+  "preco_venda": "Preço de Venda",
+  "email_tentado": "E-mail Tentado",
+  "email": "E-mail",
+  "cargo": "Cargo",
+  "setor": "Setor",
+  "produto": "Produto",
+  "acao": "Ação",
+  "unit_price": "Preço Unitário",
+  "sales_price": "Preço de Venda",
+  "min_stock": "Estoque Mínimo",
+  "is_3d": "Produto 3D",
+  "tags": "Tags",
+  "unit": "Unidade",
+  "stock_id": "ID Estoque",
 };
 
 // Função auxiliar para tentar traduzir ou formatar de forma elegante qualquer termo
@@ -108,11 +126,21 @@ export default function AuditLogs() {
       if (userSearch) params.append("user", userSearch);
       if (dateStart) params.append("startDate", dateStart);
       if (dateEnd) params.append("endDate", dateEnd);
+      params.append("limit", "500");
 
       const response = await api.get(`/admin/logs?${params.toString()}`);
       return response.data;
     },
   });
+
+  // Estatísticas rápidas do período carregado
+  const stats = (() => {
+    if (!logs || logs.length === 0) return { total: 0, logins: 0, falhas: 0, usuarios: 0 };
+    const logins = logs.filter((l: any) => l.action === 'LOGIN').length;
+    const falhas = logs.filter((l: any) => String(l.action).includes('FALHOU')).length;
+    const usuarios = new Set(logs.filter((l: any) => l.user_name).map((l: any) => l.user_name)).size;
+    return { total: logs.length, logins, falhas, usuarios };
+  })();
 
   useEffect(() => {
     if (socket) {
@@ -181,7 +209,10 @@ export default function AuditLogs() {
     const act = action.toUpperCase();
     const label = ACTION_DICTIONARY[act] || act.replace(/_/g, ' ');
 
-    if (act.includes("LOGIN") || act.includes("AUTH") || act.includes("ACESSO")) 
+    if (act.includes("FALHOU") || act.includes("FORA_DO_SISTEMA"))
+        return { color: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-300 ring-1 ring-red-300/50", icon: <ShieldAlert className="h-3.5 w-3.5" />, label };
+
+    if (act.includes("LOGIN") || act.includes("AUTH") || act.includes("ACESSO") || act.includes("LOGOUT"))
         return { color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200", icon: <LogIn className="h-3.5 w-3.5" />, label };
     
     if (act.includes("DELETE") || act.includes("EXCLUIR") || act.includes("CANCELAR") || act.includes("REJEITAR") || act.includes("ARQUIVAR") || act.includes("SUSPENDER")) 
@@ -304,6 +335,48 @@ export default function AuditLogs() {
         </div>
       </div>
 
+      {/* ESTATÍSTICAS RÁPIDAS DO PERÍODO */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <Card className="rounded-2xl border-border/50 shadow-sm">
+          <CardContent className="p-4 flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Eventos</span>
+            <span className="text-2xl font-black text-foreground mt-1">{stats.total}</span>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/50 shadow-sm">
+          <CardContent className="p-4 flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Acessos (Login)</span>
+            <span className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">{stats.logins}</span>
+          </CardContent>
+        </Card>
+        <Card className={`rounded-2xl shadow-sm ${stats.falhas > 0 ? "border-red-300 dark:border-red-900 bg-red-50/50 dark:bg-red-950/20" : "border-border/50"}`}>
+          <CardContent className="p-4 flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Logins Falhados</span>
+            <span className={`text-2xl font-black mt-1 ${stats.falhas > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>{stats.falhas}</span>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-border/50 shadow-sm">
+          <CardContent className="p-4 flex flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Colaboradores Ativos</span>
+            <span className="text-2xl font-black text-foreground mt-1">{stats.usuarios}</span>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ATALHO PARA O LEDGER DE ESTOQUE */}
+      <a href="/stock-movements" className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/50 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors group">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-xl text-blue-600 dark:text-blue-400">
+            <Activity className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-bold text-sm text-foreground">Movimentações de Estoque (Ledger)</p>
+            <p className="text-xs text-muted-foreground">Saldo antes/depois de cada alteração no estoque, incluindo alterações feitas fora do sistema.</p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 text-blue-500 group-hover:translate-x-1 transition-transform shrink-0" />
+      </a>
+
       {/* FILTROS ATUALIZADOS PARA PORTUGUÊS */}
       <Card className="rounded-[1.5rem] border-border/50 shadow-sm bg-card/50 backdrop-blur-sm">
         <CardContent className="p-4 md:p-5">
@@ -331,6 +404,8 @@ export default function AuditLogs() {
                             <SelectContent className="rounded-xl shadow-xl">
                                 <SelectItem value="ALL">Visualizar Tudo</SelectItem>
                                 <SelectItem value="LOGIN">Acessos ao Sistema</SelectItem>
+                                <SelectItem value="LOGIN_FALHOU">Tentativas de Login Falhadas</SelectItem>
+                                <SelectItem value="LOGOUT">Saídas do Sistema</SelectItem>
                                 <SelectItem value="CRIAR">Criações e Registos</SelectItem>
                                 <SelectItem value="EDITAR">Edições e Atualizações</SelectItem>
                                 <SelectItem value="CANCELAR">Exclusões e Cancelamentos</SelectItem>

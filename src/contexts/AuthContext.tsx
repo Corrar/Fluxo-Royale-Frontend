@@ -116,7 +116,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // --------------------------------------------------------------------------
   const signOut = useCallback((redirectPath = "/auth") => {
     setLoading(true);
-    
+
+    // Regista a saída na auditoria (fire-and-forget: nunca bloqueia o logout)
+    const reason = redirectPath.includes("timeout") ? "Sessão expirada por inatividade" : "Saída manual";
+    api.post("/auth/logout", { reason }).catch(() => {});
+
     // Limpa o temporizador de inatividade se existir
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
 
