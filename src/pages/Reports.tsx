@@ -408,8 +408,10 @@ export default function Reports() {
     });
 
     const totalPieces = filtered.reduce((acc: number, p: any) => acc + Number(p.quantity || 0), 0);
-    const totalFilament = filtered.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
-    const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
+    // Number(): o backend envia numeric do Postgres como string — sem coerção o
+    // '+' concatenava texto e o KPI saía como NaN/lixo ("0100200300g").
+    const totalFilament = filtered.reduce((acc: number, p: any) => acc + Number(p.filamentGrams || 0), 0);
+    const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + Number(p.totalMinutes || 0), 0);
     
     const horas = Math.floor(totalTimeMinutes / 60);
     const min = totalTimeMinutes % 60;

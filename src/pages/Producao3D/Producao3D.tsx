@@ -101,7 +101,7 @@ const CustomBarTooltip = ({ active, payload, label }: any) => {
   };
 
 // --- MODAL: REGISTRAR PRODUÇÃO (MELHORADO) ---
-function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any) {
+function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd, isSaving }: any) {
   const [partId, setPartId] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [operator, setOperator] = useState("");
@@ -243,7 +243,7 @@ function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any)
         </div>
         <div className="p-6 sm:p-8 pt-0 flex flex-col sm:flex-row gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-14 sm:flex-1 border-slate-200 dark:border-slate-800 text-slate-600">Cancelar</Button>
-          <Button onClick={handleSave} className="rounded-xl font-black h-14 sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20">Registrar e Salvar</Button>
+          <Button onClick={handleSave} disabled={isSaving} className="rounded-xl font-black h-14 sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20 disabled:opacity-50">{isSaving ? "A Registar..." : "Registrar e Salvar"}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -826,12 +826,13 @@ export default function Producao3D() {
 
       {/* MODAL 1: REGISTRAR PRODUÇÃO */}
       {creating && (
-        <NewProductionDialog 
-          open={creating} 
-          onOpenChange={setCreating} 
-          parts={parts} 
-          demands={demands} 
-          onAdd={(data: any) => addProductionMutation.mutate(data)} 
+        <NewProductionDialog
+          open={creating}
+          onOpenChange={setCreating}
+          parts={parts}
+          demands={demands}
+          isSaving={addProductionMutation.isPending}
+          onAdd={(data: any) => addProductionMutation.mutate(data)}
         />
       )}
 

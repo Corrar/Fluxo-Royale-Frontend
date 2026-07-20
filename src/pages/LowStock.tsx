@@ -142,7 +142,10 @@ export default function LowStock() {
   }, { scope: containerRef, dependencies: [isLoading, activeTab] });
 
   useEffect(() => {
-    if (lowStockItems && lowStockItems.length > 0 && !isCleaning) {
+    // A limpeza automática ESCREVE no banco (reseta status/nota/previsão de compra).
+    // Só deve rodar para quem gere compras — antes qualquer visitante (inclusive
+    // sem permissão de edição) disparava esses PUTs ao abrir a página.
+    if (canEdit && lowStockItems && lowStockItems.length > 0 && !isCleaning) {
       const itemsToReset = lowStockItems.filter((item) => {
         if (item.purchase_status !== 'pendente' && item.delivery_forecast && item.critical_since) {
           try {

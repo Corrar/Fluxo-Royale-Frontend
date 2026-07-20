@@ -204,19 +204,26 @@ export default function PermissionsPage() {
            JSON.stringify(userPermissions) !== JSON.stringify(originalUserPermissions);
   }, [rolePermissions, originalRolePermissions, userPermissions, originalUserPermissions]);
 
+  // Marca se o carregamento da matriz foi bem-sucedido. Se falhar, o Salvar é
+  // bloqueado para não gravar uma matriz VAZIA por cima da real (apagando as
+  // permissões de todos os cargos de uma vez).
+  const [loadFailed, setLoadFailed] = useState(false);
+
   const fetchAllPermissions = async () => {
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [resRoles, resUsers] = await Promise.all([
-        api.get("/admin/permissions/roles").catch(() => ({ data: {} })), 
-        api.get("/admin/permissions/users").catch(() => ({ data: {} }))
+        api.get("/admin/permissions/roles"),
+        api.get("/admin/permissions/users")
       ]);
       setRolePermissions(resRoles.data || {});
       setOriginalRolePermissions(resRoles.data || {});
       setUserPermissions(resUsers.data || {});
       setOriginalUserPermissions(resUsers.data || {});
     } catch (error) {
-      toast.error("Erro ao carregar permissões.");
+      setLoadFailed(true);
+      toast.error("Erro ao carregar permissões. Recarregue antes de salvar — salvar agora apagaria as permissões existentes.");
     } finally {
       setLoading(false);
     }
@@ -238,6 +245,19 @@ export default function PermissionsPage() {
   };
 
   const handleSave = async () => {
+    // Trava de segurança: nunca gravar sobre um carregamento que falhou nem uma
+    // matriz completamente vazia (sintoma de fetch com erro engolido).
+    if (loadFailed) {
+      toast.error("A matriz não foi carregada corretamente. Recarregue a página antes de salvar.");
+      return;
+    }
+    const roleKeys = Object.keys(rolePermissions);
+    const totalGrants = roleKeys.reduce((acc, k) => acc + (rolePermissions[k]?.length || 0), 0);
+    if (roleKeys.length === 0 || totalGrants === 0) {
+      toast.error("Matriz vazia — salvar apagaria todas as permissões. Ação bloqueada por segurança.");
+      return;
+    }
+
     setSaving(true);
     try {
       // Usar a lista dinâmica para garantir que tudo salva

@@ -1065,8 +1065,8 @@ export default function Requests() {
             <Button variant="outline" className="w-full sm:flex-1 h-12 rounded-xl font-bold border-slate-200 dark:border-white/10" onClick={() => setIsReturnDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button className="w-full sm:flex-1 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md" onClick={confirmPartialReturn}>
-              Confirmar Devolução
+            <Button className="w-full sm:flex-1 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md disabled:opacity-50" onClick={confirmPartialReturn} disabled={partialReturnMutation.isPending}>
+              {partialReturnMutation.isPending ? "Processando..." : "Confirmar Devolução"}
             </Button>
           </DialogFooter>
         </DialogContent>

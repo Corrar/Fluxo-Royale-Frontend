@@ -209,6 +209,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // Configuração do Socket
     const SOCKET_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace('/api', '');
     const newSocket = io(SOCKET_URL, {
+      // Token JWT no handshake: o servidor agora exige autenticação para conectar
+      auth: { token: localStorage.getItem('auth_token') || '' },
       transports: ['websocket'],
       // Sem limite de tentativas: com limite, após algumas falhas o socket
       // desistia para sempre e o usuário continuava vendo dados congelados
@@ -259,6 +261,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products-list'] });
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+      queryClient.invalidateQueries({ queryKey: ['replenishments'] });
     };
     const invalidateRequestData = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
