@@ -835,49 +835,48 @@ export default function Reports() {
       else if (type === 'rep') entry.reposicoes += amount;
     };
 
+    // 📏 UNIDADE ÚNICA DO GRÁFICO: unidades físicas movimentadas (soma de
+    // `quantidade`). Antes cada série contava algo diferente — saídas do sistema
+    // e reposições contavam PEDIDOS, saídas manuais contavam ITENS, produção
+    // contava PEÇAS — e o "Total" somava tudo junto, um número sem significado.
+    // Agora todas as séries estão na mesma unidade e são comparáveis.
     todasEntradas.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
-            processDateTimeline(i.data || i.created_at, 'in', 1);
+            processDateTimeline(i.data || i.created_at, 'in', Number(i.quantidade) || 0);
         }
     });
 
-    const uniqueRequestsCounted = new Set();
     saidasSistemaPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         const statusField = String(i.status || i.op_status || i.request_status || i.status_solicitacao || '').toLowerCase();
         const isEntregue = statusField.includes('entregue');
-        
+
         if (d >= sDate && d <= eDate && isEntregue) {
-            const reqId = i.request_id || i.op_code || i.order_number || i.id || Math.random().toString();
-            const uniqKey = `${format(d, 'dd/MM')}-${reqId}`;
-            
-            if (!uniqueRequestsCounted.has(uniqKey)) {
-                uniqueRequestsCounted.add(uniqKey);
-                processDateTimeline(i.data || i.created_at, 'out_sis', 1);
-            }
+            processDateTimeline(i.data || i.created_at, 'out_sis', Number(i.quantidade) || 0);
         }
     });
 
     saidasManuaisPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
-            processDateTimeline(i.data || i.created_at, 'out_man', 1);
-        }
-    }); 
-    
-    productions3D.forEach((p: any) => {
-        const d = new Date(p.date || p.created_at);
-        if (d >= sDate && d <= eDate) {
-            processDateTimeline(p.date || p.created_at, 'prod_3d', Number(p.quantity || 1));
+            processDateTimeline(i.data || i.created_at, 'out_man', Number(i.quantidade) || 0);
         }
     });
 
-    replenishments.forEach((r: any) => {
-        const d = new Date(r.created_at);
-        // starts with 'conclu' tolera acento/variação (concluido/concluído)
-        if (d >= sDate && d <= eDate && String(r.status).toLowerCase().trim().startsWith('conclu')) {
-            processDateTimeline(r.created_at, 'rep', 1);
+    productions3D.forEach((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(p.date || p.created_at, 'prod_3d', Number(p.quantity) || 0);
+        }
+    });
+
+    // Usa as linhas de reposição já concluídas (com quantidade por item) em vez
+    // do array de pedidos — mantém a unidade consistente com as demais séries.
+    saidasReposicoesPuras.forEach((r: any) => {
+        const d = new Date(r.data || r.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(r.data || r.created_at, 'rep', Number(r.quantidade) || 0);
         }
     });
 
