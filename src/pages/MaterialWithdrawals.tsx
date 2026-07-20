@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Search, ShoppingCart, Trash2, LogOut, Loader2, Minus, Plus, Download, FileUp, PackageOpen } from "lucide-react";
 
-// Setores autorizados para saída
 const SECTORS = [
   "Elétrica", "Flow", "Esteira", "Lavadora", "Usinagem", 
   "Desenvolvimento", "Protótipo", "Engenharia", "Outros", 
@@ -171,27 +170,25 @@ export default function MaterialWithdrawals() {
   };
 
   return (
-    /* Fundo da página sutilmente off-white para destacar os cartões brancos */
-    <div className="p-4 md:p-8 min-h-screen bg-slate-50/50 space-y-8 animate-in fade-in duration-500 pb-24 md:pb-8">
+    <div className="p-4 md:p-8 min-h-screen bg-slate-50/50 dark:bg-background space-y-8 animate-in fade-in duration-500 pb-24 md:pb-8 transition-colors">
       
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            {/* Ícone com um fundo suave arredondado */}
-            <div className="p-2.5 bg-purple-100 rounded-2xl text-purple-600">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-foreground tracking-tight flex items-center gap-3">
+            <div className="p-2.5 bg-purple-100 dark:bg-purple-900/40 rounded-2xl text-purple-600 dark:text-purple-400">
               <LogOut className="h-6 w-6" />
             </div>
             Saída de Materiais
           </h1>
-          <p className="text-slate-500 mt-2 text-sm md:text-base font-medium">
+          <p className="text-slate-500 dark:text-muted-foreground mt-2 text-sm md:text-base font-medium">
             Gerencie a retirada de itens do estoque de forma rápida e intuitiva.
           </p>
         </div>
         
         {/* Botões de Ação Secundária (Excel) */}
         <div className="flex gap-3 w-full md:w-auto">
-          <Button variant="outline" onClick={downloadTemplate} className="flex-1 md:flex-none rounded-xl h-11 border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold shadow-sm transition-all">
+          <Button variant="outline" onClick={downloadTemplate} className="flex-1 md:flex-none rounded-xl h-11 border-slate-200 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-semibold shadow-sm transition-all">
             <Download className="mr-2 h-4 w-4" />
             Modelo Excel
           </Button>
@@ -202,7 +199,7 @@ export default function MaterialWithdrawals() {
             onChange={handleFileUpload} 
             className="hidden" 
           />
-          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none rounded-xl h-11 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold shadow-sm transition-all">
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none rounded-xl h-11 bg-white dark:bg-card border border-slate-200 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-50 dark:hover:bg-accent font-semibold shadow-sm transition-all">
             <FileUp className="mr-2 h-4 w-4" />
             Importar
           </Button>
@@ -213,17 +210,16 @@ export default function MaterialWithdrawals() {
         
         {/* COLUNA ESQUERDA: BUSCA DE PRODUTOS */}
         <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-          {/* Card com sombra bem suave e cantos arredondados (Design Nubank) */}
-          <Card className="p-6 bg-white border-0 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl">
-            <Label className="text-sm font-bold mb-3 block text-slate-700 uppercase tracking-wider">Adicionar Manualmente</Label>
+          <Card className="p-6 bg-white dark:bg-card border-0 dark:border dark:border-border shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none rounded-3xl transition-colors">
+            <Label className="text-sm font-bold mb-3 block text-slate-700 dark:text-foreground uppercase tracking-wider">Adicionar Manualmente</Label>
             
             <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-muted-foreground group-focus-within:text-purple-500 dark:group-focus-within:text-purple-400 transition-colors" />
               <Input 
                 placeholder="Busque pelo nome ou SKU do produto..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-12 h-14 text-base bg-slate-50 border-slate-200 rounded-2xl focus-visible:ring-purple-500/20 focus-visible:border-purple-500 transition-all shadow-inner" 
+                className="pl-12 h-14 text-base bg-slate-50 dark:bg-background border-slate-200 dark:border-border rounded-2xl focus-visible:ring-purple-500/20 dark:focus-visible:ring-purple-500/40 focus-visible:border-purple-500 transition-all shadow-inner dark:shadow-none text-slate-900 dark:text-foreground" 
               />
             </div>
             
@@ -232,23 +228,23 @@ export default function MaterialWithdrawals() {
               <div className="mt-6 space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {filteredStocks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 opacity-50">
-                    <PackageOpen className="h-12 w-12 text-slate-400 mb-3" />
-                    <p className="text-sm font-medium text-slate-500">Nenhum produto em estoque encontrado.</p>
+                    <PackageOpen className="h-12 w-12 text-slate-400 dark:text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium text-slate-500 dark:text-muted-foreground">Nenhum produto em estoque encontrado.</p>
                   </div>
                 ) : (
                   filteredStocks.map((stock: any) => {
                     const available = (Number(stock.quantity_on_hand) || 0) - (Number(stock.quantity_reserved) || 0);
                     return (
-                      <div key={stock.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:shadow-sm transition-all duration-200 group">
+                      <div key={stock.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 dark:border-border bg-slate-50/50 dark:bg-muted/20 hover:bg-slate-100 dark:hover:bg-muted/50 hover:shadow-sm dark:hover:shadow-none transition-all duration-200 group">
                         <div>
-                          <p className="font-bold text-slate-900 text-base">{stock.products?.name}</p>
-                          <p className="text-sm text-slate-500 mt-0.5">
-                            SKU: {stock.products?.sku || '-'} <span className="mx-2 text-slate-300">•</span> Disponível: <span className="font-bold text-emerald-600">{available} {stock.products?.unit}</span>
+                          <p className="font-bold text-slate-900 dark:text-foreground text-base">{stock.products?.name}</p>
+                          <p className="text-sm text-slate-500 dark:text-muted-foreground mt-0.5">
+                            SKU: {stock.products?.sku || '-'} <span className="mx-2 text-slate-300 dark:text-slate-600">•</span> Disponível: <span className="font-bold text-emerald-600 dark:text-emerald-400">{available} {stock.products?.unit}</span>
                           </p>
                         </div>
                         <Button 
                           onClick={() => addToCart(stock)} 
-                          className="rounded-xl h-10 px-5 bg-purple-50 text-purple-700 hover:bg-purple-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100 font-semibold"
+                          className="rounded-xl h-10 px-5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-600 dark:hover:bg-purple-600 hover:text-white dark:hover:text-white transition-colors opacity-0 group-hover:opacity-100 font-semibold"
                         >
                           Adicionar
                         </Button>
@@ -263,34 +259,34 @@ export default function MaterialWithdrawals() {
 
         {/* COLUNA DIREITA: CARRINHO E CHECKOUT */}
         <div className="lg:col-span-5 xl:col-span-4">
-          <Card className="p-6 bg-white border-0 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-3xl flex flex-col h-full sticky top-8">
+          <Card className="p-6 bg-white dark:bg-card border-0 dark:border dark:border-border shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-none rounded-3xl flex flex-col h-full sticky top-8 transition-colors">
             
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-extrabold text-xl text-slate-900 flex items-center gap-2">
+              <h3 className="font-extrabold text-xl text-slate-900 dark:text-foreground flex items-center gap-2">
                 Lista de Retirada
               </h3>
-              <div className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+              <div className="bg-slate-100 dark:bg-muted text-slate-600 dark:text-muted-foreground text-xs font-bold px-3 py-1 rounded-full">
                 {cart.length} itens
               </div>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 min-h-[250px] max-h-[50vh] custom-scrollbar pr-2 mb-6">
               {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                    <ShoppingCart className="h-8 w-8 text-slate-300" />
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-muted-foreground py-12">
+                  <div className="w-20 h-20 bg-slate-50 dark:bg-muted/30 rounded-full flex items-center justify-center mb-4">
+                    <ShoppingCart className="h-8 w-8 text-slate-300 dark:text-slate-500" />
                   </div>
                   <p className="text-base font-medium">Sua lista está vazia</p>
-                  <p className="text-xs text-slate-400 mt-1">Busque produtos para adicionar.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Busque produtos para adicionar.</p>
                 </div>
               ) : (
                 cart.map(item => (
-                  <div key={item.product_id} className="p-4 bg-white border border-slate-100 shadow-sm rounded-2xl relative group hover:border-slate-200 transition-colors">
-                    <p className="font-bold text-slate-800 text-sm leading-tight pr-8">{item.name}</p>
-                    <p className="text-xs text-slate-400 mt-1 mb-3">Máx: {item.current_stock}</p>
+                  <div key={item.product_id} className="p-4 bg-white dark:bg-card border border-slate-100 dark:border-border shadow-sm dark:shadow-none rounded-2xl relative group hover:border-slate-200 dark:hover:border-slate-600 transition-colors">
+                    <p className="font-bold text-slate-800 dark:text-foreground text-sm leading-tight pr-8">{item.name}</p>
+                    <p className="text-xs text-slate-400 dark:text-muted-foreground mt-1 mb-3">Máx: {item.current_stock}</p>
                     
-                    <div className="flex items-center gap-1 bg-slate-50 w-fit p-1 rounded-xl">
-                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm text-slate-600" onClick={() => updateQuantity(item.product_id, -1)}>
+                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-muted/50 w-fit p-1 rounded-xl">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-white dark:hover:bg-background hover:shadow-sm dark:hover:shadow-none text-slate-600 dark:text-foreground" onClick={() => updateQuantity(item.product_id, -1)}>
                         <Minus className="h-4 w-4" />
                       </Button>
                       
@@ -300,17 +296,17 @@ export default function MaterialWithdrawals() {
                         max={item.current_stock}
                         value={item.quantity}
                         onChange={(e) => handleManualQuantityChange(item.product_id, e.target.value)}
-                        className="h-8 w-16 text-center text-sm font-bold bg-transparent border-none focus-visible:ring-0 px-0"
+                        className="h-8 w-16 text-center text-sm font-bold bg-transparent border-none focus-visible:ring-0 px-0 text-slate-900 dark:text-foreground"
                       />
                       
-                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm text-slate-600" onClick={() => updateQuantity(item.product_id, 1)}>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-white dark:hover:bg-background hover:shadow-sm dark:hover:shadow-none text-slate-600 dark:text-foreground" onClick={() => updateQuantity(item.product_id, 1)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
 
                     <button 
                       onClick={() => removeFromCart(item.product_id)} 
-                      className="absolute top-4 right-4 text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-all"
+                      className="absolute top-4 right-4 text-slate-300 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 p-2 rounded-xl transition-all"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -320,31 +316,31 @@ export default function MaterialWithdrawals() {
             </div>
 
             {/* ZONA DE CHECKOUT */}
-            <div className="space-y-5 pt-6 border-t border-slate-100 mt-auto">
+            <div className="space-y-5 pt-6 border-t border-slate-100 dark:border-border mt-auto">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Destino / Setor *</Label>
+                <Label className="text-xs font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider">Destino / Setor *</Label>
                 <Select value={destination} onValueChange={setDestination}>
-                  <SelectTrigger className="h-12 bg-slate-50 border-slate-200 rounded-xl focus:ring-purple-500/20 font-medium">
+                  <SelectTrigger className="h-12 bg-slate-50 dark:bg-background border-slate-200 dark:border-border rounded-xl focus:ring-purple-500/20 dark:focus:ring-purple-500/40 font-medium text-slate-900 dark:text-foreground">
                     <SelectValue placeholder="Escolha o setor..." />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                  <SelectContent className="rounded-xl border-slate-100 dark:border-border shadow-xl dark:shadow-none">
                     {SECTORS.map(s => <SelectItem key={s} value={s} className="rounded-lg cursor-pointer">{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">OP / Observação <span className="font-normal normal-case text-slate-400">(Opcional)</span></Label>
+                <Label className="text-xs font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider">OP / Observação <span className="font-normal normal-case text-slate-400 dark:text-slate-500">(Opcional)</span></Label>
                 <Input 
                   placeholder="Ex: OP-1234" 
                   value={opCode} 
                   onChange={(e) => setOpCode(e.target.value)} 
-                  className="h-12 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-purple-500/20" 
+                  className="h-12 bg-slate-50 dark:bg-background border-slate-200 dark:border-border rounded-xl focus-visible:ring-purple-500/20 dark:focus-visible:ring-purple-500/40 text-slate-900 dark:text-foreground" 
                 />
               </div>
 
               <Button 
-                className="w-full h-14 text-base font-bold shadow-[0_4px_14px_0_rgb(138,5,190,0.39)] hover:shadow-[0_6px_20px_rgba(138,5,190,0.23)] hover:bg-purple-700 bg-purple-600 text-white rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]" 
+                className="w-full h-14 text-base font-bold shadow-[0_4px_14px_0_rgb(138,5,190,0.39)] dark:shadow-none hover:shadow-[0_6px_20px_rgba(138,5,190,0.23)] dark:hover:bg-purple-600 bg-purple-600 dark:bg-purple-700 text-white rounded-2xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]" 
                 disabled={cart.length === 0 || manualExitMutation.isPending}
                 onClick={() => {
                   if (cart.length === 0) return toast.warning("Adicione itens à lista.");
