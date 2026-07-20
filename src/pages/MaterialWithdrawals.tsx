@@ -1,13 +1,14 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { toast } from "sonner";
+import * as XLSX from "xlsx"; // Importação da biblioteca Excel
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Search, ShoppingCart, Trash2, LogOut, Loader2, Minus, Plus } from "lucide-react";
+import { Search, ShoppingCart, Trash2, LogOut, Loader2, Minus, Plus, Download, FileUp } from "lucide-react";
 
 // Setores autorizados para saída
 const SECTORS = [
@@ -17,7 +18,7 @@ const SECTORS = [
 ];
 
 interface CartItem { 
-  product_id: string; name: string; sku: string; unit: string; current_stock: number; quantity: number; 
+  product_id: string; name: string; sku: string; unit: string; current_stock: number; quantity: number | string; 
 }
 
 export default function MaterialWithdrawals() {
@@ -26,6 +27,9 @@ export default function MaterialWithdrawals() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [destination, setDestination] = useState("");
   const [opCode, setOpCode] = useState("");
+  
+  // Referência para o input de arquivo oculto
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: stocks, isLoading } = useQuery({
     queryKey: ["stocks"],
@@ -47,7 +51,7 @@ export default function MaterialWithdrawals() {
     const term = searchTerm.toLowerCase();
     return stocks
       .filter((s: any) => s.products?.name?.toLowerCase().includes(term) || s.products?.sku?.toLowerCase().includes(term))
-      .slice(0, 8); // Limita a 8 resultados para manter a UI limpa
+      .slice(0, 8); 
   }, [stocks, searchTerm]);
 
   const addToCart = (stock: any) => {
@@ -65,35 +69,150 @@ export default function MaterialWithdrawals() {
   const updateQuantity = (productId: string, delta: number) => {
     setCart(cart.map(item => {
       if (item.product_id === productId) {
-        const newQty = item.quantity + delta;
-        if (newQty > item.current_stock) { toast.warning(`Máximo disponível: ${item.current_stock}`); return { ...item, quantity: item.current_stock }; }
+        const currentQty = Number(item.quantity) || 0;
+        const newQty = currentQty + delta;
+        if (newQty > item.current_stock) { 
+          toast.warning(`Máximo disponível: ${item.current_stock}`); 
+          return { ...item, quantity: item.current_stock }; 
+        }
         return { ...item, quantity: Math.max(1, newQty) };
       }
       return item;
     }));
   };
 
-  // ---> AQUI ESTÁ A FUNÇÃO QUE FALTAVA <---
+  // Nova função para lidar com digitação manual na quantidade
+  const handleManualQuantityChange = (productId: string, value: string) => {
+    setCart(cart.map(item => {
+      if (item.product_id === productId) {
+        if (value === "") return { ...item, quantity: "" }; // Permite apagar para digitar novo número
+        
+        const numValue = parseInt(value, 10);
+        if (isNaN(numValue)) return item;
+        
+        if (numValue > item.current_stock) {
+          toast.warning(`Máximo disponível: ${item.current_stock}`);
+          return { ...item, quantity: item.current_stock };
+        }
+        return { ...item, quantity: numValue };
+      }
+      return item;
+    }));
+  };
+
   const removeFromCart = (productId: string) => {
     setCart(cart.filter(item => item.product_id !== productId));
   };
 
+  // Lógica para Baixar Template Excel
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([{ SKU: "", Quantidade: "" }]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Modelo_Saida");
+    XLSX.writeFile(wb, "Modelo_Saida_Estoque.xlsx");
+  };
+
+  // Lógica para processar arquivo Excel
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        let itemsAdded = 0;
+        let newCart = [...cart];
+
+        jsonData.forEach((row: any) => {
+          const sku = row.SKU?.toString().trim();
+          const qty = Number(row.Quantidade);
+
+          if (sku && qty > 0) {
+            const stockItem = stocks?.find((s: any) => s.products?.sku === sku);
+            
+            if (stockItem) {
+              const available = (Number(stockItem.quantity_on_hand) || 0) - (Number(stockItem.quantity_reserved) || 0);
+              
+              if (available >= qty) {
+                const existingIndex = newCart.findIndex(i => i.product_id === stockItem.products.id);
+                if (existingIndex >= 0) {
+                  // Se já existe no carrinho, atualiza a quantidade
+                  const currentQty = Number(newCart[existingIndex].quantity) || 0;
+                  newCart[existingIndex].quantity = Math.min(currentQty + qty, available);
+                } else {
+                  // Adiciona novo item ao carrinho
+                  newCart.push({
+                    product_id: stockItem.products.id,
+                    name: stockItem.products.name,
+                    sku: stockItem.products.sku,
+                    unit: stockItem.products.unit,
+                    current_stock: available,
+                    quantity: qty
+                  });
+                }
+                itemsAdded++;
+              } else {
+                toast.warning(`Estoque insuficiente para o SKU: ${sku}`);
+              }
+            } else {
+              toast.error(`Produto não encontrado para o SKU: ${sku}`);
+            }
+          }
+        });
+
+        setCart(newCart);
+        if (itemsAdded > 0) toast.success(`${itemsAdded} SKU(s) processado(s) com sucesso!`);
+      } catch (err) {
+        toast.error("Erro ao ler o arquivo Excel. Verifique a formatação.");
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Limpa o input
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6 animate-in fade-in duration-500 pb-20 md:pb-0">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
-          <LogOut className="h-6 w-6 text-red-500" /> Saída de Materiais
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Registe a retirada de material do armazém para os setores da fábrica.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
+            <LogOut className="h-6 w-6 text-red-500" /> Saída de Materiais
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-1">
+            Registe a retirada de material do armazém para os setores da fábrica.
+          </p>
+        </div>
+        
+        {/* Novos botões de Excel */}
+        <div className="flex gap-2 w-full md:w-auto">
+          <Button variant="outline" onClick={downloadTemplate} className="flex-1 md:flex-none">
+            <Download className="mr-2 h-4 w-4" />
+            Modelo Excel
+          </Button>
+          <input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex-1 md:flex-none">
+            <FileUp className="mr-2 h-4 w-4" />
+            Importar Excel
+          </Button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* COLUNA ESQUERDA: BUSCA DE PRODUTOS */}
         <div className="lg:col-span-2 space-y-4">
           <Card className="p-4 bg-card border shadow-sm">
-            <Label className="text-sm font-semibold mb-2 block text-muted-foreground">Procurar Produto</Label>
+            <Label className="text-sm font-semibold mb-2 block text-muted-foreground">Procurar Produto Manualmente</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input 
@@ -149,9 +268,23 @@ export default function MaterialWithdrawals() {
                     <p className="font-semibold text-sm leading-tight pr-6">{item.name}</p>
                     <p className="text-[10px] text-muted-foreground mb-2">Máx: {item.current_stock}</p>
                     <div className="flex items-center gap-2">
-                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, -1)}><Minus className="h-3 w-3" /></Button>
-                      <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, 1)}><Plus className="h-3 w-3" /></Button>
+                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, -1)}>
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      
+                      {/* INPUT MANUAL AQUI */}
+                      <Input
+                        type="number"
+                        min="1"
+                        max={item.current_stock}
+                        value={item.quantity}
+                        onChange={(e) => handleManualQuantityChange(item.product_id, e.target.value)}
+                        className="h-7 w-16 text-center text-sm font-bold px-1"
+                      />
+                      
+                      <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQuantity(item.product_id, 1)}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
                     </div>
                     <button onClick={() => removeFromCart(item.product_id)} className="absolute top-2 right-2 text-muted-foreground hover:text-red-500 transition-colors">
                       <Trash2 className="h-4 w-4" />
@@ -183,8 +316,15 @@ export default function MaterialWithdrawals() {
                 disabled={cart.length === 0 || manualExitMutation.isPending}
                 onClick={() => {
                   if (cart.length === 0) return toast.warning("Adicione itens à lista.");
+                  // Validação para garantir que nenhum item está com quantidade vazia
+                  if (cart.some(i => !i.quantity || Number(i.quantity) < 1)) return toast.warning("Verifique as quantidades dos itens.");
                   if (!destination) return toast.warning("Selecione o setor de destino.");
-                  manualExitMutation.mutate({ sector: destination, op_code: opCode.trim(), items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })) });
+                  
+                  manualExitMutation.mutate({ 
+                    sector: destination, 
+                    op_code: opCode.trim(), 
+                    items: cart.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) })) 
+                  });
                 }}
               >
                 {manualExitMutation.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <LogOut className="mr-2 h-5 w-5" />}
