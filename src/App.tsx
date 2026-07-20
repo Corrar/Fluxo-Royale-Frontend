@@ -35,6 +35,7 @@ import TasksBoard from "./pages/TaskBoard";
 import EletricaBoard from "./pages/EletricaBoard";
 import Inicio from "./pages/Inicio";
 import AuditLogs from "./pages/AuditLogs";
+import StockMovements from "./pages/StockMovements";
 import PermissionsPage from "./pages/PermissionsPage";
 import Search from "./pages/Search";
 import OfficeDashboard from "./pages/OfficeDashboard";
@@ -516,6 +517,15 @@ const App = () => {
                       element={
                         <ProtectedRoute pageKey="logs">
                           <Layout><AuditLogs /></Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    <Route
+                      path="/stock-movements"
+                      element={
+                        <ProtectedRoute pageKey="logs">
+                          <Layout><StockMovements /></Layout>
                         </ProtectedRoute>
                       }
                     />

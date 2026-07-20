@@ -258,6 +258,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products-list'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
     };
     const invalidateRequestData = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
