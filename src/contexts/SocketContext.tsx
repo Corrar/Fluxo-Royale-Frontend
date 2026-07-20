@@ -249,6 +249,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     newSocket.on('connect', handleConnect);
     newSocket.on('disconnect', () => setIsConnected(false));
 
+    // 🔁 Reconexão pelo gerenciador (Manager): em quedas longas ou reinício do
+    // servidor, o evento 'connect' do socket nem sempre re-dispara de forma
+    // confiável — o 'reconnect' do Manager cobre esses casos.
+    newSocket.io.on('reconnect', () => {
+      setIsConnected(true);
+      setHasEverConnected(true);
+    });
+
+    // 🛟 Sincronização defensiva: a cada 3s alinha o estado com a conexão REAL
+    // do socket. Garante que o banner de "sem conexão" suma sozinho ao reconectar
+    // (antes ficava preso até o F5) e apareça se cair, independentemente de qual
+    // evento disparou.
+    const connectionCheck = setInterval(() => {
+      setIsConnected(prev => (prev !== newSocket.connected ? newSocket.connected : prev));
+    }, 3000);
+
     // =========================================================================
     // SINCRONIZAÇÃO GLOBAL DE CACHE: qualquer tela aberta atualiza quando o
     // servidor avisa que estoque/pedidos mudaram — antes só as páginas com
@@ -350,6 +366,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => {
+      clearInterval(connectionCheck);
+      newSocket.io.off('reconnect');
       newSocket.off('connect', handleConnect);
       newSocket.off('new_request_notification', handleNewRequestNotification);
       newSocket.off('new_request', handleNewRequest);
