@@ -409,24 +409,40 @@ export default function Products() {
     },
   });
 
+  // Converte texto de preço em número aceitando formato brasileiro
+  // ("29,90", "1.234,56"). Vazio/ilegível retorna undefined — na edição o
+  // campo é OMITIDO do payload e o backend mantém o preço atual, em vez de
+  // gravar 0 e "sumir" com o valor.
+  const parsePriceText = (v: any): number | undefined => {
+    if (v === undefined || v === null) return undefined;
+    const s = String(v).trim();
+    if (!s) return undefined;
+    const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+    const n = parseFloat(normalized);
+    return isNaN(n) || n < 0 ? undefined : n;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const cleanName = formData.name.trim();
     if (!cleanName || !formData.unit.trim()) return toast.error("Preencha Nome e Unidade");
-    
+
     const finalSku = (useAutoSku ? nextSku : formData.sku).trim();
     if (!finalSku) return toast.error("O código SKU não pode ficar vazio");
 
     // Removemos quantity daqui, a entrada do sistema agora é o único lugar que dita estoque.
-    const data = { 
-      ...formData, 
+    const parsedPrice = parsePriceText(formData.unit_price);
+    const data: any = {
+      ...formData,
       name: cleanName,
-      sku: finalSku, 
-      min_stock: parseFloat(formData.min_stock) || 0, 
-      unit_price: parseFloat(formData.unit_price) || 0 
+      sku: finalSku,
+      min_stock: parseFloat(formData.min_stock) || 0,
     };
-    
+
+    if (parsedPrice !== undefined) data.unit_price = parsedPrice;
+    else delete data.unit_price; // campo vazio na edição = manter o preço atual
+
     editingProduct ? updateMutation.mutate({ id: editingProduct.id, data }) : createMutation.mutate(data);
   };
 
@@ -454,16 +470,18 @@ export default function Products() {
   const handleConfirmPrice = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductForPrice) return;
-    
-    const numericPrice = parseFloat(priceValue.replace(',', '.'));
-    if (isNaN(numericPrice) || numericPrice < 0) return toast.error("Insira um valor válido.");
-    
-    const currentSalesPrice = parseFloat(selectedProductForPrice.sales_price || "0");
-    
-    updatePriceMutation.mutate({ 
-      id: selectedProductForPrice.id, 
-      price: numericPrice, 
-      salesPrice: currentSalesPrice 
+
+    const numericPrice = parsePriceText(priceValue);
+    if (numericPrice === undefined) return toast.error("Insira um valor válido.");
+
+    // Reenvia o sales_price atual apenas se for legível; caso contrário omite
+    // (undefined) e o backend mantém o valor que está no banco.
+    const currentSalesPrice = parsePriceText(selectedProductForPrice.sales_price);
+
+    updatePriceMutation.mutate({
+      id: selectedProductForPrice.id,
+      price: numericPrice,
+      salesPrice: currentSalesPrice as any
     });
   };
 
