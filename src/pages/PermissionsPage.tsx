@@ -177,6 +177,22 @@ const BASE_DEPARTMENTS = [
   }
 ];
 
+// Compara duas listas de permissões ignorando a ordem (conjuntos).
+const sameSet = (a: string[] = [], b: string[] = []) => {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  return a.every((x) => sb.has(x));
+};
+
+// Compara dois mapas {alvo: permissões[]} por conjunto, cobrindo chaves de ambos.
+const mapsEqual = (a: Record<string, string[]>, b: Record<string, string[]>) => {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (!sameSet(a[k] || [], b[k] || [])) return false;
+  }
+  return true;
+};
+
 export default function PermissionsPage() {
   const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>({});
   const [originalRolePermissions, setOriginalRolePermissions] = useState<Record<string, string[]>>({});
@@ -208,9 +224,11 @@ export default function PermissionsPage() {
     return deps;
   }, [users]);
 
+  // Comparação por conjunto (não por string): evita falso "há mudanças" só
+  // porque a ordem dos arrays diferiu, e alinha com a detecção do que enviar.
   const hasChanges = useMemo(() => {
-    return JSON.stringify(rolePermissions) !== JSON.stringify(originalRolePermissions) || 
-           JSON.stringify(userPermissions) !== JSON.stringify(originalUserPermissions);
+    return !mapsEqual(rolePermissions, originalRolePermissions) ||
+           !mapsEqual(userPermissions, originalUserPermissions);
   }, [rolePermissions, originalRolePermissions, userPermissions, originalUserPermissions]);
 
   // Marca se o carregamento da matriz foi bem-sucedido. Se falhar, o Salvar é
@@ -267,23 +285,61 @@ export default function PermissionsPage() {
       return;
     }
 
+    // 🎯 Envia SÓ o que mudou (antes reenviava todos os ~30 cargos + usuários a
+    // cada save). Detecta por conjunto, comparando com o estado carregado.
+    const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
+    const changedRoles = allRoleIds.filter(roleId =>
+      !sameSet(rolePermissions[roleId] || [], originalRolePermissions[roleId] || [])
+    );
+    const changedUserIds = Array.from(new Set([
+      ...Object.keys(userPermissions),
+      ...Object.keys(originalUserPermissions),
+    ])).filter(userId =>
+      !sameSet(userPermissions[userId] || [], originalUserPermissions[userId] || [])
+    );
+
+    if (changedRoles.length === 0 && changedUserIds.length === 0) {
+      toast.info("Nenhuma alteração para salvar.");
+      return;
+    }
+
     setSaving(true);
     try {
-      // Usar a lista dinâmica para garantir que tudo salva
-      const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
-      
-      const rolePromises = allRoleIds.map(roleId => 
+      // allSettled: uma falha isolada não descarta as gravações que deram certo
+      const roleResults = await Promise.allSettled(changedRoles.map(roleId =>
         api.post("/admin/permissions/roles", { role: roleId, permissions: rolePermissions[roleId] || [] })
-      );
-      
-      const userPromises = Object.keys(userPermissions).map(userId => 
+      ));
+      const userResults = await Promise.allSettled(changedUserIds.map(userId =>
         api.post(`/admin/permissions/users`, { userId, permissions: userPermissions[userId] || [] })
-      );
+      ));
 
-      await Promise.all([...rolePromises, ...userPromises]);
-      setOriginalRolePermissions(rolePermissions);
-      setOriginalUserPermissions(userPermissions);
-      toast.success("Matriz salva com sucesso!");
+      // Atualiza o "original" APENAS do que salvou — o que falhou continua
+      // marcado como alteração pendente (botão permanece ativo para novo envio).
+      const okRoles = changedRoles.filter((_, i) => roleResults[i].status === 'fulfilled');
+      const okUsers = changedUserIds.filter((_, i) => userResults[i].status === 'fulfilled');
+
+      if (okRoles.length > 0) {
+        setOriginalRolePermissions(prev => {
+          const next = { ...prev };
+          okRoles.forEach(roleId => { next[roleId] = [...(rolePermissions[roleId] || [])]; });
+          return next;
+        });
+      }
+      if (okUsers.length > 0) {
+        setOriginalUserPermissions(prev => {
+          const next = { ...prev };
+          okUsers.forEach(userId => { next[userId] = [...(userPermissions[userId] || [])]; });
+          return next;
+        });
+      }
+
+      const failed = roleResults.filter(r => r.status === 'rejected').length +
+                     userResults.filter(r => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast.error(`${failed} alteração(ões) não foram salvas. As demais foram guardadas — clique em salvar novamente.`);
+      } else {
+        toast.success(`Matriz salva! ${okRoles.length} cargo(s) e ${okUsers.length} usuário(s) atualizados.`);
+      }
     } catch (error) {
       toast.error("Erro ao salvar matriz de segurança.");
     } finally {
