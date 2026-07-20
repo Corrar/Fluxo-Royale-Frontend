@@ -23,7 +23,7 @@ import { Search, ShoppingCart, Trash2, LogOut, Loader2, Minus, Plus, Download, F
 const SECTORS = [
   "Elétrica", "Flow", "Esteira", "Lavadora", "Usinagem",
   "Desenvolvimento", "Protótipo", "Engenharia", "Outros",
-  "Viagem", "Terceiros", "Acumulador", "Reposição"
+  "Viagem", "Terceiros", "Acumulador", "Reposição", "Escritório"
 ];
 
 // Mesmas tags isentas de OP usadas pelo backend em manualWithdrawal
