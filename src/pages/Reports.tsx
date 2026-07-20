@@ -674,26 +674,20 @@ export default function Reports() {
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
-    const itensMovimentadosNoPeriodo = new Set();
-
-    todasEntradas.forEach((cur: any) => {
-        const d = new Date(cur.data || cur.created_at);
-        if (d >= sDate && d <= eDate) {
-            itensMovimentadosNoPeriodo.add(cur.produto);
-        }
-    });
-
-    todasSaidas.forEach((cur: any) => {
-        const d = new Date(cur.data || cur.created_at);
-        if (d >= sDate && d <= eDate) {
-            itensMovimentadosNoPeriodo.add(cur.produto);
-        }
-    });
+    // 📦 OBSOLESCÊNCIA: item parado (sem entrada nem saída) há mais de N dias, OU
+    // que nunca se movimentou. Usa `ultima_movimentacao` (o backend já calcula a
+    // data do último movimento real de cada produto) e é INDEPENDENTE do período
+    // do relatório — antes, filtrar "Hoje" marcava quase todo o estoque como
+    // obsoleto só porque não se mexeu nas últimas horas.
+    const DIAS_OBSOLESCENCIA = 90;
+    const limiteObsolescencia = new Date();
+    limiteObsolescencia.setDate(limiteObsolescencia.getDate() - DIAS_OBSOLESCENCIA);
 
     const obsoletos = estoque.filter((item: any) => {
         const qTotal = Number(item.quantidade_total || item.quantidade || 0);
-        if (qTotal <= 0) return false; 
-        return !itensMovimentadosNoPeriodo.has(item.produto);
+        if (qTotal <= 0) return false;
+        if (!item.ultima_movimentacao) return true; // nunca se moveu
+        return new Date(item.ultima_movimentacao) < limiteObsolescencia;
     }).sort((a: any, b: any) => {
         if (!a.ultima_movimentacao) return -1;
         if (!b.ultima_movimentacao) return 1;
@@ -1464,7 +1458,7 @@ export default function Reports() {
                 <AlertCard 
                     icon={Clock} 
                     title="Alerta de Obsolescência" 
-                    desc={`Detectados ${analytics.obsoletos.length} itens sem qualquer movimentação no período selecionado.`} 
+                    desc={`Detectados ${analytics.obsoletos.length} itens parados há mais de 90 dias (ou nunca movimentados).`}
                     variant="rose" 
                 />
             )}
