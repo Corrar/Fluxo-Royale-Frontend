@@ -381,21 +381,33 @@ export default function Reports() {
     const sDate = new Date(`${startDate}T00:00:00`);
     const eDate = new Date(`${endDate}T23:59:59`);
 
+    // Normaliza o status (tolera acento/maiúscula/variações gravadas ao longo do tempo)
+    const norm = (s: any) => String(s || '').toLowerCase().trim();
+    const isPendente = (s: any) => norm(s) === 'pendente';
+    const isPreparo  = (s: any) => norm(s) === 'em_preparo' || norm(s) === 'em preparo';
+    const isConcluido = (s: any) => norm(s).startsWith('conclu'); // concluido / concluído / concluída
+    const isCancelado = (s: any) => norm(s).startsWith('cancel'); // cancelada / cancelado
+
     const filtered = replenishments.filter((r: any) => {
       const d = new Date(r.created_at);
       return d >= sDate && d <= eDate;
     });
 
-    const total = filtered.length;
-    const pendentes = filtered.filter((r: any) => r.status === 'pendente').length;
-    const emPreparo = filtered.filter((r: any) => r.status === 'em_preparo').length;
-    const concluidos = filtered.filter((r: any) => r.status === 'concluido').length;
-    
+    const pendentes = filtered.filter((r: any) => isPendente(r.status)).length;
+    const emPreparo = filtered.filter((r: any) => isPreparo(r.status)).length;
+    const concluidos = filtered.filter((r: any) => isConcluido(r.status)).length;
+    const cancelados = filtered.filter((r: any) => isCancelado(r.status)).length;
+
+    // Total = pedidos ATIVOS (exclui cancelados) — assim o total bate com a
+    // soma de Pendentes + Em Preparo + Finalizados exibida nos cards. Antes o
+    // total incluía cancelados e "não fechava" com as partes.
+    const total = pendentes + emPreparo + concluidos;
+
     const valorTotalConcluido = filtered
-      .filter((r: any) => r.status === 'concluido')
+      .filter((r: any) => isConcluido(r.status))
       .reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
 
-    return { total, pendentes, emPreparo, concluidos, valorTotalConcluido };
+    return { total, pendentes, emPreparo, concluidos, cancelados, valorTotalConcluido };
   }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
@@ -859,7 +871,8 @@ export default function Reports() {
 
     replenishments.forEach((r: any) => {
         const d = new Date(r.created_at);
-        if (d >= sDate && d <= eDate && String(r.status).toLowerCase() === 'concluido') {
+        // starts with 'conclu' tolera acento/variação (concluido/concluído)
+        if (d >= sDate && d <= eDate && String(r.status).toLowerCase().trim().startsWith('conclu')) {
             processDateTimeline(r.created_at, 'rep', 1);
         }
     });
@@ -2171,11 +2184,11 @@ export default function Reports() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <KPICard 
-                title="Total de Pedidos" 
-                value={formatNumber(metricsReplenishments.total)} 
-                subtext="Pedidos emitidos no período" 
-                icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400" 
+            <KPICard
+                title="Total de Pedidos"
+                value={formatNumber(metricsReplenishments.total)}
+                subtext={metricsReplenishments.cancelados > 0 ? `Ativos no período (${metricsReplenishments.cancelados} cancelado(s) à parte)` : "Pedidos ativos no período"}
+                icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400"
                 gradientClass="bg-slate-400/20"
             />
             <KPICard 
