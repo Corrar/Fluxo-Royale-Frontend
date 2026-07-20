@@ -62,12 +62,21 @@ const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "solicitacoes", label: "Gestão Solicitações", category: "Movimentação", description: "Aprovar pedidos", actions: ["view", "edit", "delete"] },
   { key: "minhas_solicitacoes", label: "Meus Pedidos", category: "Movimentação", description: "Criar próprios pedidos", actions: ["view", "add", "delete"] },
   { key: "separacoes", label: "Separações", category: "Movimentação", description: "Fila do almoxarifado", actions: ["view", "add", "edit", "delete"] },
+  { key: "reposicoes", label: "Reposições", category: "Movimentação", description: "Pedidos de reposição a clientes", actions: ["view", "add", "edit", "delete"] },
+  { key: "confronto_viagem", label: "Confronto de Viagens", category: "Movimentação", description: "Saída e acerto de viagens", actions: ["view", "add", "edit", "delete"] },
+  { key: "devolucoes_setor", label: "Devoluções por Setor", category: "Movimentação", description: "Central de devoluções", actions: ["view", "add"] },
   { key: "producao_3d", label: "Módulo Produção 3D", category: "Produção", description: "Acesso à Fábrica 3D", actions: ["view", "add", "edit", "delete"] },
   { key: "solicitar_3d", label: "Solicitar Peças 3D", category: "Produção", description: "Vitrine para setores pedirem peças", actions: ["view", "add"] },
   { key: "relatorios", label: "Relatórios BI", category: "Relatórios", description: "Gráficos gerenciais", actions: ["view"] },
+  { key: "estoque_critico", label: "Estoque Crítico", category: "Relatórios", description: "Itens abaixo do mínimo e compras", actions: ["view", "edit"] },
+  { key: "office_dashboard", label: "Controle de Saída (Office)", category: "Relatórios", description: "Painel do escritório", actions: ["view"] },
+  { key: "calculadora", label: "Calculadora de Custo", category: "Relatórios", description: "Ferramenta de custo", actions: ["view"] },
+  { key: "calculo_minimo", label: "Cálculo de Estoque Mínimo", category: "Relatórios", description: "Sugestão de mínimos", actions: ["view"] },
   { key: "clientes", label: "Clientes e OPs", category: "Administração", description: "Cadastros base", actions: ["view", "add", "edit", "delete"] },
   { key: "usuarios", label: "Usuários", category: "Administração", description: "Gestão de acessos", actions: ["view", "add", "edit", "delete"] },
   { key: "permissoes", label: "Matriz Permissões", category: "Administração", description: "Esta tela de segurança", actions: ["view", "edit"] },
+  { key: "logs", label: "Auditoria e Logs", category: "Administração", description: "Auditoria e movimentações de estoque", actions: ["view"] },
+  { key: "configuracoes", label: "Configurações do Sistema", category: "Administração", description: "Ajustes globais", actions: ["view", "edit"] },
 ];
 
 // --- NOVA ESTRUTURA GLOBAL E DETALHADA DE DEPARTAMENTOS ---
