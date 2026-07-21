@@ -409,24 +409,40 @@ export default function Products() {
     },
   });
 
+  // Converte texto de preço em número aceitando formato brasileiro
+  // ("29,90", "1.234,56"). Vazio/ilegível retorna undefined — na edição o
+  // campo é OMITIDO do payload e o backend mantém o preço atual, em vez de
+  // gravar 0 e "sumir" com o valor.
+  const parsePriceText = (v: any): number | undefined => {
+    if (v === undefined || v === null) return undefined;
+    const s = String(v).trim();
+    if (!s) return undefined;
+    const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+    const n = parseFloat(normalized);
+    return isNaN(n) || n < 0 ? undefined : n;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const cleanName = formData.name.trim();
     if (!cleanName || !formData.unit.trim()) return toast.error("Preencha Nome e Unidade");
-    
+
     const finalSku = (useAutoSku ? nextSku : formData.sku).trim();
     if (!finalSku) return toast.error("O código SKU não pode ficar vazio");
 
     // Removemos quantity daqui, a entrada do sistema agora é o único lugar que dita estoque.
-    const data = { 
-      ...formData, 
+    const parsedPrice = parsePriceText(formData.unit_price);
+    const data: any = {
+      ...formData,
       name: cleanName,
-      sku: finalSku, 
-      min_stock: parseFloat(formData.min_stock) || 0, 
-      unit_price: parseFloat(formData.unit_price) || 0 
+      sku: finalSku,
+      min_stock: parseFloat(formData.min_stock) || 0,
     };
-    
+
+    if (parsedPrice !== undefined) data.unit_price = parsedPrice;
+    else delete data.unit_price; // campo vazio na edição = manter o preço atual
+
     editingProduct ? updateMutation.mutate({ id: editingProduct.id, data }) : createMutation.mutate(data);
   };
 
@@ -454,16 +470,18 @@ export default function Products() {
   const handleConfirmPrice = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductForPrice) return;
-    
-    const numericPrice = parseFloat(priceValue.replace(',', '.'));
-    if (isNaN(numericPrice) || numericPrice < 0) return toast.error("Insira um valor válido.");
-    
-    const currentSalesPrice = parseFloat(selectedProductForPrice.sales_price || "0");
-    
-    updatePriceMutation.mutate({ 
-      id: selectedProductForPrice.id, 
-      price: numericPrice, 
-      salesPrice: currentSalesPrice 
+
+    const numericPrice = parsePriceText(priceValue);
+    if (numericPrice === undefined) return toast.error("Insira um valor válido.");
+
+    // Reenvia o sales_price atual apenas se for legível; caso contrário omite
+    // (undefined) e o backend mantém o valor que está no banco.
+    const currentSalesPrice = parsePriceText(selectedProductForPrice.sales_price);
+
+    updatePriceMutation.mutate({
+      id: selectedProductForPrice.id,
+      price: numericPrice,
+      salesPrice: currentSalesPrice as any
     });
   };
 
@@ -579,7 +597,7 @@ export default function Products() {
           <div className="flex flex-col gap-1.5 text-white">
             <div className="flex items-center gap-2 font-bold text-[11px] sm:text-[12px] uppercase tracking-widest mb-1 opacity-80">
               {isPurchaseMode ? <ShoppingBag className="h-4 w-4" /> : (canViewTotalValue ? <TrendingUp className="h-4 w-4" /> : <Package className="h-4 w-4" />)}
-              <span>{isPurchaseMode ? "Área de Compras" : (canViewTotalValue ? "Patrimônio Total" : "Produtos Cadastrados")}</span>
+              <span>{isPurchaseMode ? "Área de Compras" : (canViewTotalValue ? "Almoxarifado" : "Produtos Cadastrados")}</span>
               {!isPurchaseMode && (
                 <button onClick={() => setIsVisible(!isVisible)} className="p-1.5 hover:bg-white/20 rounded-full transition-colors ml-1 active:scale-90">
                   {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -590,11 +608,11 @@ export default function Products() {
             <div className="flex items-baseline gap-1 sm:gap-2 drop-shadow-sm">
               {!isPurchaseMode && canViewTotalValue && <span className="text-xl sm:text-2xl font-medium opacity-90">R$</span>}
               <h1 className="text-4xl sm:text-5xl md:text-[64px] leading-none font-black tracking-tighter">
-                {isPurchaseMode 
-                  ? "Catálogo" 
-                  : (canViewTotalValue 
-                      ? (isVisible ? totalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••")
-                      : (isVisible ? totalItems : "••") 
+                {isPurchaseMode
+                  ? "Catálogo"
+                  : (canViewTotalValue
+                      ? (isVisible ? valorOutros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••")
+                      : (isVisible ? totalItems : "••")
                     )}
               </h1>
             </div>
@@ -606,8 +624,8 @@ export default function Products() {
                      <span className="text-lg sm:text-xl font-black">R$ {isVisible ? valorUsinagem.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2 border border-white/20">
-                     <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-80 block mb-0.5">Outros Materiais</span>
-                     <span className="text-lg sm:text-xl font-black">R$ {isVisible ? valorOutros.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
+                     <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest opacity-80 block mb-0.5">Patrimônio Total</span>
+                     <span className="text-lg sm:text-xl font-black">R$ {isVisible ? totalGeral.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "••••"}</span>
                   </div>
                </div>
             )}

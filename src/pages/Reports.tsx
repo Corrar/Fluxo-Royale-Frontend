@@ -381,21 +381,33 @@ export default function Reports() {
     const sDate = new Date(`${startDate}T00:00:00`);
     const eDate = new Date(`${endDate}T23:59:59`);
 
+    // Normaliza o status (tolera acento/maiúscula/variações gravadas ao longo do tempo)
+    const norm = (s: any) => String(s || '').toLowerCase().trim();
+    const isPendente = (s: any) => norm(s) === 'pendente';
+    const isPreparo  = (s: any) => norm(s) === 'em_preparo' || norm(s) === 'em preparo';
+    const isConcluido = (s: any) => norm(s).startsWith('conclu'); // concluido / concluído / concluída
+    const isCancelado = (s: any) => norm(s).startsWith('cancel'); // cancelada / cancelado
+
     const filtered = replenishments.filter((r: any) => {
       const d = new Date(r.created_at);
       return d >= sDate && d <= eDate;
     });
 
-    const total = filtered.length;
-    const pendentes = filtered.filter((r: any) => r.status === 'pendente').length;
-    const emPreparo = filtered.filter((r: any) => r.status === 'em_preparo').length;
-    const concluidos = filtered.filter((r: any) => r.status === 'concluido').length;
-    
+    const pendentes = filtered.filter((r: any) => isPendente(r.status)).length;
+    const emPreparo = filtered.filter((r: any) => isPreparo(r.status)).length;
+    const concluidos = filtered.filter((r: any) => isConcluido(r.status)).length;
+    const cancelados = filtered.filter((r: any) => isCancelado(r.status)).length;
+
+    // Total = pedidos ATIVOS (exclui cancelados) — assim o total bate com a
+    // soma de Pendentes + Em Preparo + Finalizados exibida nos cards. Antes o
+    // total incluía cancelados e "não fechava" com as partes.
+    const total = pendentes + emPreparo + concluidos;
+
     const valorTotalConcluido = filtered
-      .filter((r: any) => r.status === 'concluido')
+      .filter((r: any) => isConcluido(r.status))
       .reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
 
-    return { total, pendentes, emPreparo, concluidos, valorTotalConcluido };
+    return { total, pendentes, emPreparo, concluidos, cancelados, valorTotalConcluido };
   }, [replenishments, startDate, endDate]);
 
   const metrics3D = useMemo(() => {
@@ -408,8 +420,10 @@ export default function Reports() {
     });
 
     const totalPieces = filtered.reduce((acc: number, p: any) => acc + Number(p.quantity || 0), 0);
-    const totalFilament = filtered.reduce((acc: number, p: any) => acc + p.filamentGrams, 0);
-    const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + p.totalMinutes, 0);
+    // Number(): o backend envia numeric do Postgres como string — sem coerção o
+    // '+' concatenava texto e o KPI saía como NaN/lixo ("0100200300g").
+    const totalFilament = filtered.reduce((acc: number, p: any) => acc + Number(p.filamentGrams || 0), 0);
+    const totalTimeMinutes = filtered.reduce((acc: number, p: any) => acc + Number(p.totalMinutes || 0), 0);
     
     const horas = Math.floor(totalTimeMinutes / 60);
     const min = totalTimeMinutes % 60;
@@ -621,13 +635,17 @@ export default function Reports() {
     const compMesAnterior = reportData.comparativo_mes_anterior || { entradas: 0, saidas: 0 };
 
     const getEstoqueItem = (produtoNome: string) => {
-        return estoque.find((e:any) => 
-            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() || 
+        return estoque.find((e:any) =>
+            e.produto?.trim().toLowerCase() === produtoNome?.trim().toLowerCase() ||
             e.name?.trim().toLowerCase() === produtoNome?.trim().toLowerCase()
         );
     };
 
-    const getPrecoEstoque = (produtoNome: string) => Number(getEstoqueItem(produtoNome)?.preco) || 0;
+    // ⚠️ Desativado para valoração: o backend já envia preco_unitario com o custo
+    // HISTÓRICO do momento (fallback para o preço atual por ID). Buscar por nome
+    // pegava o preço de HOJE, zerava produtos renomeados e confundia homônimos.
+    // Mantida retornando 0 para preservar as chamadas existentes (`|| 0` efetivo).
+    const getPrecoEstoque = (_produtoNome: string) => 0;
     const getSkuEstoque = (produtoNome: string) => getEstoqueItem(produtoNome)?.sku || 'N/A';
 
     const valorTotalEstoque = estoque.reduce((acc: number, item: any) => acc + (Number(item.quantidade_total || item.quantidade || 0) * Number(item.preco || 0)), 0);
@@ -637,7 +655,7 @@ export default function Reports() {
     let valorEntradasManuais = 0;
 
     todasEntradas.forEach((cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        const preco = Number(cur.preco_unitario) || 0;
         const valTotalItem = Number(cur.quantidade) * preco;
         const categoria = obterCategoriaEntrada(cur);
 
@@ -649,33 +667,27 @@ export default function Reports() {
     const valorTotalEntradas = valorEntradasNFe + valorEntradasReuso + valorEntradasManuais;
 
     const valorTotalSaidas = todasSaidas.reduce((acc: number, cur: any) => {
-        const preco = Number(cur.preco_unitario) || getPrecoEstoque(cur.produto);
+        const preco = Number(cur.preco_unitario) || 0;
         return acc + (Number(cur.quantidade) * preco);
     }, 0);
 
     const valorRep = Number(custoReposicao) || 0;
     const valorGar = Number(custoGarantia) || 0;
 
-    const itensMovimentadosNoPeriodo = new Set();
-
-    todasEntradas.forEach((cur: any) => {
-        const d = new Date(cur.data || cur.created_at);
-        if (d >= sDate && d <= eDate) {
-            itensMovimentadosNoPeriodo.add(cur.produto);
-        }
-    });
-
-    todasSaidas.forEach((cur: any) => {
-        const d = new Date(cur.data || cur.created_at);
-        if (d >= sDate && d <= eDate) {
-            itensMovimentadosNoPeriodo.add(cur.produto);
-        }
-    });
+    // 📦 OBSOLESCÊNCIA: item parado (sem entrada nem saída) há mais de N dias, OU
+    // que nunca se movimentou. Usa `ultima_movimentacao` (o backend já calcula a
+    // data do último movimento real de cada produto) e é INDEPENDENTE do período
+    // do relatório — antes, filtrar "Hoje" marcava quase todo o estoque como
+    // obsoleto só porque não se mexeu nas últimas horas.
+    const DIAS_OBSOLESCENCIA = 90;
+    const limiteObsolescencia = new Date();
+    limiteObsolescencia.setDate(limiteObsolescencia.getDate() - DIAS_OBSOLESCENCIA);
 
     const obsoletos = estoque.filter((item: any) => {
         const qTotal = Number(item.quantidade_total || item.quantidade || 0);
-        if (qTotal <= 0) return false; 
-        return !itensMovimentadosNoPeriodo.has(item.produto);
+        if (qTotal <= 0) return false;
+        if (!item.ultima_movimentacao) return true; // nunca se moveu
+        return new Date(item.ultima_movimentacao) < limiteObsolescencia;
     }).sort((a: any, b: any) => {
         if (!a.ultima_movimentacao) return -1;
         if (!b.ultima_movimentacao) return 1;
@@ -817,48 +829,48 @@ export default function Reports() {
       else if (type === 'rep') entry.reposicoes += amount;
     };
 
+    // 📏 UNIDADE ÚNICA DO GRÁFICO: unidades físicas movimentadas (soma de
+    // `quantidade`). Antes cada série contava algo diferente — saídas do sistema
+    // e reposições contavam PEDIDOS, saídas manuais contavam ITENS, produção
+    // contava PEÇAS — e o "Total" somava tudo junto, um número sem significado.
+    // Agora todas as séries estão na mesma unidade e são comparáveis.
     todasEntradas.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
-            processDateTimeline(i.data || i.created_at, 'in', 1);
+            processDateTimeline(i.data || i.created_at, 'in', Number(i.quantidade) || 0);
         }
     });
 
-    const uniqueRequestsCounted = new Set();
     saidasSistemaPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         const statusField = String(i.status || i.op_status || i.request_status || i.status_solicitacao || '').toLowerCase();
         const isEntregue = statusField.includes('entregue');
-        
+
         if (d >= sDate && d <= eDate && isEntregue) {
-            const reqId = i.request_id || i.op_code || i.order_number || i.id || Math.random().toString();
-            const uniqKey = `${format(d, 'dd/MM')}-${reqId}`;
-            
-            if (!uniqueRequestsCounted.has(uniqKey)) {
-                uniqueRequestsCounted.add(uniqKey);
-                processDateTimeline(i.data || i.created_at, 'out_sis', 1);
-            }
+            processDateTimeline(i.data || i.created_at, 'out_sis', Number(i.quantidade) || 0);
         }
     });
 
     saidasManuaisPuras.forEach((i: any) => {
         const d = new Date(i.data || i.created_at);
         if (d >= sDate && d <= eDate) {
-            processDateTimeline(i.data || i.created_at, 'out_man', 1);
-        }
-    }); 
-    
-    productions3D.forEach((p: any) => {
-        const d = new Date(p.date || p.created_at);
-        if (d >= sDate && d <= eDate) {
-            processDateTimeline(p.date || p.created_at, 'prod_3d', Number(p.quantity || 1));
+            processDateTimeline(i.data || i.created_at, 'out_man', Number(i.quantidade) || 0);
         }
     });
 
-    replenishments.forEach((r: any) => {
-        const d = new Date(r.created_at);
-        if (d >= sDate && d <= eDate && String(r.status).toLowerCase() === 'concluido') {
-            processDateTimeline(r.created_at, 'rep', 1);
+    productions3D.forEach((p: any) => {
+        const d = new Date(p.date || p.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(p.date || p.created_at, 'prod_3d', Number(p.quantity) || 0);
+        }
+    });
+
+    // Usa as linhas de reposição já concluídas (com quantidade por item) em vez
+    // do array de pedidos — mantém a unidade consistente com as demais séries.
+    saidasReposicoesPuras.forEach((r: any) => {
+        const d = new Date(r.data || r.created_at);
+        if (d >= sDate && d <= eDate) {
+            processDateTimeline(r.data || r.created_at, 'rep', Number(r.quantidade) || 0);
         }
     });
 
@@ -1446,7 +1458,7 @@ export default function Reports() {
                 <AlertCard 
                     icon={Clock} 
                     title="Alerta de Obsolescência" 
-                    desc={`Detectados ${analytics.obsoletos.length} itens sem qualquer movimentação no período selecionado.`} 
+                    desc={`Detectados ${analytics.obsoletos.length} itens parados há mais de 90 dias (ou nunca movimentados).`}
                     variant="rose" 
                 />
             )}
@@ -2169,11 +2181,11 @@ export default function Reports() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <KPICard 
-                title="Total de Pedidos" 
-                value={formatNumber(metricsReplenishments.total)} 
-                subtext="Pedidos emitidos no período" 
-                icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400" 
+            <KPICard
+                title="Total de Pedidos"
+                value={formatNumber(metricsReplenishments.total)}
+                subtext={metricsReplenishments.cancelados > 0 ? `Ativos no período (${metricsReplenishments.cancelados} cancelado(s) à parte)` : "Pedidos ativos no período"}
+                icon={ListChecks} iconColor="text-slate-600 dark:text-slate-400"
                 gradientClass="bg-slate-400/20"
             />
             <KPICard 

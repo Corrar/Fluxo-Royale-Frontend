@@ -52,7 +52,7 @@ export const StockReturnPanel = () => {
       toast.success('Materiais localizados. Indique o que será devolvido.');
     } catch (error: any) {
       setMaterials([]);
-      toast.error(error.response?.data?.message || 'OP não encontrada ou sem saldo para devolução.');
+      toast.error(error.response?.data?.message || error.response?.data?.error || 'OP não encontrada ou sem saldo para devolução.');
     } finally {
       setIsLoading(false);
     }

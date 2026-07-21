@@ -142,7 +142,7 @@ export const NewStockPanel = () => {
       toast.success("Entrada registrada com sucesso!");
       setItems([{ id: crypto.randomUUID(), product_id: "", produto: "", sku: "", quantidade: "", isValid: false }]);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro na conexão com a base de dados.");
+      toast.error(error.response?.data?.error || error.response?.data?.message || "Erro na conexão com a base de dados.");
     } finally {
       setIsSubmitting(false);
     }

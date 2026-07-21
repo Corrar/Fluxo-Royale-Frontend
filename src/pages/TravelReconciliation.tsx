@@ -595,19 +595,49 @@ export default function TravelReconciliation() {
     setReconcileItems(prev => prev.map(item => String(item.product_id) === String(product_id) ? { ...item, returnedQuantity: Math.max(0, qty) } : item));
   };
 
+  const [confirmReconcileOpen, setConfirmReconcileOpen] = useState(false);
+
+  // Resumo do que o acerto vai gravar: consumido = saída - retorno.
+  // Itens sem retorno preenchido serão dados como 100% consumidos — é
+  // exatamente isso que o diálogo de confirmação existe para evitar por engano.
+  const reconcileSummary = useMemo(() => {
+    const rows = reconcileItems.map(item => {
+      const out = Number(item.quantity_out) || 0;
+      const ret = Number(item.returnedQuantity) || 0;
+      return {
+        ...item,
+        out,
+        ret,
+        consumed: Math.max(0, out - ret),
+        extra: Math.max(0, ret - out),
+      };
+    });
+    const fullyConsumed = rows.filter(r => r.out > 0 && r.ret === 0);
+    const totalConsumedValue = rows.reduce((acc, r) => acc + r.consumed * (Number(r.price) || 0), 0);
+    return { rows, fullyConsumed, totalConsumedValue };
+  }, [reconcileItems]);
+
+  // Passo 1: abre o resumo de confirmação
   const handleConfirmReconcile = () => {
     if (!selectedOrder) return;
-    
+    setConfirmReconcileOpen(true);
+  };
+
+  // Passo 2: grava o acerto de fato (chamado pelo diálogo)
+  const executeReconcile = () => {
+    if (!selectedOrder) return;
+    setConfirmReconcileOpen(false);
+
     const returnedPayload = reconcileItems
       .filter(item => item.returnedQuantity >= 0)
-      .map(item => ({ 
+      .map(item => ({
           product_id: String(item.product_id),
           returnedQuantity: Number(item.returnedQuantity)
       }));
-      
-    reconcileOrderMutation.mutate({ 
-        id: String(selectedOrder.id), 
-        data: { returnedItems: returnedPayload } 
+
+    reconcileOrderMutation.mutate({
+        id: String(selectedOrder.id),
+        data: { returnedItems: returnedPayload }
     });
   };
 
@@ -1550,9 +1580,9 @@ export default function TravelReconciliation() {
                  <ArrowLeft className="h-5 w-5 sm:hidden" />
                  <span className="hidden sm:inline">Voltar</span>
                </Button>
-               <Button 
-                  onClick={handleConfirmReconcile} 
-                  disabled={reconcileOrderMutation.isPending} 
+               <Button
+                  onClick={handleConfirmReconcile}
+                  disabled={reconcileOrderMutation.isPending}
                   className="flex-1 h-12 md:h-14 text-sm sm:text-base md:text-lg font-black rounded-xl md:rounded-2xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30 transition-all active:scale-[0.98] disabled:opacity-50 whitespace-nowrap text-center"
                 >
                  {reconcileOrderMutation.isPending ? "A Processar..." : "Fechar Acerto"}
@@ -1560,6 +1590,63 @@ export default function TravelReconciliation() {
             </div>
           </div>
         )}
+
+        {/* CONFIRMAÇÃO DO ACERTO: mostra exatamente o que será baixado como
+            consumido antes de gravar — itens sem retorno preenchido são o
+            maior gerador de furo por esquecimento. */}
+        <AlertDialog open={confirmReconcileOpen} onOpenChange={setConfirmReconcileOpen}>
+          <AlertDialogContent className="rounded-3xl max-w-lg">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-extrabold">Fechar o acerto desta viagem?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 pt-2">
+                  {reconcileSummary.fullyConsumed.length > 0 && (
+                    <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                      <p className="text-sm font-semibold">
+                        {reconcileSummary.fullyConsumed.length} item(ns) estão com retorno ZERO e serão baixados como
+                        totalmente consumidos na obra. Confira se nada voltou no caminhão antes de confirmar.
+                      </p>
+                    </div>
+                  )}
+                  <div className="max-h-[45vh] overflow-y-auto rounded-xl border border-border divide-y divide-border">
+                    {reconcileSummary.rows.map((r: any) => (
+                      <div key={r.product_id} className={cn(
+                        "flex items-center justify-between px-4 py-2.5 text-sm gap-3",
+                        r.out > 0 && r.ret === 0 && "bg-amber-50/70 dark:bg-amber-950/20"
+                      )}>
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate">{r.name}</p>
+                          <p className="text-[11px] text-muted-foreground">SKU: {r.sku || "—"} · Saída: {r.out} · Retorno: {r.ret}</p>
+                        </div>
+                        <div className="text-right shrink-0 whitespace-nowrap">
+                          {r.consumed > 0 && <span className="font-black text-red-600 dark:text-red-400">−{r.consumed} consumido</span>}
+                          {r.extra > 0 && <span className="font-black text-emerald-600 dark:text-emerald-400">+{r.extra} extra</span>}
+                          {r.consumed === 0 && r.extra === 0 && <span className="font-bold text-muted-foreground">tudo voltou</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm font-bold text-foreground">
+                    Valor total consumido: <span className="text-red-600 dark:text-red-400">{formatCurrency(reconcileSummary.totalConsumedValue)}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Ao confirmar, o consumo é baixado do estoque físico e a viagem é concluída. Esta ação encerra o confronto.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-3 mt-2">
+              <AlertDialogCancel className="rounded-xl h-11 font-bold flex-1">Revisar</AlertDialogCancel>
+              <AlertDialogAction
+                className="rounded-xl h-11 font-bold flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                onClick={executeReconcile}
+              >
+                Confirmar Acerto
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }

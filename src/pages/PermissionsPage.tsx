@@ -62,12 +62,21 @@ const AVAILABLE_PAGES: PermissionItem[] = [
   { key: "solicitacoes", label: "Gestão Solicitações", category: "Movimentação", description: "Aprovar pedidos", actions: ["view", "edit", "delete"] },
   { key: "minhas_solicitacoes", label: "Meus Pedidos", category: "Movimentação", description: "Criar próprios pedidos", actions: ["view", "add", "delete"] },
   { key: "separacoes", label: "Separações", category: "Movimentação", description: "Fila do almoxarifado", actions: ["view", "add", "edit", "delete"] },
+  { key: "reposicoes", label: "Reposições", category: "Movimentação", description: "Pedidos de reposição a clientes", actions: ["view", "add", "edit", "delete"] },
+  { key: "confronto_viagem", label: "Confronto de Viagens", category: "Movimentação", description: "Saída e acerto de viagens", actions: ["view", "add", "edit", "delete"] },
+  { key: "devolucoes_setor", label: "Devoluções por Setor", category: "Movimentação", description: "Central de devoluções", actions: ["view", "add"] },
   { key: "producao_3d", label: "Módulo Produção 3D", category: "Produção", description: "Acesso à Fábrica 3D", actions: ["view", "add", "edit", "delete"] },
   { key: "solicitar_3d", label: "Solicitar Peças 3D", category: "Produção", description: "Vitrine para setores pedirem peças", actions: ["view", "add"] },
   { key: "relatorios", label: "Relatórios BI", category: "Relatórios", description: "Gráficos gerenciais", actions: ["view"] },
+  { key: "estoque_critico", label: "Estoque Crítico", category: "Relatórios", description: "Itens abaixo do mínimo e compras", actions: ["view", "edit"] },
+  { key: "office_dashboard", label: "Controle de Saída (Office)", category: "Relatórios", description: "Painel do escritório", actions: ["view"] },
+  { key: "calculadora", label: "Calculadora de Custo", category: "Relatórios", description: "Ferramenta de custo", actions: ["view"] },
+  { key: "calculo_minimo", label: "Cálculo de Estoque Mínimo", category: "Relatórios", description: "Sugestão de mínimos", actions: ["view"] },
   { key: "clientes", label: "Clientes e OPs", category: "Administração", description: "Cadastros base", actions: ["view", "add", "edit", "delete"] },
   { key: "usuarios", label: "Usuários", category: "Administração", description: "Gestão de acessos", actions: ["view", "add", "edit", "delete"] },
   { key: "permissoes", label: "Matriz Permissões", category: "Administração", description: "Esta tela de segurança", actions: ["view", "edit"] },
+  { key: "logs", label: "Auditoria e Logs", category: "Administração", description: "Auditoria e movimentações de estoque", actions: ["view"] },
+  { key: "configuracoes", label: "Configurações do Sistema", category: "Administração", description: "Ajustes globais", actions: ["view", "edit"] },
 ];
 
 // --- NOVA ESTRUTURA GLOBAL E DETALHADA DE DEPARTAMENTOS ---
@@ -168,6 +177,22 @@ const BASE_DEPARTMENTS = [
   }
 ];
 
+// Compara duas listas de permissões ignorando a ordem (conjuntos).
+const sameSet = (a: string[] = [], b: string[] = []) => {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  return a.every((x) => sb.has(x));
+};
+
+// Compara dois mapas {alvo: permissões[]} por conjunto, cobrindo chaves de ambos.
+const mapsEqual = (a: Record<string, string[]>, b: Record<string, string[]>) => {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (!sameSet(a[k] || [], b[k] || [])) return false;
+  }
+  return true;
+};
+
 export default function PermissionsPage() {
   const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>({});
   const [originalRolePermissions, setOriginalRolePermissions] = useState<Record<string, string[]>>({});
@@ -199,24 +224,33 @@ export default function PermissionsPage() {
     return deps;
   }, [users]);
 
+  // Comparação por conjunto (não por string): evita falso "há mudanças" só
+  // porque a ordem dos arrays diferiu, e alinha com a detecção do que enviar.
   const hasChanges = useMemo(() => {
-    return JSON.stringify(rolePermissions) !== JSON.stringify(originalRolePermissions) || 
-           JSON.stringify(userPermissions) !== JSON.stringify(originalUserPermissions);
+    return !mapsEqual(rolePermissions, originalRolePermissions) ||
+           !mapsEqual(userPermissions, originalUserPermissions);
   }, [rolePermissions, originalRolePermissions, userPermissions, originalUserPermissions]);
+
+  // Marca se o carregamento da matriz foi bem-sucedido. Se falhar, o Salvar é
+  // bloqueado para não gravar uma matriz VAZIA por cima da real (apagando as
+  // permissões de todos os cargos de uma vez).
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const fetchAllPermissions = async () => {
     try {
       setLoading(true);
+      setLoadFailed(false);
       const [resRoles, resUsers] = await Promise.all([
-        api.get("/admin/permissions/roles").catch(() => ({ data: {} })), 
-        api.get("/admin/permissions/users").catch(() => ({ data: {} }))
+        api.get("/admin/permissions/roles"),
+        api.get("/admin/permissions/users")
       ]);
       setRolePermissions(resRoles.data || {});
       setOriginalRolePermissions(resRoles.data || {});
       setUserPermissions(resUsers.data || {});
       setOriginalUserPermissions(resUsers.data || {});
     } catch (error) {
-      toast.error("Erro ao carregar permissões.");
+      setLoadFailed(true);
+      toast.error("Erro ao carregar permissões. Recarregue antes de salvar — salvar agora apagaria as permissões existentes.");
     } finally {
       setLoading(false);
     }
@@ -238,23 +272,74 @@ export default function PermissionsPage() {
   };
 
   const handleSave = async () => {
+    // Trava de segurança: nunca gravar sobre um carregamento que falhou nem uma
+    // matriz completamente vazia (sintoma de fetch com erro engolido).
+    if (loadFailed) {
+      toast.error("A matriz não foi carregada corretamente. Recarregue a página antes de salvar.");
+      return;
+    }
+    const roleKeys = Object.keys(rolePermissions);
+    const totalGrants = roleKeys.reduce((acc, k) => acc + (rolePermissions[k]?.length || 0), 0);
+    if (roleKeys.length === 0 || totalGrants === 0) {
+      toast.error("Matriz vazia — salvar apagaria todas as permissões. Ação bloqueada por segurança.");
+      return;
+    }
+
+    // 🎯 Envia SÓ o que mudou (antes reenviava todos os ~30 cargos + usuários a
+    // cada save). Detecta por conjunto, comparando com o estado carregado.
+    const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
+    const changedRoles = allRoleIds.filter(roleId =>
+      !sameSet(rolePermissions[roleId] || [], originalRolePermissions[roleId] || [])
+    );
+    const changedUserIds = Array.from(new Set([
+      ...Object.keys(userPermissions),
+      ...Object.keys(originalUserPermissions),
+    ])).filter(userId =>
+      !sameSet(userPermissions[userId] || [], originalUserPermissions[userId] || [])
+    );
+
+    if (changedRoles.length === 0 && changedUserIds.length === 0) {
+      toast.info("Nenhuma alteração para salvar.");
+      return;
+    }
+
     setSaving(true);
     try {
-      // Usar a lista dinâmica para garantir que tudo salva
-      const allRoleIds = processedDepartments.flatMap(d => d.roles.map(r => r.id));
-      
-      const rolePromises = allRoleIds.map(roleId => 
+      // allSettled: uma falha isolada não descarta as gravações que deram certo
+      const roleResults = await Promise.allSettled(changedRoles.map(roleId =>
         api.post("/admin/permissions/roles", { role: roleId, permissions: rolePermissions[roleId] || [] })
-      );
-      
-      const userPromises = Object.keys(userPermissions).map(userId => 
+      ));
+      const userResults = await Promise.allSettled(changedUserIds.map(userId =>
         api.post(`/admin/permissions/users`, { userId, permissions: userPermissions[userId] || [] })
-      );
+      ));
 
-      await Promise.all([...rolePromises, ...userPromises]);
-      setOriginalRolePermissions(rolePermissions);
-      setOriginalUserPermissions(userPermissions);
-      toast.success("Matriz salva com sucesso!");
+      // Atualiza o "original" APENAS do que salvou — o que falhou continua
+      // marcado como alteração pendente (botão permanece ativo para novo envio).
+      const okRoles = changedRoles.filter((_, i) => roleResults[i].status === 'fulfilled');
+      const okUsers = changedUserIds.filter((_, i) => userResults[i].status === 'fulfilled');
+
+      if (okRoles.length > 0) {
+        setOriginalRolePermissions(prev => {
+          const next = { ...prev };
+          okRoles.forEach(roleId => { next[roleId] = [...(rolePermissions[roleId] || [])]; });
+          return next;
+        });
+      }
+      if (okUsers.length > 0) {
+        setOriginalUserPermissions(prev => {
+          const next = { ...prev };
+          okUsers.forEach(userId => { next[userId] = [...(userPermissions[userId] || [])]; });
+          return next;
+        });
+      }
+
+      const failed = roleResults.filter(r => r.status === 'rejected').length +
+                     userResults.filter(r => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast.error(`${failed} alteração(ões) não foram salvas. As demais foram guardadas — clique em salvar novamente.`);
+      } else {
+        toast.success(`Matriz salva! ${okRoles.length} cargo(s) e ${okUsers.length} usuário(s) atualizados.`);
+      }
     } catch (error) {
       toast.error("Erro ao salvar matriz de segurança.");
     } finally {

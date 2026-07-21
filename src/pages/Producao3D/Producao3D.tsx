@@ -101,7 +101,7 @@ const CustomBarTooltip = ({ active, payload, label }: any) => {
   };
 
 // --- MODAL: REGISTRAR PRODUÇÃO (MELHORADO) ---
-function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any) {
+function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd, isSaving }: any) {
   const [partId, setPartId] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [operator, setOperator] = useState("");
@@ -180,7 +180,7 @@ function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any)
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantidade</Label>
               <div className="flex items-center h-12 bg-slate-50 dark:bg-slate-900 rounded-[16px] border border-slate-200/60 dark:border-slate-800 shadow-inner p-1">
                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="h-full w-10 flex items-center justify-center bg-white dark:bg-slate-950 rounded-xl shadow-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 active:scale-90 transition-all"><Minus className="h-4 w-4" strokeWidth={3}/></button>
-                 <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, +e.target.value))} className="flex-1 border-0 bg-transparent text-center font-black text-lg p-0 focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none" />
+                 <Input type="number" min={1} value={quantity} onChange={(e) => { const v = parseInt(e.target.value, 10); setQuantity(isNaN(v) || v < 1 ? 1 : v); }} className="flex-1 border-0 bg-transparent text-center font-black text-lg p-0 focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none" />
                  <button onClick={() => setQuantity(quantity + 1)} className="h-full w-10 flex items-center justify-center bg-indigo-600 rounded-xl shadow-sm text-white hover:bg-indigo-700 active:scale-90 transition-all"><Plus className="h-4 w-4" strokeWidth={3}/></button>
               </div>
             </div>
@@ -243,7 +243,7 @@ function NewProductionDialog({ open, onOpenChange, parts, demands, onAdd }: any)
         </div>
         <div className="p-6 sm:p-8 pt-0 flex flex-col sm:flex-row gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-14 sm:flex-1 border-slate-200 dark:border-slate-800 text-slate-600">Cancelar</Button>
-          <Button onClick={handleSave} className="rounded-xl font-black h-14 sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20">Registrar e Salvar</Button>
+          <Button onClick={handleSave} disabled={isSaving} className="rounded-xl font-black h-14 sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20 disabled:opacity-50">{isSaving ? "A Registar..." : "Registrar e Salvar"}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -414,10 +414,13 @@ export default function Producao3D() {
     mutationFn: async (novaProducao: any) => (await api.post('/producao-3d/productions', novaProducao)).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['producao_3d_history'] });
+      queryClient.invalidateQueries({ queryKey: ['producao_3d_parts'] });
+      queryClient.invalidateQueries({ queryKey: ['producao_3d_demands'] });
       toast.success("Produção registrada com sucesso!");
       setCreating(false);
     },
-    onError: () => toast.error("Erro ao registrar a produção. Tente novamente.")
+    // Mostra a mensagem REAL do backend (permissão, validação, etc.) em vez de um genérico
+    onError: (err: any) => toast.error(err?.response?.data?.error || "Erro ao registrar a produção. Tente novamente.")
   });
 
   const deleteProductionMutation = useMutation({
@@ -425,7 +428,8 @@ export default function Producao3D() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['producao_3d_history'] });
       toast.success("Produção removida.");
-    }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || "Erro ao remover a produção.")
   });
 
   // === CÁLCULOS E FILTROS DE TEMPO ===
@@ -826,12 +830,13 @@ export default function Producao3D() {
 
       {/* MODAL 1: REGISTRAR PRODUÇÃO */}
       {creating && (
-        <NewProductionDialog 
-          open={creating} 
-          onOpenChange={setCreating} 
-          parts={parts} 
-          demands={demands} 
-          onAdd={(data: any) => addProductionMutation.mutate(data)} 
+        <NewProductionDialog
+          open={creating}
+          onOpenChange={setCreating}
+          parts={parts}
+          demands={demands}
+          isSaving={addProductionMutation.isPending}
+          onAdd={(data: any) => addProductionMutation.mutate(data)}
         />
       )}
 

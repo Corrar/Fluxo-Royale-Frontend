@@ -1381,11 +1381,16 @@ export default function Replenishments() {
   // ===================== ACTIONS =====================
   const handleSaveAuth = () => {
     if (!selectedReplenishment) return;
-    const payload = selectedReplenishment.items.map((i) => {
-      const inc = inputIncrements[i.id];
-      const numericInc = typeof inc === 'number' ? inc : parseFloat(inc as string) || 0;
-      return { id: i.id, quantity: i.quantity + numericInc };
-    });
+    // Envia o INCREMENTO, não a quantidade absoluta: o backend soma sobre o
+    // valor atual do banco, imune a cache defasado entre dois almoxarifes.
+    const payload = selectedReplenishment.items
+      .map((i) => {
+        const inc = inputIncrements[i.id];
+        const numericInc = typeof inc === 'number' ? inc : parseFloat(inc as string) || 0;
+        return { id: i.id, increment: numericInc };
+      })
+      .filter((i) => i.increment !== 0);
+    if (payload.length === 0) return;
     authorizeMutation.mutate({ id: selectedReplenishment.id, items: payload, statusAction: "reservar" });
   };
 
@@ -1402,10 +1407,12 @@ export default function Replenishments() {
 
   const executeDelivery = () => {
     if (!selectedReplenishment) return;
+    // Entrega envia todos os itens como incremento (o backend baixa o físico
+    // sobre o valor atual do banco), imune a cache defasado.
     const payload = selectedReplenishment.items.map((i) => {
         const inc = inputIncrements[i.id];
         const numericInc = typeof inc === 'number' ? inc : parseFloat(inc as string) || 0;
-        return { id: i.id, quantity: i.quantity + numericInc };
+        return { id: i.id, increment: numericInc };
     });
     authorizeMutation.mutate({ 
         id: selectedReplenishment.id, 

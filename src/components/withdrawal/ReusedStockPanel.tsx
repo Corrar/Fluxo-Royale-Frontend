@@ -145,7 +145,7 @@ export const ReusedStockPanel = () => {
       toast.success(`${items.length} item(ns) classificados como reaproveitados com sucesso!`);
       setItems([{ id: crypto.randomUUID(), product_id: "", produto: "", sku: "", quantidade: "", isValid: false }]);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao registrar o reaproveitamento.");
+      toast.error(error.response?.data?.error || error.response?.data?.message || "Erro ao registrar o reaproveitamento.");
     } finally {
       setIsSubmitting(false);
     }

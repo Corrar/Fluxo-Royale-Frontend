@@ -5,7 +5,7 @@ import {
   Calculator, Eye, ClipboardList, Bell, ChevronLeft, ChevronRight,
   AlertTriangle, ShieldCheck, Lock, Sparkles, Kanban, Zap, ChevronDown, Search, ArrowUpCircle,
   Briefcase, RefreshCw, ArchiveRestore, Terminal, Building2,
-  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings // Ícones mantidos
+  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings, History // Ícones mantidos
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -357,6 +357,7 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
                     {canAccess('relatorios') && renderLink("/reports", <BarChart3 className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Relatórios")}
                     {canAccess('usuarios') && renderLink("/users", <Users className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Usuários")}
                     {canAccess('logs') && renderLink("/audit", <ShieldCheck className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Auditoria")}
+                    {canAccess('logs') && renderLink("/stock-movements", <History className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Movimentações")}
                     {canAccess('permissoes') && renderLink("/permissions", <Lock className={isMobileMenu ? "h-6 w-6" : "h-[22px] w-[22px]"} strokeWidth={2.2} />, "Permissões")}
 
                     {/* --- NOVO LINK PARA CONFIGURAÇÕES --- */}
