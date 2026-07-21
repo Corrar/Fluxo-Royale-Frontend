@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Package, Clock, Send, ShieldAlert, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
+import { Search, Package, Clock, Send, ShieldAlert, AlertCircle, CheckCircle2, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -24,6 +24,7 @@ const formatMinutes = (m: number) => {
 
 export default function Request3DPage() {
   const { profile, canAccess } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   
@@ -49,6 +50,19 @@ export default function Request3DPage() {
   const { data: stockData = [], isLoading: loadingStock } = useQuery({
     queryKey: ["stock-all"],
     queryFn: async () => (await api.get("/stock")).data,
+    enabled: hasViewPermission,
+  });
+
+  // 3. Busca os clientes/OPs para o seletor de OP (mesmo padrão da página de Solicitações)
+  const { data: clientsData = [] } = useQuery({
+    queryKey: ["clients-3d"],
+    queryFn: async () => {
+      const res = await api.get("/clients");
+      return res.data.map((c: any) => ({
+        ...c,
+        services: Array.isArray(c.services) ? c.services : (typeof c.services === 'string' ? JSON.parse(c.services) : []),
+      }));
+    },
     enabled: hasViewPermission,
   });
 
@@ -98,11 +112,17 @@ export default function Request3DPage() {
       return;
     }
 
+    // OP é obrigatória para peças 3D (não têm tags isentas; o backend rejeita sem OP)
+    if (!opCode || !opCode.trim()) {
+      toast.error("Selecione a OP correspondente para solicitar a peça.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.post('/requests', {
         sector: profile.sector,
-        op_code: opCode.trim() || undefined,
+        op_code: opCode.trim(),
         items: [
           {
             product_id: selectedProduct.id,
@@ -112,6 +132,11 @@ export default function Request3DPage() {
           }
         ]
       });
+
+      // Atualiza a vitrine (estoque/reserva mudaram) e as solicitações
+      queryClient.invalidateQueries({ queryKey: ["stock-all"] });
+      queryClient.invalidateQueries({ queryKey: ["products-active"] });
+      queryClient.invalidateQueries({ queryKey: ["my-requests"] });
 
       toast.success("Solicitação enviada com sucesso!");
       setSelectedProduct(null);
@@ -288,23 +313,14 @@ export default function Request3DPage() {
                  )}
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Qtd.</Label>
-                  <Input 
-                    type="number" min={1} 
+                  <Input
+                    type="number" min={1}
                     className="h-11 rounded-xl bg-slate-50 dark:bg-black/20"
-                    value={quantity} 
-                    onChange={(e) => setQuantity(Math.max(1, +e.target.value))} 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">OP (Opcional)</Label>
-                  <Input 
-                    placeholder="Ex: OP-123" 
-                    className="h-11 rounded-xl bg-slate-50 dark:bg-black/20 text-[13px]"
-                    value={opCode} 
-                    onChange={(e) => setOpCode(e.target.value)} 
+                    value={quantity}
+                    onChange={(e) => { const v = parseInt(e.target.value, 10); setQuantity(isNaN(v) || v < 1 ? 1 : v); }}
                   />
                 </div>
                 {/* --- SELETOR DE PRIORIDADE --- */}
@@ -322,6 +338,43 @@ export default function Request3DPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* --- SELETOR DE OP (OBRIGATÓRIO) — abre todas as OPs disponíveis, agrupadas por cliente --- */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5" /> Número da OP <span className="text-red-500">*</span>
+                </Label>
+                <Select value={opCode} onValueChange={setOpCode}>
+                  <SelectTrigger className={`h-11 rounded-xl bg-slate-50 dark:bg-black/20 text-[13px] ${!opCode ? 'border-red-300 dark:border-red-800' : ''}`}>
+                    <SelectValue placeholder="Selecione a OP correspondente..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {clientsData.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-slate-500">Nenhum cliente/OP encontrado no sistema.</div>
+                    ) : (
+                      clientsData.map((client: any) => {
+                        const ops = (client.services || []).filter((op: any) => {
+                          const status = (op.status || "").toLowerCase();
+                          return !['concluido', 'finalizada', 'encerrada'].includes(status);
+                        });
+                        if (ops.length === 0) return null;
+                        return (
+                          <SelectGroup key={client.id || client.name}>
+                            <SelectLabel className="bg-slate-100 dark:bg-[#222] text-slate-700 dark:text-slate-300 font-bold px-3 py-2 text-xs uppercase tracking-wider sticky top-0 z-10">
+                              {client.name}
+                            </SelectLabel>
+                            {ops.map((op: any) => (
+                              <SelectItem key={op.id} value={String(op.op_code)} className="font-medium cursor-pointer py-2.5">
+                                OP-{op.op_code}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        );
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="space-y-2">
