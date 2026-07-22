@@ -274,14 +274,22 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const invalidateStockData = () => {
       queryClient.invalidateQueries({ queryKey: ['stocks'] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-all'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products-list'] });
+      queryClient.invalidateQueries({ queryKey: ['products-active'] });
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
       queryClient.invalidateQueries({ queryKey: ['replenishments'] });
+      // Quadro de Demandas 3D reflete estoque/reserva das peças
+      queryClient.invalidateQueries({ queryKey: ['demands-3d'] });
+      queryClient.invalidateQueries({ queryKey: ['producao_3d_demands'] });
     };
     const invalidateRequestData = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      // Uma solicitação 3D vira uma demanda no Quadro do operador
+      queryClient.invalidateQueries({ queryKey: ['demands-3d'] });
+      queryClient.invalidateQueries({ queryKey: ['producao_3d_demands'] });
     };
     const invalidateSeparations = () => {
       queryClient.invalidateQueries({ queryKey: ['separations'] });

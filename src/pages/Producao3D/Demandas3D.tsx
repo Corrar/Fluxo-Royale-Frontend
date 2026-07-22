@@ -49,17 +49,24 @@ export default function Demandas3D() {
     mutationFn: async ({ id, status, reason }: { id: string; status: DemandStatus; reason?: string }) => {
       return api.put(`/producao-3d/demands/${id}/status`, { status, rejection_reason: reason });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (res, variables) => {
       queryClient.invalidateQueries({ queryKey: ["demands-3d"] });
       queryClient.invalidateQueries({ queryKey: ["products-active"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-all"] }); 
-      
+      queryClient.invalidateQueries({ queryKey: ["stock-all"] });
+      queryClient.invalidateQueries({ queryKey: ["my-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+
       if (variables.status === "Concluída") {
-        toast.success("Produção finalizada com sucesso!");
+        // O backend dá baixa automática na solicitação quando o pedido é 100% 3D
+        if (res?.data?.delivered) {
+          toast.success("Peça finalizada e solicitação entregue! ✅");
+        } else {
+          toast.success("Produção finalizada com sucesso!");
+        }
       } else if (variables.status === "Rejeitada") {
         toast.success("Demanda recusada e arquivada.");
       }
-      
+
       setActionDemand(null);
       setRejectionReason("");
     },
