@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,45 @@ const formatMinutes = (m: number) => {
   const h = Math.floor(m / 60);
   const min = m % 60;
   return h > 0 ? `${h}h ${min}min` : `${min}min`;
+};
+
+// Descrição que corta em 2 linhas por padrão, mas oferece "Ver mais" quando o
+// texto realmente transborda — assim peças com descrição longa podem ser lidas
+// por inteiro sem quebrar o alinhamento do grid.
+const ExpandableDescription = ({ text }: { text: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el) {
+      // Mede com o clamp aplicado: se o conteúdo é maior que a área visível,
+      // há texto escondido → mostramos o botão "Ver mais".
+      setIsClamped(el.scrollHeight > el.clientHeight + 1);
+    }
+  }, [text]);
+
+  return (
+    <div className="mb-5 flex-1">
+      <p
+        ref={ref}
+        title={text}
+        className={`text-xs text-slate-500 dark:text-slate-400 leading-relaxed ${expanded ? "" : "line-clamp-2"}`}
+      >
+        {text}
+      </p>
+      {(isClamped || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline mt-1"
+        >
+          {expanded ? "Ver menos" : "Ver mais"}
+        </button>
+      )}
+    </div>
+  );
 };
 
 export default function Request3DPage() {
@@ -238,12 +277,10 @@ export default function Request3DPage() {
                 
                 <CardContent className="p-5 flex flex-col flex-1">
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mb-1">{p.sku}</p>
-                  <h3 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-2 mb-2 leading-tight">
+                  <h3 title={p.name} className="font-bold text-slate-800 dark:text-slate-100 line-clamp-2 mb-2 leading-tight">
                     {p.name}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-5 flex-1">
-                    {p.description || "Nenhuma descrição técnica informada para este modelo."}
-                  </p>
+                  <ExpandableDescription text={p.description || "Nenhuma descrição técnica informada para este modelo."} />
                   
                   {hasAddPermission ? (
                       <Button 
@@ -276,10 +313,15 @@ export default function Request3DPage() {
               
               {/* --- PAINEL DE INTELIGÊNCIA --- */}
               <div className={`p-4 rounded-2xl border flex flex-col gap-2 ${missingQty > 0 ? 'bg-orange-50/50 border-orange-200 dark:bg-orange-500/10 dark:border-orange-500/20' : 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20'}`}>
-                 <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1 flex-1">{selectedProduct.name}</span>
+                 <div className="flex flex-col gap-1 mb-2">
+                    <span className="text-sm font-bold text-slate-900 dark:text-white flex-1">{selectedProduct.name}</span>
+                    {selectedProduct.description && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-h-28 overflow-y-auto pr-1 whitespace-pre-wrap">
+                        {selectedProduct.description}
+                      </p>
+                    )}
                  </div>
-                 
+
                  <div className="grid grid-cols-3 gap-2">
                     <div className="bg-white dark:bg-black/20 p-2 rounded-xl text-center border border-slate-100 dark:border-white/5">
                        <p className="text-[10px] text-slate-500 uppercase font-bold">Em Stock</p>
