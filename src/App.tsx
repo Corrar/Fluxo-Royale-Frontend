@@ -50,8 +50,10 @@ import SystemSettings from "./pages/SystemSettings";
 import Dashboard3D from "./pages/Producao3D/Dashboard3D";
 import Catalogo3D from "./pages/Producao3D/Catalogo3D";
 import Demandas3D from "./pages/Producao3D/Demandas3D";
-import Producao3D from "./pages/Producao3D/Producao3D"; 
-import Request3DPage from "./pages/Request3DPage"; 
+import Producao3D from "./pages/Producao3D/Producao3D";
+import Calculadora3D from "./pages/Producao3D/Calculadora3D";
+import Custos3D from "./pages/Producao3D/Custos3D";
+import Request3DPage from "./pages/Request3DPage";
 
 // === NOVA PÁGINA: CENTRAL DE DEVOLUÇÕES ===
 import CentralDevolucoesSetor from "./pages/CentralDevolucoesSetor"; // <-- ADICIONADO AQUI
@@ -476,6 +478,22 @@ const App = () => {
                       element={
                         <ProtectedRoute pageKey="producao_3d">
                           <Layout><Demandas3D /></Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/producao-3d/calculadora"
+                      element={
+                        <ProtectedRoute pageKey="producao_3d">
+                          <Layout><Calculadora3D /></Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/producao-3d/custos"
+                      element={
+                        <ProtectedRoute pageKey="producao_3d">
+                          <Layout><Custos3D /></Layout>
                         </ProtectedRoute>
                       }
                     />

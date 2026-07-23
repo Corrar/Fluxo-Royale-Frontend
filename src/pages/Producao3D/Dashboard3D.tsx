@@ -16,6 +16,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { brl } from "@/lib/cost3d";
+import { DollarSign, Wallet, Percent } from "lucide-react";
 
 // Utilitário para formatar minutos de forma legível
 const formatMinutes = (m: number) => {
@@ -62,6 +64,14 @@ export default function Dashboard3D() {
     queryKey: ["products-active"],
     queryFn: async () => (await api.get("/products")).data,
   });
+
+  // 2b. Relatório financeiro (custo/preço/lucro) — retroativo, filtrado pelo período
+  const fromISO = useMemo(() => startOfDay(subDays(new Date(), periodDays - 1)).toISOString(), [periodDays]);
+  const { data: financial } = useQuery({
+    queryKey: ["financial-3d", fromISO],
+    queryFn: async () => (await api.get(`/producao-3d/financial-report?from=${encodeURIComponent(fromISO)}`)).data,
+  });
+  const fin = financial?.totais;
 
   const isLoading = loadingProd || loadingParts;
 
@@ -207,6 +217,65 @@ export default function Dashboard3D() {
             <p className="text-[11px] text-slate-500 mt-1.5 uppercase font-bold tracking-widest">Ordens finalizadas</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* KPIs FINANCEIROS (custo, faturamento, lucro, margem) */}
+      <div>
+        <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-emerald-500" /> Financeiro do período
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          <Card className="border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1A1A1A] rounded-[24px] shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3 text-emerald-600 dark:text-emerald-400"><Wallet className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Faturamento</span></div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">{brl(fin?.faturamento || 0)}</p>
+              <p className="text-[11px] text-slate-500 mt-1">{Math.round(fin?.unidades || 0)} unidades</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1A1A1A] rounded-[24px] shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3 text-slate-500"><DollarSign className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Custo total</span></div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">{brl(fin?.custo || 0)}</p>
+              <p className="text-[11px] text-slate-500 mt-1">imposto {brl(fin?.imposto || 0)}</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-emerald-200/60 dark:border-emerald-500/20 bg-emerald-50/40 dark:bg-emerald-500/[0.06] rounded-[24px] shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3 text-emerald-600 dark:text-emerald-400"><TrendingUp className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Lucro líquido</span></div>
+              <p className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 font-mono">{brl(fin?.lucro || 0)}</p>
+              <p className="text-[11px] text-slate-500 mt-1">{brl(fin?.lucroPorHora || 0)}/hora-máquina</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1A1A1A] rounded-[24px] shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-3 text-amber-600 dark:text-amber-400"><Percent className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">Margem</span></div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono">{(fin?.margem || 0).toFixed(1)}%</p>
+              <p className="text-[11px] text-slate-500 mt-1">ticket {brl(fin?.ticketMedio || 0)}</p>
+            </CardContent>
+          </Card>
+        </div>
+        {financial?.ranking?.length > 0 && (
+          <Card className="mt-4 border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1A1A1A] rounded-[24px] shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Peças mais lucrativas</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[480px]">
+                  <thead><tr className="text-slate-400 text-[11px] uppercase"><th className="text-left py-2">Peça</th><th className="text-right py-2">Qtd</th><th className="text-right py-2">Receita</th><th className="text-right py-2">Lucro</th></tr></thead>
+                  <tbody>
+                    {financial.ranking.slice(0, 8).map((r: any, i: number) => (
+                      <tr key={i} className="border-t border-slate-100 dark:border-white/5">
+                        <td className="py-2 font-semibold text-slate-700 dark:text-slate-200">{r.name}</td>
+                        <td className="py-2 text-right font-mono text-slate-500">{Math.round(r.q)}</td>
+                        <td className="py-2 text-right font-mono">{brl(r.receita)}</td>
+                        <td className="py-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold">{brl(r.lucro)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* GRÁFICOS PREMIUM */}

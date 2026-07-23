@@ -5,7 +5,8 @@ import {
   Calculator, Eye, ClipboardList, Bell, ChevronLeft, ChevronRight,
   AlertTriangle, ShieldCheck, Lock, Sparkles, Kanban, Zap, ChevronDown, Search, ArrowUpCircle,
   Briefcase, RefreshCw, ArchiveRestore, Terminal, Building2,
-  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings, History // Ícones mantidos
+  Printer, ArrowLeftRight, Factory, ArrowDownToLine, Settings, History, // Ícones mantidos
+  DollarSign
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -386,6 +387,8 @@ export function Sidebar({ isCollapsed, toggleSidebar, onItemClick, isMobileMenu 
 
                   {renderLink("/producao-3d/demandas", <Kanban className={isMobileMenu ? "h-6 w-6 text-orange-500" : "h-[22px] w-[22px] text-orange-500"} strokeWidth={2.2} />, "Quadro de Demandas")}
                   {renderLink("/producao-3d/catalogo", <Package className={isMobileMenu ? "h-6 w-6 text-blue-500" : "h-[22px] w-[22px] text-blue-500"} strokeWidth={2.2} />, "Catálogo de Peças")}
+                  {renderLink("/producao-3d/calculadora", <Calculator className={isMobileMenu ? "h-6 w-6 text-indigo-500" : "h-[22px] w-[22px] text-indigo-500"} strokeWidth={2.2} />, "Calculadora de Custo")}
+                  {renderLink("/producao-3d/custos", <DollarSign className={isMobileMenu ? "h-6 w-6 text-emerald-500" : "h-[22px] w-[22px] text-emerald-500"} strokeWidth={2.2} />, "Custos & Preços")}
                 </div>
               </NavGroup>
             </>
