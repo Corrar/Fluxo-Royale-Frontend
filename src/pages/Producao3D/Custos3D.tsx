@@ -143,8 +143,8 @@ function Precificacao({ costing, loading, filaments, printers, config, onSaved }
                     <div className="text-[11px] font-mono text-slate-400">{p.sku}</div>
                   </td>
                   <td className="p-3 text-[12px] text-slate-500">
-                    {p.filament_nome || <span className="text-orange-500">sem filamento</span>}
-                    <br />{p.printer_nome || <span className="text-orange-500">sem impressora</span>}
+                    {p.filament_nome ? <>{p.filament_nome}{p.usando_filamento_padrao && <span className="text-amber-500 text-[10px]"> (padrão)</span>}</> : <span className="text-orange-500">sem filamento</span>}
+                    <br />{p.printer_nome ? <>{p.printer_nome}{p.usando_impressora_padrao && <span className="text-amber-500 text-[10px]"> (padrão)</span>}</> : <span className="text-orange-500">sem impressora</span>}
                   </td>
                   <td className="p-3 text-right font-mono text-[12px] text-slate-500">
                     {num(p.filament_grams)}g · {formatMinutes(p.production_minutes)}
@@ -227,8 +227,9 @@ function EditCosting({ peca, filaments, printers, onClose, onSaved }: any) {
 
 function Orcamento({ peca, filaments, printers, config, onClose }: any) {
   const [qtd, setQtd] = useState("70");
-  const fil = filaments.find((x: any) => x.id === peca.filament_id);
-  const prt = printers.find((x: any) => x.id === peca.printer_id);
+  // fallback para o padrão (1º cadastrado) quando a peça não tem vínculo
+  const fil = filaments.find((x: any) => x.id === peca.filament_id) || filaments[0];
+  const prt = printers.find((x: any) => x.id === peca.printer_id) || printers[0];
   const c = computeCost(peca, fil, prt, config || {});
   const q = num(qtd) || 1;
 
