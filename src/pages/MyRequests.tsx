@@ -227,38 +227,56 @@ export default function MyRequests() {
     return extractedTags;
   };
 
+  // =========================================================================
+  // 🛑 1. FILTRO DE TAGS DISPONÍVEIS NA BARRA SUPERIOR
+  // =========================================================================
   const availableTags = useMemo(() => {
     if (!products) return [];
     const tags = new Set<string>();
     const userSector = profile?.sector?.trim().toLowerCase() || "";
     const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
+    // 🛑 [NOVO] Identificamos se o utilizador tem permissão de almoxarife
+    const isAlmoxarife = String(profile?.role).toLowerCase() === 'almoxarife';
     
     products.forEach((p: any) => {
       const pTags = getProductTags(p);
       const isFerroProduct = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
       const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
+      // 🛑 [NOVO] Identifica se o produto tem a tag restrita MIN-TAI
+      const hasMinTai = pTags.some((t: string) => t.trim().toUpperCase() === 'MIN-TAI');
       
       if (isFerroProduct && userSector !== 'ferro') return;
       if (isUsinagemOperador && !hasUsinagemTag) return; 
+      // 🛑 [NOVO] Se o produto tiver MIN-TAI e o utilizador NÃO for almoxarife, ignoramos as tags dele
+      if (hasMinTai && !isAlmoxarife) return;
       
       pTags.forEach((t: string) => tags.add(t));
     });
     return Array.from(tags).sort();
   }, [products, profile]);
 
+  // =========================================================================
+  // 🛑 2. FILTRO DE PRODUTOS LISTADOS
+  // =========================================================================
   const filteredProducts = useMemo(() => {
     if (!products) return [];
     let result = products;
     const userSector = profile?.sector?.trim().toLowerCase() || "";
     const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
+    // 🛑 [NOVO] Verifica novamente o cargo para filtrar a lista visual
+    const isAlmoxarife = String(profile?.role).toLowerCase() === 'almoxarife';
 
     result = result.filter((p: any) => {
       const pTags = getProductTags(p);
       const isFerroProduct = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
       const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
+      // 🛑 [NOVO] Identifica a tag MIN-TAI
+      const hasMinTai = pTags.some((t: string) => t.trim().toUpperCase() === 'MIN-TAI');
 
       if (isFerroProduct && userSector !== 'ferro') return false;
       if (isUsinagemOperador && !hasUsinagemTag) return false; 
+      // 🛑 [NOVO] Se tem a tag MIN-TAI e não é almoxarife, esconde o produto do ecrã (retorna false)
+      if (hasMinTai && !isAlmoxarife) return false;
 
       return true;
     });
@@ -366,6 +384,9 @@ export default function MyRequests() {
      if (item && item.quantity === 0) handleRemoveItem(productId);
   };
 
+  // =========================================================================
+  // 🛑 3. FILTRO NO UPLOAD DE EXCEL (Evita importação não autorizada)
+  // =========================================================================
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -388,6 +409,8 @@ export default function MyRequests() {
         const newUnmatched = [...unmatchedItems]; 
         const userSector = profile?.sector?.trim().toLowerCase() || "";
         const isUsinagemOperador = String(profile?.role) === 'usinagem_operador';
+        // 🛑 [NOVO] Adicionamos o perfil
+        const isAlmoxarife = String(profile?.role).toLowerCase() === 'almoxarife';
 
         data.forEach((row: any, index: number) => {
           const getProp = (possibleKeys: string[]) => {
@@ -411,13 +434,17 @@ export default function MyRequests() {
               const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
               const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
               const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
+              // 🛑 [NOVO] Verifica MIN-TAI no Excel
+              const hasMinTai = pTags.some((t: string) => t.trim().toUpperCase() === 'MIN-TAI');
 
               const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
               const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
               const isRestrictedFerro = isFerro && userSector !== "ferro";
               const isRestrictedUsinagem = isUsinagemOperador && !hasUsinagemTag;
+              const isRestrictedMinTai = hasMinTai && !isAlmoxarife;
               
-              const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem;
+              // 🛑 [NOVO] Junta a restrição MIN-TAI à variável principal
+              const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem || isRestrictedMinTai;
 
               if (isRestricted) {
                   newUnmatched.push({ id: `unm-${Date.now()}-${index}`, rawName: product.name, rawSku: String(rowSku), rawQty: rowQty, reason: "Restrito" });
@@ -937,17 +964,25 @@ export default function MyRequests() {
                     const pTags = getProductTags(product);
                     const userSector = profile?.sector?.trim().toLowerCase() || "";
                     
+                    // 🛑 [NOVO] Adicionado o perfil atual 
+                    const isAlmoxarife = String(profile?.role).toLowerCase() === 'almoxarife';
+                    
                     const isCamiseta = pTags.some((t: string) => ['CAMISETA', 'CAMISETAS'].includes(t.trim().toUpperCase()));
                     const isFeira = pTags.some((t: string) => t.trim().toUpperCase() === 'FEIRA');
                     const isFerro = pTags.some((t: string) => t.trim().toUpperCase() === 'FERRO');
                     const hasUsinagemTag = pTags.some((t: string) => t.trim().toUpperCase() === 'USINAGEM');
+                    // 🛑 [NOVO] Verifica restrição no momento do render 
+                    const hasMinTai = pTags.some((t: string) => t.trim().toUpperCase() === 'MIN-TAI');
 
                     const isRestrictedCamiseta = isCamiseta && String(profile?.role) !== "escritorio";
                     const isRestrictedFeira = isFeira && !["admin", "almoxarife", "escritorio"].includes(String(profile?.role).toLowerCase());
                     const isRestrictedFerro = isFerro && userSector !== "ferro";
                     const isRestrictedUsinagem = String(profile?.role) === 'usinagem_operador' && !hasUsinagemTag;
+                    // 🛑 [NOVO] Configura variável visual de erro 
+                    const isRestrictedMinTai = hasMinTai && !isAlmoxarife;
 
-                    const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem;
+                    // 🛑 [NOVO] Adiciona o min-tai à variável principal que muda o design do card
+                    const isRestricted = isRestrictedCamiseta || isRestrictedFeira || isRestrictedFerro || isRestrictedUsinagem || isRestrictedMinTai;
                     
                     const updateQuantity = (change: number, e: React.MouseEvent) => {
                       e.stopPropagation();
@@ -984,6 +1019,8 @@ export default function MyRequests() {
                           else if (isRestrictedFeira) toast.error("Somente Escritório, Almoxarifado e Admin podem solicitar materiais de Feira.");
                           else if (isRestrictedFerro) toast.error("Somente o setor Ferro tem autorização para visualizar e solicitar estes materiais.");
                           else if (isRestrictedUsinagem) toast.error("Como Operador de Usinagem, você só pode solicitar itens com a tag Usinagem.");
+                          // 🛑 [NOVO] Adicionado o erro visual se houver tentativa de drible via inspeção
+                          else if (isRestrictedMinTai) toast.error("Apenas o Almoxarifado tem permissão para solicitar itens MIN-TAI.");
                         }}
                       >
                         <div className="flex items-start gap-3 w-full">
@@ -1025,7 +1062,7 @@ export default function MyRequests() {
                           {isRestricted ? (
                              <span className="text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
                                <AlertTriangle className="w-3 h-3" /> 
-                               {isRestrictedCamiseta ? "Restrito ao Escritório" : isRestrictedFerro ? "Restrito ao setor Ferro" : isRestrictedUsinagem ? "Restrito a Usinagem" : "Acesso Restrito"}
+                               {isRestrictedCamiseta ? "Restrito ao Escritório" : isRestrictedFerro ? "Restrito ao setor Ferro" : isRestrictedUsinagem ? "Restrito a Usinagem" : isRestrictedMinTai ? "Restrito ao Almoxarifado" : "Acesso Restrito"}
                              </span>
                           ) : available > 0 && (
                             inCart ? (
